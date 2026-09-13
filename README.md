@@ -1,122 +1,63 @@
-CÂY THƯ MỤC 
+## 📁 Project Structure
 
-
-
+```text
 cinema-booking/
-
 │
-
 ├── app/
-
 │   ├── api/
-
 │   │   ├── auth.py
-
 │   │   ├── movie.py
-
 │   │   ├── showtime.py
-
 │   │   └── booking.py
-
 │   │
-
 │   ├── services/
-
-│   │   ├── auth\_service.py
-
-│   │   ├── movie\_service.py
-
-│   │   ├── showtime\_service.py
-
-│   │   └── booking\_service.py
-
+│   │   ├── auth_service.py
+│   │   ├── movie_service.py
+│   │   ├── showtime_service.py
+│   │   └── booking_service.py
 │   │
-
 │   ├── repositories/
-
-│   │   ├── user\_repository.py
-
-│   │   ├── movie\_repository.py
-
-│   │   ├── showtime\_repository.py
-
-│   │   └── booking\_repository.py
-
+│   │   ├── user_repository.py
+│   │   ├── movie_repository.py
+│   │   ├── showtime_repository.py
+│   │   └── booking_repository.py
 │   │
-
 │   ├── models/
-
 │   │   ├── user.py
-
 │   │   ├── movie.py
-
 │   │   ├── showtime.py
-
 │   │   └── booking.py
-
 │   │
-
 │   ├── schemas/
-
 │   │   ├── auth.py
-
 │   │   ├── movie.py
-
 │   │   ├── showtime.py
-
 │   │   └── booking.py
-
 │   │
-
 │   ├── core/
-
 │   │   ├── security.py
-
-│   │   ├── auth\_middleware.py
-
+│   │   ├── auth_middleware.py
 │   │   └── exceptions.py
-
 │   │
-
 │   ├── db/
-
 │   │   └── database.py
-
 │   │
-
 │   └── main.py
-
 │
-
 ├── tests/
-
-│   ├── test\_auth.py
-
-│   ├── test\_movie.py
-
-│   ├── test\_showtime.py
-
-│   └── test\_booking.py
-
+│   ├── test_auth.py
+│   ├── test_movie.py
+│   ├── test_showtime.py
+│   └── test_booking.py
 │
-
-├── load\_test/
-
-│   └── load\_test.py
-
+├── load_test/
+│   └── load_test.py
 │
-
 ├── seed.py
-
 ├── Dockerfile
-
 ├── docker-compose.yml
-
 ├── .env.example
-
 ├── requirements.txt
-
 ├── README.md
-
 └── .gitignore
 
