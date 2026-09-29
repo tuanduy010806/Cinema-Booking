@@ -7,6 +7,7 @@ from app.models.movie import Movie
 from app.models.showtime import Showtime
 
 
+
 def main():
     """Seed database with initial data."""
     session = SessionLocal()
