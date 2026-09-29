@@ -60,6 +60,7 @@ Thực hiện các công việc sau theo thứ tự:
 
 Chốt sớm với các bạn khác 3 nội dung sau:
 
+
 - Người 1 cung cấp `get_db`, middleware JWT và dependency kiểm tra `ADMIN`.
 - Người 3 dùng đúng `showtime_id` và cùng định dạng `seat_number`.
 - Khi xóa `Movie`/`Showtime` có booking liên quan, chọn quy tắc đơn giản: từ chối xóa và trả lỗi `409 Conflict`, hoặc chỉ cho phép xóa khi chưa có booking.
