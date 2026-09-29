@@ -1,0 +1,8 @@
+sqlalchemy
+sqlalchemy.orm 
+pydantic
+fastapi 
+pytest
+
+
+# pip install -r requirements.txt
