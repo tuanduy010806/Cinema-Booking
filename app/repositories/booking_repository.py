@@ -1,18 +1,8 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import DuplicateSeatError
 from app.models.booking import Booking
-
-
-class DuplicateSeatError(Exception):
-    """Được raise khi đã tồn tại một đặt chỗ đang hoạt động cho cùng suất chiếu."""
-
-    def __init__(self, showtime_id: int, seat_number: str) -> None:
-        self.showtime_id = showtime_id
-        self.seat_number = seat_number
-        super().__init__(
-            f"Ghế '{seat_number}' đã được đặt cho suất chiếu {showtime_id}."
-        )
 
 
 class BookingRepository:
