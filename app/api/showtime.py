@@ -10,6 +10,7 @@ from app.services.showtime_service import ShowtimeService
 router = APIRouter(prefix="/api/v1/showtimes", tags=["showtimes"])
 
 
+
 def get_showtime_service(db: Session = Depends(get_db)) -> ShowtimeService:
     return ShowtimeService(ShowtimeRepository(db), MovieRepository(db))
 

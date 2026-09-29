@@ -5,6 +5,7 @@ from app.models.booking import Booking
 from app.models.showtime import Showtime
 
 
+
 class ShowtimeRepository:
     """Data access for Showtime entity."""
 

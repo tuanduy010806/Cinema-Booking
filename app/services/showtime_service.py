@@ -2,6 +2,7 @@ from app.core.exceptions import NotFoundException
 from app.schemas.showtime import ShowtimeCreate
 
 
+
 class ShowtimeService:
     """Business logic for showtimes."""
 
