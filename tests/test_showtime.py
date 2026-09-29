@@ -7,7 +7,6 @@ from app.core.exceptions import NotFoundException
 from app.schemas.showtime import ShowtimeCreate
 from app.services.showtime_service import ShowtimeService
 
-
 class FakeMovieRepository:
     def get_by_id(self, movie_id: int):
         if movie_id == 1:

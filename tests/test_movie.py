@@ -6,7 +6,6 @@ from app.core.exceptions import NotFoundException
 from app.schemas.movie import MovieCreate, MovieUpdate
 from app.services.movie_service import MovieService
 
-
 class FakeMovieRepository:
     def __init__(self):
         self.movies = {
