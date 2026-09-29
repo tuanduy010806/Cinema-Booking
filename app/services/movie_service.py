@@ -2,6 +2,7 @@ from app.schemas.movie import MovieCreate, MovieUpdate
 from app.core.exceptions import NotFoundException
 
 
+
 class MovieService:
     """Business logic for movies."""
 

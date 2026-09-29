@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.models.movie import Movie
 
 
+
 class MovieRepository:
     """Data access for Movie entity."""
 

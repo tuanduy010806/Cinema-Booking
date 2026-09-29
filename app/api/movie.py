@@ -8,6 +8,7 @@ from app.services.movie_service import MovieService
 
 router = APIRouter(prefix="/api/v1/movies", tags=["movies"])
 
+ 
 
 def get_movie_service(db: Session = Depends(get_db)) -> MovieService:
     return MovieService(MovieRepository(db))
