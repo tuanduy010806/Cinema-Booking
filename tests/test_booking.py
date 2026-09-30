@@ -1,8 +1,287 @@
-def test_create_booking():
-    # TODO: implement
-    pass
+"""
+tests/test_booking.py
+=====================
+Integration tests for the Booking API.
+
+Stack under test
+----------------
+    TestClient → FastAPI → Booking API → BookingService
+                        → BookingRepository → SQLAlchemy → PostgreSQL TEST
+
+What is mocked
+--------------
+    Only the current user (get_mock_current_user).
+
+What is NOT mocked
+------------------
+    BookingService, BookingRepository, SQLAlchemy Session, PostgreSQL.
+
+Isolation
+---------
+    Every test receives a fresh, rolled-back transaction from the db_session
+    fixture in conftest.py.  Tests are fully independent of execution order.
+"""
+
+from __future__ import annotations
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.api.booking import get_mock_current_user
+from app.main import app
+from app.models.booking import Booking
+from app.models.showtime import Showtime
+from app.models.user import User
+from sqlalchemy.orm import Session
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+BASE = "/api/v1/bookings"
 
 
-def test_get_my_bookings():
-    # TODO: implement
-    pass
+def _as_user(user: User):
+    """Return a dependency override callable that identifies as *user*."""
+    def _override() -> dict:
+        return {"id": user.id, "role": "USER"}
+    return _override
+
+
+# ---------------------------------------------------------------------------
+# 1. test_create_booking_success
+# ---------------------------------------------------------------------------
+
+def test_create_booking_success(client: TestClient, user1: User, showtime1: Showtime):
+    """POST /bookings/ creates a booking and returns 201 with correct fields."""
+    resp = client.post(BASE + "/", json={
+        "showtime_id": showtime1.id,
+        "seat_number": "A1",
+    })
+
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["user_id"] == user1.id
+    assert data["showtime_id"] == showtime1.id
+    assert data["seat_number"] == "A1"
+    assert data["status"] == "active"
+    assert "id" in data
+    assert "created_at" in data
+
+
+# ---------------------------------------------------------------------------
+# 2. test_duplicate_seat_error
+# ---------------------------------------------------------------------------
+
+def test_duplicate_seat_error(client: TestClient, showtime1: Showtime):
+    """Booking the same seat twice in the same showtime returns 400."""
+    payload = {"showtime_id": showtime1.id, "seat_number": "B2"}
+
+    first = client.post(BASE + "/", json=payload)
+    assert first.status_code == 201, first.text
+
+    second = client.post(BASE + "/", json=payload)
+    assert second.status_code == 400, second.text
+
+
+# ---------------------------------------------------------------------------
+# 3. test_same_seat_different_showtime_allowed
+# ---------------------------------------------------------------------------
+
+def test_same_seat_different_showtime_allowed(
+    client: TestClient, showtime1: Showtime, showtime2: Showtime
+):
+    """The same seat label is allowed on different showtimes."""
+    resp1 = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "C3"})
+    resp2 = client.post(BASE + "/", json={"showtime_id": showtime2.id, "seat_number": "C3"})
+
+    assert resp1.status_code == 201, resp1.text
+    assert resp2.status_code == 201, resp2.text
+    # They must be different bookings
+    assert resp1.json()["id"] != resp2.json()["id"]
+
+
+# ---------------------------------------------------------------------------
+# 4. test_get_my_bookings
+# ---------------------------------------------------------------------------
+
+def test_get_my_bookings(
+    client: TestClient, user1: User, showtime1: Showtime, showtime2: Showtime
+):
+    """GET /bookings/me returns only the current user's bookings."""
+    client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "D1"})
+    client.post(BASE + "/", json={"showtime_id": showtime2.id, "seat_number": "D2"})
+
+    resp = client.get(BASE + "/me")
+    assert resp.status_code == 200, resp.text
+    bookings = resp.json()
+
+    assert len(bookings) >= 2
+    assert all(b["user_id"] == user1.id for b in bookings)
+
+
+# ---------------------------------------------------------------------------
+# 5. test_cancel_booking_success
+# ---------------------------------------------------------------------------
+
+def test_cancel_booking_success(
+    client: TestClient, db_session: Session, showtime1: Showtime
+):
+    """DELETE /bookings/{id} cancels the booking; status becomes 'cancelled'."""
+    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "E5"})
+    assert create_resp.status_code == 201, create_resp.text
+    booking_id = create_resp.json()["id"]
+
+    cancel_resp = client.delete(f"{BASE}/{booking_id}")
+    assert cancel_resp.status_code == 200, cancel_resp.text
+    assert cancel_resp.json()["status"] == "cancelled"
+
+    # Confirm status in the database
+    db_session.expire_all()
+    record = db_session.get(Booking, booking_id)
+    assert record is not None
+    assert record.status == "cancelled"
+
+
+# ---------------------------------------------------------------------------
+# 6. test_ownership_error
+# ---------------------------------------------------------------------------
+
+def test_ownership_error(
+    client: TestClient, user1: User, user2: User, showtime1: Showtime
+):
+    """User 2 cannot cancel a booking created by User 1 → 403."""
+    # user1 creates the booking (client fixture is already user1)
+    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "F6"})
+    assert create_resp.status_code == 201, create_resp.text
+    booking_id = create_resp.json()["id"]
+
+    # Switch the mock auth to user2 and attempt to cancel
+    app.dependency_overrides[get_mock_current_user] = _as_user(user2)
+    try:
+        cancel_resp = client.delete(f"{BASE}/{booking_id}")
+    finally:
+        # Restore user1 as the authenticated user
+        app.dependency_overrides[get_mock_current_user] = _as_user(user1)
+
+    assert cancel_resp.status_code == 403, cancel_resp.text
+
+    # Booking must remain active
+    check_resp = client.get(BASE + "/me")
+    my_bookings = check_resp.json()
+    target = next((b for b in my_bookings if b["id"] == booking_id), None)
+    assert target is not None
+    assert target["status"] == "active"
+
+
+# ---------------------------------------------------------------------------
+# 7. test_not_found_booking
+# ---------------------------------------------------------------------------
+
+def test_not_found_booking(client: TestClient):
+    """DELETE /bookings/{id} with a non-existent id returns 404."""
+    resp = client.delete(f"{BASE}/999999999")
+    assert resp.status_code == 404, resp.text
+
+
+# ---------------------------------------------------------------------------
+# 8. test_cancel_already_cancelled
+# ---------------------------------------------------------------------------
+
+def test_cancel_already_cancelled(client: TestClient, showtime1: Showtime):
+    """Cancelling an already-cancelled booking returns a business error (400)."""
+    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "G7"})
+    assert create_resp.status_code == 201, create_resp.text
+    booking_id = create_resp.json()["id"]
+
+    first_cancel = client.delete(f"{BASE}/{booking_id}")
+    assert first_cancel.status_code == 200, first_cancel.text
+
+    second_cancel = client.delete(f"{BASE}/{booking_id}")
+    # Must not silently succeed — a domain error (400) must be returned
+    assert second_cancel.status_code == 400, second_cancel.text
+
+
+# ---------------------------------------------------------------------------
+# 9. test_user_booking_isolation
+# ---------------------------------------------------------------------------
+
+def test_user_booking_isolation(
+    client: TestClient, user1: User, user2: User,
+    showtime1: Showtime, showtime2: Showtime,
+):
+    """User 1 does not see User 2's bookings in GET /bookings/me."""
+    # user1 creates a booking (client is user1)
+    client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "H1"})
+
+    # Switch to user2, create a different booking
+    app.dependency_overrides[get_mock_current_user] = _as_user(user2)
+    try:
+        client.post(BASE + "/", json={"showtime_id": showtime2.id, "seat_number": "H2"})
+        user2_bookings = client.get(BASE + "/me").json()
+    finally:
+        app.dependency_overrides[get_mock_current_user] = _as_user(user1)
+
+    # user2 must only see their own bookings
+    assert all(b["user_id"] == user2.id for b in user2_bookings)
+
+    # user1 must only see their own bookings
+    user1_bookings = client.get(BASE + "/me").json()
+    assert all(b["user_id"] == user1.id for b in user1_bookings)
+
+    # The two sets must be disjoint
+    user1_ids = {b["id"] for b in user1_bookings}
+    user2_ids = {b["id"] for b in user2_bookings}
+    assert user1_ids.isdisjoint(user2_ids)
+
+
+# ---------------------------------------------------------------------------
+# 10. test_cancel_does_not_delete_record
+# ---------------------------------------------------------------------------
+
+def test_cancel_does_not_delete_record(
+    client: TestClient, db_session: Session, showtime1: Showtime
+):
+    """After cancellation the record still exists in the database."""
+    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "I9"})
+    assert create_resp.status_code == 201, create_resp.text
+    booking_id = create_resp.json()["id"]
+
+    cancel_resp = client.delete(f"{BASE}/{booking_id}")
+    assert cancel_resp.status_code == 200, cancel_resp.text
+
+    # The row must still be present in the database
+    db_session.expire_all()
+    record = db_session.get(Booking, booking_id)
+    assert record is not None, "Record was hard-deleted — expected soft-delete only"
+    assert record.status == "cancelled"
+
+
+# ---------------------------------------------------------------------------
+# 11. test_cancelled_seat_can_be_rebooked
+# ---------------------------------------------------------------------------
+
+def test_cancelled_seat_can_be_rebooked(
+    client: TestClient, user1: User, user2: User, showtime1: Showtime
+):
+    """A cancelled seat can be re-booked by a different user."""
+    seat = "J10"
+
+    # user1 books and then cancels
+    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": seat})
+    assert create_resp.status_code == 201, create_resp.text
+    booking_id = create_resp.json()["id"]
+
+    cancel_resp = client.delete(f"{BASE}/{booking_id}")
+    assert cancel_resp.status_code == 200, cancel_resp.text
+
+    # user2 re-books the same seat — must succeed
+    app.dependency_overrides[get_mock_current_user] = _as_user(user2)
+    try:
+        rebook_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": seat})
+    finally:
+        app.dependency_overrides[get_mock_current_user] = _as_user(user1)
+
+    assert rebook_resp.status_code == 201, rebook_resp.text
+    assert rebook_resp.json()["user_id"] == user2.id
+    assert rebook_resp.json()["status"] == "active"
