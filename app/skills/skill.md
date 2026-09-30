@@ -87,6 +87,7 @@
 
  Công việc:
 
+
  1. Movie model
  2. Movie schema
  3. Movie repository
