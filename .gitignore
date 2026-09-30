@@ -10,6 +10,9 @@ env/
 # Environment variables / secrets
 .env
 .env.*
+# Test-specific secret files (never commit real credentials)
+.env.test
+.env.test.local
 
 # IDE
 .vscode/
