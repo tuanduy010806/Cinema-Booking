@@ -20,6 +20,8 @@ class CinemaException(Exception):
 # Generic resource exceptions
 # ---------------------------------------------------------------------------
 
+class InvalidTokenError(CinemaException):
+    pass
 
 class NotFoundException(CinemaException):
     """Resource not found."""
