@@ -4,8 +4,10 @@ from app.api.auth import router as auth_router
 from app.api.booking import router as booking_router
 from app.api.movie import router as movie_router
 from app.api.showtime import router as showtime_router
+from app.core.auth_middleware import AuthMiddleware
 
 app = FastAPI(title="Cinema Booking System")
+app.add_middleware(AuthMiddleware)
 
 app.include_router(auth_router)
 app.include_router(movie_router)

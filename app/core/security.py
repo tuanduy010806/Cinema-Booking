@@ -1,12 +1,11 @@
-from pwdlib import PasswordHash
-from typing import Optional
-from app.schemas.token import Token
-import jwt
-from datetime import timedelta, datetime, timezone
-from fastapi import HTTPException, status
-from app.core.exceptions import InvalidTokenError
 import os
+from datetime import datetime, timedelta, timezone
+
+import jwt
 from dotenv import load_dotenv
+from fastapi import HTTPException, status
+from pwdlib import PasswordHash
+
 load_dotenv()
 
 password_hasher = PasswordHash.recommended()
@@ -24,13 +23,13 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return password_hasher.verify(hashed_password, plain_password)
 
 
-def create_access_token(data: dict , exprie_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict, exprie_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
     if exprie_delta is None:
         exprie_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": datetime.now(timezone.utc) + exprie_delta})
     access_token = jwt.encode(to_encode, SECRET_KEY, ALGORITHM)
-    return Token(access_token=access_token, token_type="bearer")
+    return access_token
 
 
 def decode_access_token(token: str) -> dict:
@@ -40,6 +39,6 @@ def decode_access_token(token: str) -> dict:
     )
     try :
         payload = jwt.decode(token,key=SECRET_KEY,algorithms=[ALGORITHM])
-    except InvalidTokenError:
+    except jwt.InvalidTokenError:
         raise credentials_exception
     return payload

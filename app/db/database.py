@@ -1,17 +1,19 @@
 from collections.abc import AsyncGenerator
-
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
-from app.core.config import settings
 
+DATA_URL : str = os.getenv("DATABASE_URL")
 
 class Base(DeclarativeBase):
     pass
 
 
 engine = create_async_engine(
-    url = settings.DATA_URL,
+    url = DATA_URL,
     echo = True,
     future = True,
     pool_size = 10,
