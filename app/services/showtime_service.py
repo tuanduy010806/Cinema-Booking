@@ -10,21 +10,21 @@ class ShowtimeService:
         self.showtime_repository = showtime_repository
         self.movie_repository = movie_repository
 
-    def list_showtimes(self, movie_id: int | None = None):
-        return self.showtime_repository.get_all(movie_id=movie_id)
+    async def list_showtimes(self, movie_id: int | None = None):
+        return await self.showtime_repository.get_all(movie_id=movie_id)
 
-    def create_showtime(self, payload: ShowtimeCreate):
-        movie = self.movie_repository.get_by_id(payload.movie_id)
+    async def create_showtime(self, payload: ShowtimeCreate):
+        movie = await self.movie_repository.get_by_id(payload.movie_id)
         if movie is None:
             raise NotFoundException("Movie not found")
-        return self.showtime_repository.create(payload.model_dump())
+        return await self.showtime_repository.create(payload.model_dump())
 
-    def get_seats(self, showtime_id: int):
-        showtime = self.showtime_repository.get_by_id(showtime_id)
+    async def get_seats(self, showtime_id: int):
+        showtime = await self.showtime_repository.get_by_id(showtime_id)
         if showtime is None:
             raise NotFoundException("Showtime not found")
 
-        booked_seats = self.showtime_repository.get_booked_seats(showtime_id)
+        booked_seats = await self.showtime_repository.get_booked_seats(showtime_id)
         return [
             {
                 "seat_number": str(seat_number),
