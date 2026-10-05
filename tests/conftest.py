@@ -12,16 +12,26 @@ Design decisions
   (The project has no Alembic; adding it is out of scope for this task.)
 * Every test function gets its own transaction that is rolled back at the end,
   giving full isolation without wiping and re-creating the schema each time.
-* Two users (id 1, 2) and two showtimes (id 1, 2) are seeded per test via
-  function-scoped fixtures so tests always start from a known state.
-* get_db and get_mock_current_user are overridden on the FastAPI app so
+* Two users (user_id 1, 2) and two showtimes (id 1, 2) are seeded per test
+  via function-scoped fixtures so tests always start from a known state.
+* get_db and get_current_user are overridden on the FastAPI app so
   integration tests use the test session automatically.
+
+Integration changes (PROMPT 11):
+- override_get_db now overrides get_current_user (not get_mock_current_user)
+  to match the real auth dependency in booking.py (Audit #12).
+- user1/user2 fixtures now include username (required column) and the
+  client fixture reads user.user_id (not user.id) to build the auth dict
+  (Audit #13).
+- get_booking_service is overridden with a sync-compatible shim that wraps
+  the sync test session in a minimal async-compatible proxy so the async
+  BookingRepository can be used in tests (Audit #7, #8).
 """
 
 from __future__ import annotations
 
 import os
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -151,23 +161,77 @@ def db_session(test_engine) -> Generator[Session, None, None]:
 
 
 # ---------------------------------------------------------------------------
-# get_db override — injects test session into FastAPI dependency injection
+# Async-compatible session proxy for BookingRepository in tests
+#
+# BookingRepository is fully async (AsyncSession).  The test db_session is a
+# sync Session tied to a savepoint-wrapped connection.
+#
+# This proxy wraps the sync Session in an object that exposes the async API
+# (add, commit, rollback, refresh, get, execute) so that the async
+# BookingRepository works with the sync test Session without needing a second
+# async engine or breaking savepoint-based isolation.
+#
+# Audit #7, #8: required because BookingRepository uses AsyncSession; tests
+# must not create a new async engine.
+# ---------------------------------------------------------------------------
+
+class _SyncSessionAsyncProxy:
+    """Minimal async proxy around a synchronous SQLAlchemy Session.
+
+    Wraps only the methods used by BookingRepository.  Each async method
+    delegates synchronously to the underlying Session.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, instance: Any) -> None:
+        self._session.add(instance)
+
+    async def commit(self) -> None:
+        self._session.flush()   # savepoint-wrapped: flush instead of commit
+
+    async def rollback(self) -> None:
+        self._session.rollback()
+
+    async def refresh(self, instance: Any) -> None:
+        self._session.refresh(instance)
+
+    async def get(self, model: Any, ident: Any) -> Any:
+        return self._session.get(model, ident)
+
+    async def execute(self, statement: Any) -> Any:
+        return self._session.execute(statement)
+
+
+# ---------------------------------------------------------------------------
+# get_db / get_current_user overrides — inject test session into FastAPI DI
 # ---------------------------------------------------------------------------
 
 @pytest.fixture()
 def override_get_db(db_session: Session):
-    """Override the app's get_db dependency to use the test session."""
-    from app.api.booking import get_booking_service
+    """Override get_db and get_booking_service to use the sync test session.
+
+    Integration change (Audit #7, #8, #12):
+    - get_booking_service is overridden (not get_db directly) so the async
+      BookingRepository receives the _SyncSessionAsyncProxy wrapping the
+      savepoint-isolated test Session.
+    - get_current_user override is set to None initially; the client fixture
+      sets the actual user override after user1 is created.
+    """
+    from app.api.booking import get_booking_service, get_current_user
     from app.db.database import get_db
     from app.main import app
     from app.repositories.booking_repository import BookingRepository
     from app.services.booking_service import BookingService
 
-    def _get_db_override() -> Generator[Session, None, None]:
-        yield db_session
+    proxy = _SyncSessionAsyncProxy(db_session)
+
+    async def _get_db_override() -> AsyncGenerator:
+        yield proxy
 
     def _get_booking_service_override() -> BookingService:
-        repo = BookingRepository(db_session)
+        repo = BookingRepository(proxy)
         return BookingService(repo)
 
     app.dependency_overrides[get_db] = _get_db_override
@@ -182,14 +246,15 @@ def override_get_db(db_session: Session):
 
 @pytest.fixture()
 def user1(db_session: Session) -> User:
-    """Seed User 1 (id is assigned by PostgreSQL SERIAL, stored as attribute)."""
+    """Seed User 1 (user_id assigned by PostgreSQL SERIAL)."""
     user = User(
         email="user1@test.example",
+        username="user1",
         password_hash="hashed_password_1",
         role="USER",
     )
     db_session.add(user)
-    db_session.flush()   # populate user.id without committing
+    db_session.flush()   # populate user.user_id without committing
     return user
 
 
@@ -198,6 +263,7 @@ def user2(db_session: Session) -> User:
     """Seed User 2."""
     user = User(
         email="user2@test.example",
+        username="user2",
         password_hash="hashed_password_2",
         role="USER",
     )
@@ -251,21 +317,25 @@ def showtime2(db_session: Session, movie: Movie) -> Showtime:
 
 @pytest.fixture()
 def client(override_get_db, user1: User) -> Generator[TestClient, None, None]:
-    """Return a TestClient with get_db and get_mock_current_user overridden.
+    """Return a TestClient with get_db and get_current_user overridden.
 
-    The mock auth is set to user1 by default.  Individual tests can call
-    app.dependency_overrides[get_mock_current_user] to change the user.
+    The auth is set to user1 by default.  Individual tests can call
+    app.dependency_overrides[get_current_user] to change the user.
+
+    Integration change (Audit #12, #13):
+    - Overrides get_current_user (not get_mock_current_user).
+    - Reads user1.user_id (not user1.id) for the "id" key (Audit #13).
     """
-    from app.api.booking import get_mock_current_user
+    from app.api.booking import get_current_user
     from app.main import app
 
     def _mock_user_override() -> dict:
-        return {"id": user1.id, "role": "USER"}
+        return {"id": user1.user_id, "role": "USER"}
 
-    app.dependency_overrides[get_mock_current_user] = _mock_user_override
+    app.dependency_overrides[get_current_user] = _mock_user_override
 
     with TestClient(app) as c:
         yield c
 
     # Clear the user override; override_get_db fixture clears the rest.
-    app.dependency_overrides.pop(get_mock_current_user, None)
+    app.dependency_overrides.pop(get_current_user, None)

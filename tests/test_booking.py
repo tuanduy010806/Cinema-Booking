@@ -27,7 +27,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.booking import get_mock_current_user
+from app.api.booking import get_current_user
 from app.main import app
 from app.models.booking import Booking
 from app.models.showtime import Showtime
@@ -44,7 +44,8 @@ BASE = "/api/v1/bookings"
 def _as_user(user: User):
     """Return a dependency override callable that identifies as *user*."""
     def _override() -> dict:
-        return {"id": user.id, "role": "USER"}
+        # user.user_id is the actual PK column name (Audit #13)
+        return {"id": user.user_id, "role": "USER"}
     return _override
 
 
@@ -61,7 +62,7 @@ def test_create_booking_success(client: TestClient, user1: User, showtime1: Show
 
     assert resp.status_code == 201, resp.text
     data = resp.json()
-    assert data["user_id"] == user1.id
+    assert data["user_id"] == user1.user_id
     assert data["showtime_id"] == showtime1.id
     assert data["seat_number"] == "A1"
     assert data["status"] == "active"
@@ -117,7 +118,7 @@ def test_get_my_bookings(
     bookings = resp.json()
 
     assert len(bookings) >= 2
-    assert all(b["user_id"] == user1.id for b in bookings)
+    assert all(b["user_id"] == user1.user_id for b in bookings)
 
 
 # ---------------------------------------------------------------------------
@@ -157,12 +158,12 @@ def test_ownership_error(
     booking_id = create_resp.json()["id"]
 
     # Switch the mock auth to user2 and attempt to cancel
-    app.dependency_overrides[get_mock_current_user] = _as_user(user2)
+    app.dependency_overrides[get_current_user] = _as_user(user2)
     try:
         cancel_resp = client.delete(f"{BASE}/{booking_id}")
     finally:
         # Restore user1 as the authenticated user
-        app.dependency_overrides[get_mock_current_user] = _as_user(user1)
+        app.dependency_overrides[get_current_user] = _as_user(user1)
 
     assert cancel_resp.status_code == 403, cancel_resp.text
 
@@ -215,19 +216,19 @@ def test_user_booking_isolation(
     client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "H1"})
 
     # Switch to user2, create a different booking
-    app.dependency_overrides[get_mock_current_user] = _as_user(user2)
+    app.dependency_overrides[get_current_user] = _as_user(user2)
     try:
         client.post(BASE + "/", json={"showtime_id": showtime2.id, "seat_number": "H2"})
         user2_bookings = client.get(BASE + "/me").json()
     finally:
-        app.dependency_overrides[get_mock_current_user] = _as_user(user1)
+        app.dependency_overrides[get_current_user] = _as_user(user1)
 
     # user2 must only see their own bookings
-    assert all(b["user_id"] == user2.id for b in user2_bookings)
+    assert all(b["user_id"] == user2.user_id for b in user2_bookings)
 
     # user1 must only see their own bookings
     user1_bookings = client.get(BASE + "/me").json()
-    assert all(b["user_id"] == user1.id for b in user1_bookings)
+    assert all(b["user_id"] == user1.user_id for b in user1_bookings)
 
     # The two sets must be disjoint
     user1_ids = {b["id"] for b in user1_bookings}
@@ -276,12 +277,12 @@ def test_cancelled_seat_can_be_rebooked(
     assert cancel_resp.status_code == 200, cancel_resp.text
 
     # user2 re-books the same seat — must succeed
-    app.dependency_overrides[get_mock_current_user] = _as_user(user2)
+    app.dependency_overrides[get_current_user] = _as_user(user2)
     try:
         rebook_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": seat})
     finally:
-        app.dependency_overrides[get_mock_current_user] = _as_user(user1)
+        app.dependency_overrides[get_current_user] = _as_user(user1)
 
     assert rebook_resp.status_code == 201, rebook_resp.text
-    assert rebook_resp.json()["user_id"] == user2.id
+    assert rebook_resp.json()["user_id"] == user2.user_id
     assert rebook_resp.json()["status"] == "active"

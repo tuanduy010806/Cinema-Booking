@@ -62,7 +62,7 @@ def _insert_booking(
 ) -> Booking:
     """Insert a Booking row directly via the session (no service pre-check)."""
     booking = Booking(
-        user_id=user.id,
+        user_id=user.user_id,          # Audit #13: actual PK column is user_id
         showtime_id=showtime.id,
         seat_number=seat_number,
         status=status,
@@ -89,20 +89,22 @@ def test_duplicate_active_seat_rejected_by_constraint(
 
     Expected: repository translates IntegrityError → DuplicateSeatError.
     """
-    repo = BookingRepository(db_session)
+    import asyncio
+    from tests.conftest import _SyncSessionAsyncProxy
+
+    proxy = _SyncSessionAsyncProxy(db_session)
+    repo = BookingRepository(proxy)
 
     # First booking succeeds.
-    first = repo.create(
-        {"showtime_id": showtime1.id, "seat_number": "A1"},
-        user_id=user1.id,
+    first = asyncio.get_event_loop().run_until_complete(
+        repo.create({"showtime_id": showtime1.id, "seat_number": "A1"}, user_id=user1.user_id)
     )
     assert first.status == "active"
 
     # Second booking on the same (showtime, seat, status=active) must fail.
     with pytest.raises(DuplicateSeatError) as exc_info:
-        repo.create(
-            {"showtime_id": showtime1.id, "seat_number": "A1"},
-            user_id=user1.id,
+        asyncio.get_event_loop().run_until_complete(
+            repo.create({"showtime_id": showtime1.id, "seat_number": "A1"}, user_id=user1.user_id)
         )
 
     err = exc_info.value

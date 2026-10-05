@@ -10,7 +10,7 @@ class Booking(Base):
     __tablename__ = "bookings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"))
     showtime_id: Mapped[int] = mapped_column(ForeignKey("showtimes.id"))
     seat_number: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, default="active")
