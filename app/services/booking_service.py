@@ -7,6 +7,9 @@ Rules enforced here:
 - No direct DB access.
 - All persistence work delegated to the injected repository.
 - All domain invariants (ownership, state transitions, duplicates) live here.
+
+Integration changes (PROMPT 11 — Audit item #7):
+- All public methods converted to async def to match the async BookingRepository.
 """
 
 from __future__ import annotations
@@ -38,7 +41,7 @@ class BookingService:
     # Public API
     # ------------------------------------------------------------------
 
-    def create_booking(self, user_id: int, payload: BookingCreate) -> Booking:
+    async def create_booking(self, user_id: int, payload: BookingCreate) -> Booking:
         """Create a new booking for *user_id*.
 
         Flow
@@ -68,7 +71,7 @@ class BookingService:
             post-INSERT race-condition path).
         """
         # --- Step 1: best-effort pre-check (not the authoritative guard) ---
-        already_taken = self.repo.check_seat_exists(
+        already_taken = await self.repo.check_seat_exists(
             showtime_id=payload.showtime_id,
             seat_number=payload.seat_number,
         )
@@ -80,9 +83,9 @@ class BookingService:
 
         # --- Step 2: delegate persistence (repository handles race condition) ---
         booking_data = payload.model_dump()
-        return self.repo.create(booking_data, user_id=user_id)
+        return await self.repo.create(booking_data, user_id=user_id)
 
-    def get_my_bookings(self, user_id: int) -> list[Booking]:
+    async def get_my_bookings(self, user_id: int) -> list[Booking]:
         """Return all bookings that belong to *user_id*.
 
         Parameters
@@ -95,9 +98,9 @@ class BookingService:
         list[Booking]:
             Possibly empty list of the user's bookings.
         """
-        return self.repo.get_by_user_id(user_id)
+        return await self.repo.get_by_user_id(user_id)
 
-    def cancel_booking(self, user_id: int, booking_id: int) -> Booking:
+    async def cancel_booking(self, user_id: int, booking_id: int) -> Booking:
         """Cancel a booking.
 
         Flow
@@ -127,7 +130,7 @@ class BookingService:
             When the booking is already cancelled (or in any non-active state).
         """
         # --- Step 1: existence check ---
-        booking = self.repo.get_by_id(booking_id)
+        booking = await self.repo.get_by_id(booking_id)
         if booking is None:
             raise NotFoundError(f"Booking {booking_id} not found.")
 
@@ -144,5 +147,5 @@ class BookingService:
             )
 
         # --- Step 4: persist cancellation (no hard-delete) ---
-        updated = self.repo.update_status(booking_id, "cancelled")
+        updated = await self.repo.update_status(booking_id, "cancelled")
         return updated
