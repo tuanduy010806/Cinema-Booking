@@ -161,24 +161,22 @@ def db_session(test_engine) -> Generator[Session, None, None]:
 
 
 # ---------------------------------------------------------------------------
-# Async-compatible session proxy for BookingRepository in tests
+# Async-compatible session proxy for Movie, Showtime, and Booking repositories
 #
-# BookingRepository is fully async (AsyncSession).  The test db_session is a
-# sync Session tied to a savepoint-wrapped connection.
+# Repositories use AsyncSession in production. The test db_session is a sync
+# Session tied to a savepoint-wrapped connection.
 #
-# This proxy wraps the sync Session in an object that exposes the async API
-# (add, commit, rollback, refresh, get, execute) so that the async
-# BookingRepository works with the sync test Session without needing a second
-# async engine or breaking savepoint-based isolation.
+# This proxy exposes the async methods used by the repositories while
+# delegating to the sync test Session. This lets API integration tests use the
+# real PostgreSQL schema without creating a second async engine.
 #
-# Audit #7, #8: required because BookingRepository uses AsyncSession; tests
-# must not create a new async engine.
+# The proxy preserves savepoint-based transaction isolation for all tests.
 # ---------------------------------------------------------------------------
 
 class _SyncSessionAsyncProxy:
     """Minimal async proxy around a synchronous SQLAlchemy Session.
 
-    Wraps only the methods used by BookingRepository.  Each async method
+    Wraps only methods used by the application repositories. Each async method
     delegates synchronously to the underlying Session.
     """
 
@@ -202,6 +200,9 @@ class _SyncSessionAsyncProxy:
 
     async def execute(self, statement: Any) -> Any:
         return self._session.execute(statement)
+
+    async def scalars(self, statement: Any) -> Any:
+        return self._session.scalars(statement)
 
 
 # ---------------------------------------------------------------------------
