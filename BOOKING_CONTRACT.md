@@ -468,32 +468,27 @@ The service never needs to import SQLAlchemy for this purpose.
 
 | Component | Implementation |
 |---|---|
-| **Auth** | Tests override `get_current_user`; application dependency reads `request.state.current_user` set by AuthMiddleware |
-| **Auth override** | `app.dependency_overrides[get_current_user] = lambda: {"id": 42, "role": "USER"}` |
-| **Database** | Async SQLAlchemy session configured by test fixtures |
+| **Auth** | Tests create a JWT and exercise `AuthMiddleware` → `UserRepository` → `get_current_user`; login endpoint is bypassed |
+| **Auth test seam** | Middleware session factory is adapted to the isolated test transaction; the auth dependency is not overridden |
+| **Database** | PostgreSQL test session, isolated per test; adapter supports async repository/middleware calls |
 | **Schema setup** | `Base.metadata.create_all()` in test fixtures |
 | **Test isolation** | Savepoint rollback per test function |
 | **Fixtures** | 2 users, 1 movie, 2 showtimes seeded per test |
 
-**Test auth override interface:**
+**Test JWT setup:**
 
 ```python
-# Location: tests/conftest.py (dependency override)
-app.dependency_overrides[get_current_user] = lambda: {"id": 42, "role": "USER"}
+# Location: tests/conftest.py
+token = create_access_token({"sub": str(user.user_id)})
+headers = {"Authorization": f"Bearer {token}"}
 ```
 
-The dependency returns a plain `dict` with keys:
+The real Booking dependency adapts the authenticated User into a plain `dict` with keys:
 
 | Key | Type | Description |
 |---|---|---|
 | `id` | `int` | User ID consumed by all endpoints |
 | `role` | `str` | `"USER"` or `"ADMIN"` (role not currently enforced) |
-
-To override in tests:
-```python
-from app.api.booking import get_current_user
-app.dependency_overrides[get_current_user] = lambda: {"id": 42, "role": "USER"}
-```
 
 **Test database setup:**
 
@@ -521,7 +516,7 @@ pytest tests/test_booking_constraints.py
 
 | Component | Development | Production |
 |---|---|---|
-| **Auth** | Tests override `get_current_user` | AuthMiddleware sets the User on request state; Booking adapts it |
+| **Auth** | Tests use JWT middleware with test-session adapter | AuthMiddleware sets the User on request state; Booking adapts it |
 | **Auth shape** | `{"id": int, "role": str}` | Booking maps `User.user_id` to `id`; endpoints consume `current_user["id"]` |
 | **Database** | Async SQLAlchemy session from `get_db()` | Async SQLAlchemy session from `get_db()` |
 | **DB URL** | Configured through project settings/environment | Configured through project settings/environment |

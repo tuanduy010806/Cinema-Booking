@@ -14,15 +14,15 @@ Design decisions
   giving full isolation without wiping and re-creating the schema each time.
 * Two users (user_id 1, 2) and two showtimes (id 1, 2) are seeded per test
   via function-scoped fixtures so tests always start from a known state.
-* get_db and get_current_user are overridden on the FastAPI app so
-  integration tests use the test session automatically.
+* Booking's service dependency uses the isolated test session, and the real
+* AuthMiddleware uses that same session through a narrow async adapter.
 
-Integration changes (PROMPT 11):
-- override_get_db now overrides get_current_user (not get_mock_current_user)
-  to match the real auth dependency in booking.py (Audit #12).
-- user1/user2 fixtures now include username (required column) and the
-  client fixture reads user.user_id (not user.id) to build the auth dict
-  (Audit #13).
+Integration details:
+- The client uses a real JWT and exercises AuthMiddleware → UserRepository →
+  Booking's get_current_user adapter. It bypasses the login endpoint so the
+  known password-verification defect does not block Booking integration tests.
+- user1/user2 fixtures include username (required column); tokens use the
+  actual user.user_id primary key (Audit #13).
 - get_booking_service is overridden with a sync-compatible shim that wraps
   the sync test session in a minimal async-compatible proxy so the async
   BookingRepository can be used in tests (Audit #7, #8).
@@ -205,27 +205,46 @@ class _SyncSessionAsyncProxy:
 
 
 # ---------------------------------------------------------------------------
-# get_db / get_current_user overrides — inject test session into FastAPI DI
+# Booking DB override and AuthMiddleware test-session adapter
 # ---------------------------------------------------------------------------
 
 @pytest.fixture()
-def override_get_db(db_session: Session):
-    """Override get_db and get_booking_service to use the sync test session.
+def override_get_db(db_session: Session, monkeypatch: pytest.MonkeyPatch):
+    """Use the isolated test session for Booking and the real auth middleware.
 
-    Integration change (Audit #7, #8, #12):
+    The application still runs Person 1's real AuthMiddleware, JWT decoder,
+    UserRepository lookup, and Booking get_current_user dependency. Only the
+    middleware's session factory is adapted to the same isolated PostgreSQL
+    Session used by this synchronous TestClient fixture.
+
+    Integration details (Audit #7, #8, #12, #13):
     - get_booking_service is overridden (not get_db directly) so the async
       BookingRepository receives the _SyncSessionAsyncProxy wrapping the
       savepoint-isolated test Session.
-    - get_current_user override is set to None initially; the client fixture
-      sets the actual user override after user1 is created.
+    - AuthMiddleware's AsyncSessionLocal is adapted to that proxy, keeping
+      authentication lookups inside the test transaction.
     """
-    from app.api.booking import get_booking_service, get_current_user
+    from app.api.booking import get_booking_service
+    import app.core.auth_middleware as auth_middleware
     from app.db.database import get_db
     from app.main import app
     from app.repositories.booking_repository import BookingRepository
     from app.services.booking_service import BookingService
 
     proxy = _SyncSessionAsyncProxy(db_session)
+
+    class _TestAuthSessionContext:
+        async def __aenter__(self) -> _SyncSessionAsyncProxy:
+            return proxy
+
+        async def __aexit__(self, exc_type, exc, traceback) -> bool:
+            return False
+
+    monkeypatch.setattr(
+        auth_middleware,
+        "AsyncSessionLocal",
+        _TestAuthSessionContext,
+    )
 
     async def _get_db_override() -> AsyncGenerator:
         yield proxy
@@ -317,25 +336,10 @@ def showtime2(db_session: Session, movie: Movie) -> Showtime:
 
 @pytest.fixture()
 def client(override_get_db, user1: User) -> Generator[TestClient, None, None]:
-    """Return a TestClient with get_db and get_current_user overridden.
-
-    The auth is set to user1 by default.  Individual tests can call
-    app.dependency_overrides[get_current_user] to change the user.
-
-    Integration change (Audit #12, #13):
-    - Overrides get_current_user (not get_mock_current_user).
-    - Reads user1.user_id (not user1.id) for the "id" key (Audit #13).
-    """
-    from app.api.booking import get_current_user
+    """Return a TestClient authenticated through the real JWT middleware."""
+    from app.core.security import create_access_token
     from app.main import app
 
-    def _mock_user_override() -> dict:
-        return {"id": user1.user_id, "role": "USER"}
-
-    app.dependency_overrides[get_current_user] = _mock_user_override
-
-    with TestClient(app) as c:
+    token = create_access_token({"sub": str(user1.user_id)})
+    with TestClient(app, headers={"Authorization": f"Bearer {token}"}) as c:
         yield c
-
-    # Clear the user override; override_get_db fixture clears the rest.
-    app.dependency_overrides.pop(get_current_user, None)
