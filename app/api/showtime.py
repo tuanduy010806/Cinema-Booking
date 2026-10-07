@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.permission import RollChecker
 from app.db.database import get_db
+from app.models.user import Role
 from app.repositories.movie_repository import MovieRepository
 from app.repositories.showtime_repository import ShowtimeRepository
 from app.schemas.showtime import SeatResponse, ShowtimeCreate, ShowtimeResponse
@@ -23,13 +25,17 @@ async def list_showtimes(
     return await service.list_showtimes(movie_id=movie_id)
 
 
-@router.post("", response_model=ShowtimeResponse, status_code=201)
+@router.post(
+    "",
+    response_model=ShowtimeResponse,
+    status_code=201,
+    dependencies=[Depends(RollChecker(Role.ADMIN))],
+)
 async def create_showtime(
     payload: ShowtimeCreate,
     service: ShowtimeService = Depends(get_showtime_service),
 ):
     """Create a showtime for an existing movie."""
-    # Person 1 will add the ADMIN dependency from the authentication middleware.
     return await service.create_showtime(payload)
 
 
