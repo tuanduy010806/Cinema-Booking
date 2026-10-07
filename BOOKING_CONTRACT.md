@@ -1,7 +1,10 @@
 # Booking Contract
 
 > **Status: FROZEN**
-> This document reflects the implemented state of the Booking module.
+> This document reflects the implemented Booking contract as integrated with the
+> completed User/FK and async database interfaces. Login verification and ADMIN
+> guards remain unresolved outside this contract. Seat-label alignment with the
+> Showtime API also remains unresolved; this document does not choose a format.
 > No production code may be changed without updating this document first.
 
 ---
@@ -31,7 +34,7 @@
 | Column | SQLAlchemy type | PG type | Nullable | Default | Notes |
 |---|---|---|---|---|---|
 | `id` | `Integer` | `SERIAL` / `INTEGER` | No | auto | Primary key |
-| `user_id` | `Integer` | `INTEGER` | No | — | FK → `users.id` |
+| `user_id` | `Integer` | `INTEGER` | No | — | FK → `users.user_id` |
 | `showtime_id` | `Integer` | `INTEGER` | No | — | FK → `showtimes.id` |
 | `seat_number` | `String` | `VARCHAR` | No | — | e.g. `"A1"`, `"B12"` |
 | `status` | `String` | `VARCHAR` | No | `"active"` | See [lifecycle](#8-booking-status-lifecycle) |
@@ -41,7 +44,7 @@
 
 | Column | References | On delete behaviour |
 |---|---|---|
-| `user_id` | `users.id` | Not specified (default — restrict) |
+| `user_id` | `users.user_id` | Not specified (default — restrict) |
 | `showtime_id` | `showtimes.id` | Not specified (default — restrict) |
 
 ---
@@ -98,7 +101,7 @@ class BookingResponse(BaseModel):
 ## 3. Repository Methods
 
 **Class:** `app.repositories.booking_repository.BookingRepository`
-**Constructor:** `BookingRepository(db: Session)`
+**Constructor:** `BookingRepository(db: AsyncSession)`
 
 The repository is the **only** layer that touches the database.
 
@@ -225,7 +228,7 @@ Delegates to `repo.get_by_user_id(user_id)`. Returns all bookings for the user. 
 | Request body | `BookingCreate` (JSON) |
 | Success status | `201 Created` |
 | Response body | `BookingResponse` |
-| Auth | `Depends(get_mock_current_user)` |
+| Auth | `Depends(get_current_user)` — reads authenticated User from middleware state |
 
 **Request example:**
 ```http
@@ -268,7 +271,7 @@ Content-Type: application/json
 | Request body | None |
 | Success status | `200 OK` |
 | Response body | `list[BookingResponse]` |
-| Auth | `Depends(get_mock_current_user)` |
+| Auth | `Depends(get_current_user)` — reads authenticated User from middleware state |
 
 **Request example:**
 ```http
@@ -311,7 +314,7 @@ Returns an **empty array** `[]` if the user has no bookings.
 | Request body | None |
 | Success status | `200 OK` |
 | Response body | `BookingResponse` (updated record with `status: "cancelled"`) |
-| Auth | `Depends(get_mock_current_user)` |
+| Auth | `Depends(get_current_user)` — reads authenticated User from middleware state |
 | Side effect | **Soft-delete only** — row is never removed from the DB |
 
 **Request example:**
@@ -459,25 +462,24 @@ The service never needs to import SQLAlchemy for this purpose.
 
 ---
 
-## 10. Development vs Production
+## 10. Test and Application Integration
 
-### DEVELOPMENT (current state)
+### TESTS (current state)
 
 | Component | Implementation |
 |---|---|
-| **Auth** | `get_mock_current_user()` in `app/api/booking.py` — always returns `{"id": 1, "role": "USER"}` |
-| **Auth override** | `app.dependency_overrides[get_mock_current_user] = lambda: {...}` |
-| **Database** | PostgreSQL TEST (`TEST_DATABASE_URL` from `.env.test`) |
-| **Schema setup** | `Base.metadata.create_all()` in `tests/conftest.py` |
+| **Auth** | Tests override `get_current_user`; application dependency reads `request.state.current_user` set by AuthMiddleware |
+| **Auth override** | `app.dependency_overrides[get_current_user] = lambda: {"id": 42, "role": "USER"}` |
+| **Database** | Async SQLAlchemy session configured by test fixtures |
+| **Schema setup** | `Base.metadata.create_all()` in test fixtures |
 | **Test isolation** | Savepoint rollback per test function |
 | **Fixtures** | 2 users, 1 movie, 2 showtimes seeded per test |
 
-**Mock auth interface (frozen):**
+**Test auth override interface:**
 
 ```python
-# Location: app/api/booking.py
-def get_mock_current_user() -> dict:
-    return {"id": 1, "role": "USER"}
+# Location: tests/conftest.py (dependency override)
+app.dependency_overrides[get_current_user] = lambda: {"id": 42, "role": "USER"}
 ```
 
 The dependency returns a plain `dict` with keys:
@@ -489,8 +491,8 @@ The dependency returns a plain `dict` with keys:
 
 To override in tests:
 ```python
-from app.api.booking import get_mock_current_user
-app.dependency_overrides[get_mock_current_user] = lambda: {"id": 42, "role": "USER"}
+from app.api.booking import get_current_user
+app.dependency_overrides[get_current_user] = lambda: {"id": 42, "role": "USER"}
 ```
 
 **Test database setup:**
@@ -510,28 +512,27 @@ pytest tests/test_booking_constraints.py
 
 ---
 
-### PRODUCTION (integration target)
+### APPLICATION AUTH AND DATABASE INTEGRATION
 
 > [!IMPORTANT]
-> The Booking module was built to be integration-ready.
-> The following contracts must be honoured when Person 1 connects real auth and the production database.
+> Booking is integrated with the current async database and authentication middleware
+> interfaces. The `verify_password()` defect recorded in Person 1's audit still affects
+> the login flow. This document does not change that implementation.
 
 | Component | Development | Production |
 |---|---|---|
-| **Auth** | `get_mock_current_user()` (hardcoded) | Real auth dependency from Person 1 — JWT / session / API key |
-| **Auth shape** | `{"id": int, "role": str}` | **Must preserve the same dict shape** — endpoints read `current_user["id"]` |
-| **Database** | PostgreSQL TEST | PostgreSQL production (team's official instance) |
-| **DB URL** | `TEST_DATABASE_URL` | `DATABASE_URL` (to be configured in `app/db/database.py`) |
-| **Schema** | `create_all()` | Alembic migration or equivalent |
-| **`get_db()`** | Stub (returns `None`) | Must yield a real `Session` from `SessionLocal` |
+| **Auth** | Tests override `get_current_user` | AuthMiddleware sets the User on request state; Booking adapts it |
+| **Auth shape** | `{"id": int, "role": str}` | Booking maps `User.user_id` to `id`; endpoints consume `current_user["id"]` |
+| **Database** | Async SQLAlchemy session from `get_db()` | Async SQLAlchemy session from `get_db()` |
+| **DB URL** | Configured through project settings/environment | Configured through project settings/environment |
+| **Schema** | `Base.metadata.create_all()` in test setup | Project currently uses `Base.metadata.create_all()` |
+| **`get_db()`** | Yields an `AsyncSession` | Yields an `AsyncSession` |
 
-**Integration checklist for Person 1:**
+**Integration state:**
 
-- [ ] Implement `get_db()` in `app/db/database.py` — yield a real `SessionLocal()` session
-- [ ] Configure `SessionLocal` with the production `DATABASE_URL`
-- [ ] Replace `get_mock_current_user` with the real auth dependency — returning `{"id": int, "role": str}`
-- [ ] Run the partial unique index migration: `uq_bookings_showtime_seat_active`
-- [ ] Verify all three endpoints work end-to-end with real credentials
+- [x] `get_db()` yields an async database session
+- [x] Booking reads authenticated User state and maps `user_id` to the Booking service's `id` interface
+- [ ] Fix login verification before validating the full register/login/JWT/Booking flow
 
 **What must NOT change:**
 
@@ -545,5 +546,5 @@ pytest tests/test_booking_constraints.py
 
 ---
 
-*Document generated from source: commit state as of 2026-10-04.*
+*Updated to reflect completed User/FK and async auth/database interface integration. Seat-label alignment and other unresolved Person 1/2 issues remain out of scope.*
 *Files referenced: `app/models/booking.py`, `app/schemas/booking.py`, `app/repositories/booking_repository.py`, `app/services/booking_service.py`, `app/api/booking.py`, `app/core/exceptions.py`, `tests/conftest.py`.*
