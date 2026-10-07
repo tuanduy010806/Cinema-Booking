@@ -25,6 +25,12 @@ class ShowtimeService:
     async def list_showtimes(self, movie_id: int | None = None):
         return await self.showtime_repository.get_all(movie_id=movie_id)
 
+    async def get_showtime(self, showtime_id: int):
+        showtime = await self.showtime_repository.get_by_id(showtime_id)
+        if showtime is None:
+            raise NotFoundException("Showtime not found")
+        return showtime
+
     async def create_showtime(self, payload: ShowtimeCreate):
         movie = await self.movie_repository.get_by_id(payload.movie_id)
         if movie is None:
