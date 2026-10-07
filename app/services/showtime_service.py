@@ -1,6 +1,18 @@
 from app.core.exceptions import NotFoundException
 from app.schemas.showtime import ShowtimeCreate
 
+SEATS_PER_ROW = 12
+
+
+def _row_label(row_index: int) -> str:
+    """Convert a zero-based row index to spreadsheet-style labels (A..Z, AA..)."""
+    label = ""
+    while row_index >= 0:
+        row_index, remainder = divmod(row_index, 26)
+        label = chr(ord("A") + remainder) + label
+        row_index -= 1
+    return label
+
 
 
 class ShowtimeService:
@@ -25,10 +37,16 @@ class ShowtimeService:
             raise NotFoundException("Showtime not found")
 
         booked_seats = await self.showtime_repository.get_booked_seats(showtime_id)
-        return [
-            {
-                "seat_number": str(seat_number),
-                "is_available": str(seat_number) not in booked_seats,
-            }
-            for seat_number in range(1, showtime.total_seats + 1)
-        ]
+        seats = []
+        for seat_index in range(showtime.total_seats):
+            seat_number = (
+                f"{_row_label(seat_index // SEATS_PER_ROW)}"
+                f"{seat_index % SEATS_PER_ROW + 1}"
+            )
+            seats.append(
+                {
+                    "seat_number": seat_number,
+                    "is_available": seat_number not in booked_seats,
+                }
+            )
+        return seats
