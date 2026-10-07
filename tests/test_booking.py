@@ -8,9 +8,11 @@ Stack under test
     TestClient → FastAPI → Booking API → BookingService
                         → BookingRepository → SQLAlchemy → PostgreSQL TEST
 
-What is mocked
---------------
-    Only the current user (get_mock_current_user).
+Authentication
+---------------
+    Uses Person 1's real JWT creation, AuthMiddleware, UserRepository lookup,
+    and Booking authentication dependency. The test fixture adapts only the
+    middleware DB session to the isolated PostgreSQL test transaction.
 
 What is NOT mocked
 ------------------
@@ -24,11 +26,9 @@ Isolation
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
 
-from app.api.booking import get_current_user
-from app.main import app
+from app.core.security import create_access_token
 from app.models.booking import Booking
 from app.models.showtime import Showtime
 from app.models.user import User
@@ -41,12 +41,10 @@ from sqlalchemy.orm import Session
 BASE = "/api/v1/bookings"
 
 
-def _as_user(user: User):
-    """Return a dependency override callable that identifies as *user*."""
-    def _override() -> dict:
-        # user.user_id is the actual PK column name (Audit #13)
-        return {"id": user.user_id, "role": "USER"}
-    return _override
+def _auth_headers(user: User) -> dict[str, str]:
+    """Build a real Bearer token for a seeded test user, without calling login."""
+    token = create_access_token({"sub": str(user.user_id)})
+    return {"Authorization": f"Bearer {token}"}
 
 
 # ---------------------------------------------------------------------------
@@ -157,13 +155,11 @@ def test_ownership_error(
     assert create_resp.status_code == 201, create_resp.text
     booking_id = create_resp.json()["id"]
 
-    # Switch the mock auth to user2 and attempt to cancel
-    app.dependency_overrides[get_current_user] = _as_user(user2)
-    try:
-        cancel_resp = client.delete(f"{BASE}/{booking_id}")
-    finally:
-        # Restore user1 as the authenticated user
-        app.dependency_overrides[get_current_user] = _as_user(user1)
+    # Authenticate as user2 through the real middleware and attempt to cancel.
+    cancel_resp = client.delete(
+        f"{BASE}/{booking_id}",
+        headers=_auth_headers(user2),
+    )
 
     assert cancel_resp.status_code == 403, cancel_resp.text
 
@@ -215,13 +211,14 @@ def test_user_booking_isolation(
     # user1 creates a booking (client is user1)
     client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "H1"})
 
-    # Switch to user2, create a different booking
-    app.dependency_overrides[get_current_user] = _as_user(user2)
-    try:
-        client.post(BASE + "/", json={"showtime_id": showtime2.id, "seat_number": "H2"})
-        user2_bookings = client.get(BASE + "/me").json()
-    finally:
-        app.dependency_overrides[get_current_user] = _as_user(user1)
+    # Authenticate as user2 through the real middleware.
+    user2_headers = _auth_headers(user2)
+    client.post(
+        BASE + "/",
+        json={"showtime_id": showtime2.id, "seat_number": "H2"},
+        headers=user2_headers,
+    )
+    user2_bookings = client.get(BASE + "/me", headers=user2_headers).json()
 
     # user2 must only see their own bookings
     assert all(b["user_id"] == user2.user_id for b in user2_bookings)
@@ -276,12 +273,12 @@ def test_cancelled_seat_can_be_rebooked(
     cancel_resp = client.delete(f"{BASE}/{booking_id}")
     assert cancel_resp.status_code == 200, cancel_resp.text
 
-    # user2 re-books the same seat — must succeed
-    app.dependency_overrides[get_current_user] = _as_user(user2)
-    try:
-        rebook_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": seat})
-    finally:
-        app.dependency_overrides[get_current_user] = _as_user(user1)
+    # user2 re-books the same seat through real JWT authentication — must succeed
+    rebook_resp = client.post(
+        BASE + "/",
+        json={"showtime_id": showtime1.id, "seat_number": seat},
+        headers=_auth_headers(user2),
+    )
 
     assert rebook_resp.status_code == 201, rebook_resp.text
     assert rebook_resp.json()["user_id"] == user2.user_id

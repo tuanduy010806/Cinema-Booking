@@ -245,7 +245,7 @@ def test_concurrent_booking_only_one_succeeds(
         session = ThreadSession()
         try:
             booking = Booking(
-                user_id=user1.id,
+                user_id=user1.user_id,
                 showtime_id=showtime1.id,
                 seat_number=seat_number,
                 status="active",
