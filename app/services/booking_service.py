@@ -27,15 +27,19 @@ from app.schemas.booking import BookingCreate
 class BookingService:
     """Business logic for bookings."""
 
-    def __init__(self, repo) -> None:
+    def __init__(self, repo, showtime_repo) -> None:
         """
         Parameters
         ----------
         repo:
             A BookingRepository instance (or any compatible duck-typed object).
             Injected by the caller; the service never constructs it directly.
+        showtime_repo:
+            A ShowtimeRepository instance used to validate the referenced
+            Showtime and its numeric seat range.
         """
         self.repo = repo
+        self.showtime_repo = showtime_repo
 
     # ------------------------------------------------------------------
     # Public API
@@ -51,11 +55,8 @@ class BookingService:
            that avoids a wasted INSERT in the common (non-concurrent) case.
         2. If duplicate found → raise DuplicateSeatError immediately.
         3. Otherwise → delegate to repo.create(), which performs the INSERT.
-           If a concurrent request raced past the pre-check and grabbed the
-           seat first, PostgreSQL's partial unique index will reject the INSERT
-           and the repository will convert IntegrityError → DuplicateSeatError
-           before it bubbles up here.  The service does **not** need to import
-           or catch IntegrityError.
+           Concurrent requests are not protected by a database constraint in
+           the simplified Phase 1 scope.
 
         Parameters
         ----------
@@ -67,10 +68,19 @@ class BookingService:
         Raises
         ------
         DuplicateSeatError:
-            When the seat is already taken (both pre-check path and
-            post-INSERT race-condition path).
+            When the pre-check finds an active booking for the same seat.
         """
-        # --- Step 1: best-effort pre-check (not the authoritative guard) ---
+        showtime = await self.showtime_repo.get_by_id(payload.showtime_id)
+        if showtime is None:
+            raise NotFoundError(f"Showtime {payload.showtime_id} not found.")
+
+        seat_number = int(payload.seat_number)
+        if seat_number > showtime.total_seats:
+            raise NotFoundError(
+                f"Seat {payload.seat_number} not found for showtime {payload.showtime_id}."
+            )
+
+        # --- Step 1: simple duplicate check ---
         already_taken = await self.repo.check_seat_exists(
             showtime_id=payload.showtime_id,
             seat_number=payload.seat_number,
@@ -81,7 +91,7 @@ class BookingService:
                 seat_number=payload.seat_number,
             )
 
-        # --- Step 2: delegate persistence (repository handles race condition) ---
+        # --- Step 2: persist after the sequential duplicate check ---
         booking_data = payload.model_dump()
         return await self.repo.create(booking_data, user_id=user_id)
 

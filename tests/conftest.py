@@ -230,6 +230,7 @@ def override_get_db(db_session: Session, monkeypatch: pytest.MonkeyPatch):
     from app.db.database import get_db
     from app.main import app
     from app.repositories.booking_repository import BookingRepository
+    from app.repositories.showtime_repository import ShowtimeRepository
     from app.services.booking_service import BookingService
 
     proxy = _SyncSessionAsyncProxy(db_session)
@@ -251,8 +252,9 @@ def override_get_db(db_session: Session, monkeypatch: pytest.MonkeyPatch):
         yield proxy
 
     def _get_booking_service_override() -> BookingService:
-        repo = BookingRepository(proxy)
-        return BookingService(repo)
+        booking_repo = BookingRepository(proxy)
+        showtime_repo = ShowtimeRepository(proxy)
+        return BookingService(booking_repo, showtime_repo)
 
     app.dependency_overrides[get_db] = _get_db_override
     app.dependency_overrides[get_booking_service] = _get_booking_service_override

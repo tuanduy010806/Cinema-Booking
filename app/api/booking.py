@@ -34,6 +34,7 @@ from app.core.exceptions import (
 )
 from app.db.database import get_db
 from app.repositories.booking_repository import BookingRepository
+from app.repositories.showtime_repository import ShowtimeRepository
 from app.schemas.booking import BookingCreate, BookingResponse
 from app.services.booking_service import BookingService
 
@@ -89,9 +90,10 @@ def get_current_user(request: Request) -> dict:
 # ---------------------------------------------------------------------------
 
 async def get_booking_service(db: AsyncSession = Depends(get_db)) -> BookingService:
-    """Wire BookingRepository → BookingService and return it."""
-    repo = BookingRepository(db)
-    return BookingService(repo)
+    """Wire the Booking and Showtime repositories into the service."""
+    booking_repo = BookingRepository(db)
+    showtime_repo = ShowtimeRepository(db)
+    return BookingService(booking_repo, showtime_repo)
 
 
 # ---------------------------------------------------------------------------

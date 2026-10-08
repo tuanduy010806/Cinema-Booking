@@ -3,8 +3,8 @@
 > **Status: FROZEN**
 > This document reflects the implemented Booking contract as integrated with the
 > completed User/FK and async database interfaces. Login verification and ADMIN
-> guards remain unresolved outside this contract. Seat-label alignment with the
-> Showtime API also remains unresolved; this document does not choose a format.
+> guards remain unresolved outside this contract. The simplified team contract
+> uses numeric seat labels (`"1"` through `str(total_seats)`).
 > No production code may be changed without updating this document first.
 
 ---
@@ -19,7 +19,7 @@
 6. [HTTP Error Mapping](#6-http-error-mapping)
 7. [Business Rules](#7-business-rules)
 8. [Booking Status Lifecycle](#8-booking-status-lifecycle)
-9. [PostgreSQL Protection](#9-postgresql-protection)
+9. [Duplicate Seat Handling](#9-duplicate-seat-handling)
 10. [Development vs Production](#10-development-vs-production)
 
 ---
@@ -36,7 +36,7 @@
 | `id` | `Integer` | `SERIAL` / `INTEGER` | No | auto | Primary key |
 | `user_id` | `Integer` | `INTEGER` | No | — | FK → `users.user_id` |
 | `showtime_id` | `Integer` | `INTEGER` | No | — | FK → `showtimes.id` |
-| `seat_number` | `String` | `VARCHAR` | No | — | e.g. `"A1"`, `"B12"` |
+| `seat_number` | `String` | `VARCHAR` | No | — | Numeric string from `"1"` to the show's seat count |
 | `status` | `String` | `VARCHAR` | No | `"active"` | See [lifecycle](#8-booking-status-lifecycle) |
 | `created_at` | `DateTime(timezone=True)` | `TIMESTAMPTZ` | No | `datetime.now(UTC)` | Server-set on INSERT |
 
@@ -64,7 +64,7 @@ class BookingCreate(BaseModel):
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `showtime_id` | `int` | ✅ | ID of the showtime being booked |
-| `seat_number` | `str` | ✅ | Seat label (e.g. `"A1"`) |
+| `seat_number` | `str` | ✅ | Numeric seat label (e.g. `"1"`) |
 
 > `user_id` is **never** part of the request body.
 > It is always sourced from the authenticated-user dependency.
@@ -113,7 +113,8 @@ Inserts a new booking row.
 
 - Strips any `user_id` key from `booking_data` before INSERT (prevents caller override).
 - Commits and refreshes the row.
-- **Raises `DuplicateSeatError`** if `IntegrityError` is caught (partial unique index violation).
+- **Raises `DuplicateSeatError`** when the service-level check finds an active
+  booking for the same showtime and seat.
 
 #### `update_status(booking_id: int, status: str) -> Booking | None`
 
@@ -146,13 +147,16 @@ Returns `True` if an **active** booking already exists for `(showtime_id, seat_n
 ## 4. Service Methods
 
 **Class:** `app.services.booking_service.BookingService`
-**Constructor:** `BookingService(repo)`
+**Constructor:** `BookingService(booking_repo, showtime_repo)`
 
-The service contains all business logic. It has **no** FastAPI, SQLAlchemy, or HTTP imports.
+The service contains all business logic. It has **no** FastAPI, SQLAlchemy, or HTTP imports. It uses Person 2's `ShowtimeRepository.get_by_id()` to validate that the requested showtime exists and that the numeric seat label is within its capacity.
 
 ---
 
 ### `create_booking(user_id: int, payload: BookingCreate) -> Booking`
+
+Before writing, the service uses Person 2's `ShowtimeRepository` to confirm the
+showtime exists and that `seat_number` is within `1..total_seats`.
 
 **Flow:**
 
@@ -165,9 +169,7 @@ The service contains all business logic. It has **no** FastAPI, SQLAlchemy, or H
                         │
                         ├─ success  → return Booking
                         │
-                        └─ IntegrityError (race condition)
-                                → repo converts to DuplicateSeatError
-                                → bubbles up to caller
+                        └─ success → return Booking
 ```
 
 **Raises:**
@@ -237,7 +239,7 @@ Content-Type: application/json
 
 {
     "showtime_id": 1,
-    "seat_number": "A1"
+    "seat_number": "1"
 }
 ```
 
@@ -247,7 +249,7 @@ Content-Type: application/json
     "id": 42,
     "user_id": 1,
     "showtime_id": 1,
-    "seat_number": "A1",
+    "seat_number": "1",
     "status": "active",
     "created_at": "2026-10-01T12:00:00Z"
 }
@@ -256,7 +258,7 @@ Content-Type: application/json
 **Error response (400 — duplicate seat):**
 ```json
 {
-    "detail": "Seat 'A1' is already booked for showtime 1."
+    "detail": "Seat '1' is already booked for showtime 1."
 }
 ```
 
@@ -285,7 +287,7 @@ GET /api/v1/bookings/me HTTP/1.1
         "id": 42,
         "user_id": 1,
         "showtime_id": 1,
-        "seat_number": "A1",
+        "seat_number": "1",
         "status": "active",
         "created_at": "2026-10-01T12:00:00Z"
     },
@@ -293,7 +295,7 @@ GET /api/v1/bookings/me HTTP/1.1
         "id": 43,
         "user_id": 1,
         "showtime_id": 2,
-        "seat_number": "B3",
+        "seat_number": "2",
         "status": "cancelled",
         "created_at": "2026-10-01T13:00:00Z"
     }
@@ -328,7 +330,7 @@ DELETE /api/v1/bookings/42 HTTP/1.1
     "id": 42,
     "user_id": 1,
     "showtime_id": 1,
-    "seat_number": "A1",
+    "seat_number": "1",
     "status": "cancelled",
     "created_at": "2026-10-01T12:00:00Z"
 }
@@ -384,10 +386,10 @@ The API layer is the only place that converts them to `HTTPException`.
 Two protections exist in series:
 
 1. **Service pre-check** (`check_seat_exists`) — optimistic, avoids a wasted INSERT in the common case.
-2. **PostgreSQL partial unique index** — authoritative guard, fires on concurrent race conditions that bypass the pre-check.
+2. **Database race guard** — removed from simplified Phase 1; concurrent duplicate requests are not protected.
 
-A cancelled booking on the same seat does **not** block a new active booking.
-Only `status = 'active'` rows are covered by the constraint.
+A cancelled booking on the same seat does **not** block a new active booking,
+because the service pre-check considers only active rows.
 
 ### No Hard Delete
 
@@ -432,33 +434,13 @@ The row persists in the database indefinitely.
 
 ---
 
-## 9. PostgreSQL Protection
+## 9. Duplicate Seat Handling
 
-### Partial Unique Index
-
-**Index name:** `uq_bookings_showtime_seat_active`
-
-```sql
-CREATE UNIQUE INDEX uq_bookings_showtime_seat_active
-    ON bookings (showtime_id, seat_number)
-    WHERE status = 'active';
-```
-
-**Defined in:** `app/models/booking.py` via SQLAlchemy `Index(...)`.
-
-**Behaviour:**
-
-| Scenario | Index applies? | Result |
-|---|---|---|
-| Two `active` bookings for same `(showtime_id, seat_number)` | ✅ Yes | Second INSERT → `IntegrityError` → `DuplicateSeatError` |
-| One `active`, one `cancelled` for same seat | ❌ No (predicate) | Both rows allowed |
-| Two `active` bookings for same seat, **different** showtime | ❌ No (different key) | Both rows allowed |
-
-**Race condition protection:**
-When two concurrent requests both pass the pre-check and race to INSERT,
-PostgreSQL's row-level index locking ensures only one INSERT commits.
-The other receives `IntegrityError`, which the repository converts to `DuplicateSeatError`.
-The service never needs to import SQLAlchemy for this purpose.
+The simplified implementation uses a service-level check for an already-active
+booking with the same `(showtime_id, seat_number)`. This is sufficient for
+ordinary sequential requests. Concurrent requests are not serialized, and the
+database does not enforce uniqueness for active seats. Race-condition protection
+is outside the Phase 1 acceptance scope.
 
 ---
 
@@ -541,5 +523,5 @@ pytest tests/test_booking_constraints.py
 
 ---
 
-*Updated to reflect completed User/FK and async auth/database interface integration. Seat-label alignment and other unresolved Person 1/2 issues remain out of scope.*
+*Updated to reflect completed User/FK and async auth/database interface integration and the simplified numeric-seat contract. Unresolved Person 1/2 work remains out of scope.*
 *Files referenced: `app/models/booking.py`, `app/schemas/booking.py`, `app/repositories/booking_repository.py`, `app/services/booking_service.py`, `app/api/booking.py`, `app/core/exceptions.py`, `tests/conftest.py`.*

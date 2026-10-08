@@ -1,12 +1,105 @@
 # PROJECT MASTER CONTEXT
 
+> **SIMPLIFIED PHASE 1 SCOPE — DECIDED 2026-10-07**
+> Keep the existing directory tree. Deliver the basic USER/ADMIN workflows and
+> booking. This decision supersedes conflicting older requirements and status
+> descriptions below. Historical audits describe the code at audit time; they
+> are not the revised acceptance criteria.
+
+## Simplified Scope Decision (2026-10-07)
+
+This is a small course-project REST API, not a production cinema platform. The
+existing folder/file structure stays unchanged. Simplification means reducing
+required behavior and implementation complexity inside the existing files; do
+not delete or relocate directories.
+
+### Required user-visible workflows
+
+- USER can register, log in, browse movies and showtimes, see a show's seat
+  availability, create a booking, list their own bookings, and cancel their own
+  active booking.
+- ADMIN can log in, create/update/delete movies, and create showtimes.
+- Public registration always creates a USER. ADMIN accounts are provisioned
+  internally (for example, by a documented database/seed operation); a request
+  body must never let a registrant choose ADMIN.
+- Cancellation is a soft state change from `active` to `cancelled`. Cancelled
+  seats are available again.
+- Seat labels use numeric strings `"1"` through `str(total_seats)` throughout
+  Showtime availability and Booking requests.
+- A simple service-level check may reject an already-active booking for the
+  same showtime and seat. Database race/concurrency protection is not required.
+  Existing databases created before this simplification may still contain the
+  old partial unique index; `create_all()` does not remove it. Remove it only
+  from a development/test database if the team wants runtime behavior to match
+  the simplified schema exactly.
+
+### Revised responsibilities and acceptance criteria
+
+#### Person 1 — Platform & Security
+
+- Keep the FastAPI app, PostgreSQL connection, User model, password hashing,
+  JWT creation/decoding, and authentication middleware.
+- Fix password verification so login works; verify register → login → JWT →
+  authenticated request.
+- Ensure public registration assigns USER only and document/provide a simple
+  internal way to provision an ADMIN account.
+- Provide the ADMIN role dependency and coordinate its use on Person 2's
+  movie-write and showtime-create endpoints.
+- Add a small smoke-test set for registration, login, unauthenticated access,
+  and USER/ADMIN role behavior.
+- Dockerfile completion, broad auth test coverage, and refactoring the auth
+  exception architecture are optional for this simplified Phase 1.
+
+#### Person 2 — Movie, Showtime & Seat Availability
+
+- Keep public movie list/detail and Movie CRUD, with write operations restricted
+  to ADMIN.
+- Keep public showtime list (optionally filtered by movie), ADMIN-only creation,
+  and seat availability.
+- Validate basic input and referenced Movie existence; map missing resources to
+  HTTP 404. Filter availability using active bookings so cancelled seats reopen.
+- Use numeric seat labels consistently with Person 3.
+- A standalone `GET /showtimes/{id}` detail endpoint, automated demo seeding,
+  cascade-delete policy, and timezone normalization are not required for this
+  phase. Keep their existing files in place.
+
+#### Person 3 — Booking & Quality
+
+- Keep authenticated booking creation, listing only the current user's bookings,
+  and owner-only cancellation with the `active → cancelled` lifecycle.
+- Continue consuming the real authenticated User and the existing
+  `users.user_id` / `showtimes.id` foreign-key contracts.
+- Use Person 2's real `ShowtimeRepository.get_by_id()` to verify the referenced
+  showtime exists and keep numeric seat choices within `total_seats`; do not
+  rely on the Showtime seats endpoint until its cancelled-booking filter is fixed.
+- Use the agreed numeric seat labels. Keep a straightforward service-level
+  duplicate check if convenient; remove the partial unique index, race-specific
+  repository handling, and concurrency tests from the required acceptance bar.
+- Keep focused tests for create, list-own, cancel-own, reject cancelling another
+  user's booking, cancellation state, and sequential duplicate behavior if the
+  simple check remains. Load testing and race-condition guarantees are optional.
+
+### Explicitly out of scope
+
+Payments, notifications, multiple theaters/screens, seat-grid management,
+reservations with expiry, production-grade race/concurrency protection, a
+standalone showtime-detail route, and containerized app deployment. Existing
+files related to these items remain in the repository; they are simply not
+required for acceptance.
+
+### Directory structure decision
+
+Keep the current directory tree and file paths exactly as they are. Simplify or
+mark unused code optional within existing files; do not remove directories or
+reorganize modules for this scope reduction.
+
 > **Purpose:** Single source of truth for the Cinema Booking System project.  
 > An AI agent or developer reading only this file must be able to understand
 > the entire project — requirements, architecture, current state, team
 > structure, integration risks, and operating rules — before writing a
 > single line of code.
 >
-> **Generated:** 2026-10-06  (READ-ONLY analysis; no source files were modified)  
+> **Generated:** 2026-10-07  (revised with simplified Phase 1 scope decision)  
 > **Source repo:** `d:/BAITAPLON_KIENTRUCPHANMEM/Cinema-Booking/`
 
 ---
@@ -74,22 +167,22 @@ Integration : IN PROGRESS  (critical fixes applied post-audit; non-blocking risk
 - Booking creation (authenticated users)
 - Booking listing (user sees own bookings only)
 - Booking cancellation (soft-delete; user can only cancel their own booking)
-- Duplicate seat prevention (service pre-check + PostgreSQL partial unique index)
+- Sequential duplicate-seat check may be implemented in the service; database-level race/concurrency protection is optional
 - Role-based access control: USER / ADMIN
-- Load testing via Locust (high-collision seat scenario)
 
 ### Out of Scope (Phase 1)
 
 - Payment processing
 - Email / notification system
 - Admin showtime update or deletion
-- Movie deletion with cascading booking handling (policy **NOT DECIDED** — see Risk 9)
+- Movie deletion with cascading booking handling (out of scope; no cascade policy needed for Phase 1)
 - Frontend / UI
 - Alembic database migrations (`create_all()` used directly)
 - Multi-screen / theater management
 - 2D seat-layout grid
 - Ticket printing / PDF export
 - Reservation expiry / timeout
+- Load testing and production-grade duplicate-seat race protection
 
 ---
 
@@ -215,7 +308,7 @@ endpoint via `Depends()`.
 | Create output | `BookingResponse` with `status = "active"` |
 | List bookings | All bookings (any status) for the current user |
 | Cancel booking | Soft-delete: `status` changes `active → cancelled`; row preserved |
-| Duplicate protection | Pre-check in service + partial unique index at DB level |
+| Duplicate protection | Simple service pre-check is sufficient; partial-index concurrency protection is optional |
 | Ownership rule | User can only cancel **their own** booking |
 | Status transitions | `active → cancelled` (terminal; no re-activation) |
 
@@ -283,7 +376,7 @@ BOOKING   POST   /bookings/
 
 **Planned vs Actual mismatches:**
 - All routes use `/api/v1/` prefix (not specified in original plan)
-- `GET /showtimes/{showtime_id}` (detail) → **NOT IMPLEMENTED** (only `/seats` sub-route exists)
+- `GET /showtimes/{showtime_id}` (detail) → intentionally omitted from simplified acceptance scope
 - Auth endpoints return 200, not 201
 - ADMIN write guards: planned but **not enforced**
 
@@ -755,6 +848,11 @@ Cinema-Booking/
 
 ## 11. Team Work Distribution
 
+> **Revised assignment:** use “Simplified Scope Decision” above as the current
+> acceptance bar for all three people. The detailed ownership entries below
+> preserve the original work split; optional/removed requirements there do not
+> block Phase 1 completion.
+
 ### Member Mapping
 
 | Real Name | Branch | Domain |
@@ -1005,6 +1103,12 @@ TEST_DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/cinema_booking_te
 
 ## 15. Testing Strategy
 
+> **Simplified acceptance:** prioritize smoke/integration checks for register,
+> login, USER/ADMIN authorization, movie/showtime workflows, booking, ownership,
+> and cancellation. PostgreSQL race/concurrency tests and Locust load testing are
+> optional; their existing files remain in the tree and may be kept as extra
+> coverage.
+
 ### Test Directory Layout
 
 ```
@@ -1079,6 +1183,12 @@ pytest tests/unit/                  # unit tests (no DB needed)
 
 ## 16. Current Project Status
 
+> The status tables below are the audited implementation snapshot from the
+> original scope. For current acceptance, compare implementation against the
+> simplified per-person criteria at the beginning of this document. A missing
+> optional feature (such as high-collision load testing or the showtime detail
+> endpoint) is not a blocker under the revised scope.
+
 ### Person 1 — Nguyễn Hữu Hiếu
 
 | Component | Status | Note |
@@ -1151,6 +1261,12 @@ pytest tests/unit/                  # unit tests (no DB needed)
 ---
 
 ## 17. Integration Risks
+
+> **Revised demo blockers:** working login/JWT, ADMIN-only Movie/Showtime writes,
+> correct 404 behavior for missing Movie/Showtime resources, active-only seat
+> availability, and numeric seat labels shared by Showtime and Booking. The
+> partial unique index, concurrency guarantees, Locust test, and showtime-detail
+> endpoint are not blockers under the simplified scope.
 
 ### CRITICAL — Resolved (verify before merge to main)
 
@@ -1469,3 +1585,10 @@ Resolution: DO NOT AUTO-FIX — report and await team instruction
 *Document generated by READ-ONLY analysis of the repository.*  
 *No source files were modified during analysis.*  
 *Generated: 2026-10-06*
+## Cập nhật yêu cầu triển khai (2026-10-07)
+
+- Đóng gói dịch vụ bằng Docker là yêu cầu bắt buộc theo đề bài Pha 1, không phải hạng mục tùy chọn sau đơn giản hóa.
+- Person 1 phụ trách Dockerfile/cấu hình khởi chạy và hướng dẫn build/run; phối hợp để cấu hình chạy được ứng dụng cùng cơ sở dữ liệu nếu dự án cần.
+- README phải mô tả kiến trúc và đặc tả API, đồng thời có hướng dẫn Docker.
+- Yêu cầu Docker chỉ ảnh hưởng đóng gói/triển khai; không mở rộng các chức năng nghiệp vụ đã đơn giản hóa.
+- Load test Kaggle CPU vẫn là yêu cầu Pha 1 riêng; có thể viết/chạy ở giai đoạn API ổn định trước nghiệm thu.
