@@ -42,7 +42,7 @@ class FakeShowtimeRepository:
         return showtime
 
     async def get_booked_seats(self, showtime_id: int):
-        return {"A2", "A4"} if showtime_id == 1 else set()
+        return {"2", "4"} if showtime_id == 1 else set()
 
 
 @pytest.mark.asyncio
@@ -65,8 +65,9 @@ async def test_get_showtime_seats_marks_booked_seats_unavailable():
     seats = await service.get_seats(1)
 
     assert len(seats) == 5
-    assert seats[0] == {"seat_number": "A1", "is_available": True}
-    assert seats[1] == {"seat_number": "A2", "is_available": False}
+    assert seats[0] == {"seat_number": "1", "is_available": True}
+    assert seats[1] == {"seat_number": "2", "is_available": False}
+    assert seats[-1]["seat_number"] == "5"
 
 
 @pytest.mark.asyncio
