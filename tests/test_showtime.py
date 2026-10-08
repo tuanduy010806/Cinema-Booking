@@ -32,13 +32,13 @@ def test_get_showtime_seats_uses_active_booking_status(
             Booking(
                 user_id=user1.user_id,
                 showtime_id=showtime1.id,
-                seat_number="A1",
+                seat_number="1",
                 status="active",
             ),
             Booking(
                 user_id=user1.user_id,
                 showtime_id=showtime1.id,
-                seat_number="A2",
+                seat_number="2",
                 status="cancelled",
             ),
         ]
@@ -49,8 +49,8 @@ def test_get_showtime_seats_uses_active_booking_status(
 
     assert response.status_code == 200, response.text
     seats = {seat["seat_number"]: seat["is_available"] for seat in response.json()}
-    assert seats["A1"] is False
-    assert seats["A2"] is True
+    assert seats["1"] is False
+    assert seats["2"] is True
 
 
 def test_get_missing_showtime_seats_returns_404(client: TestClient):
