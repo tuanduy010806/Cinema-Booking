@@ -12,10 +12,8 @@ Audit changes applied (PROMPT 11):
 from __future__ import annotations
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import DuplicateSeatError
 from app.models.booking import Booking
 
 
@@ -35,22 +33,11 @@ class BookingRepository:
         Strips any user_id key from booking_data before INSERT so callers
         cannot override the authenticated user.
 
-        Raises:
-            DuplicateSeatError: if PostgreSQL rejects the INSERT because the
-                partial unique index (showtime_id, seat_number) WHERE
-                status = 'active' is violated.
         """
         safe_data = {k: v for k, v in booking_data.items() if k != "user_id"}
         booking = Booking(**safe_data, user_id=user_id)
         self.db.add(booking)
-        try:
-            await self.db.commit()
-        except IntegrityError:
-            await self.db.rollback()
-            raise DuplicateSeatError(
-                showtime_id=booking.showtime_id,
-                seat_number=booking.seat_number,
-            )
+        await self.db.commit()
         await self.db.refresh(booking)
         return booking
 
@@ -90,9 +77,8 @@ class BookingRepository:
     async def check_seat_exists(self, showtime_id: int, seat_number: str) -> bool:
         """Return True if an active booking exists for (showtime_id, seat_number).
 
-        Best-effort pre-check only. The authoritative guard is the PostgreSQL
-        partial unique index; race conditions are handled in create() via
-        DuplicateSeatError.
+        Simple application-level check for the current booking flow. Concurrent
+        requests are not serialized or protected by a database constraint.
         """
         statement = (
             select(Booking)
