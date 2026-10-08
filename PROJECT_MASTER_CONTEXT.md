@@ -6,6 +6,13 @@
 > descriptions below. Historical audits describe the code at audit time; they
 > are not the revised acceptance criteria.
 
+> **LATER IMPLEMENTATION DECISIONS — 2026-10-07**
+> Docker packaging, a README with architecture/API/Docker instructions, and a
+> Kaggle CPU load test remain separate Phase 1 deliverables. They do not restore
+> any removed business feature or concurrency guarantee. Where later entries
+> conflict with older sections, the decisions at the beginning of this file
+> govern.
+
 ## Simplified Scope Decision (2026-10-07)
 
 This is a small course-project REST API, not a production cinema platform. The
@@ -47,8 +54,10 @@ not delete or relocate directories.
   movie-write and showtime-create endpoints.
 - Add a small smoke-test set for registration, login, unauthenticated access,
   and USER/ADMIN role behavior.
-- Dockerfile completion, broad auth test coverage, and refactoring the auth
-  exception architecture are optional for this simplified Phase 1.
+- Dockerfile completion and the README's Docker instructions remain required
+  implementation deliverables. Broad auth test coverage and refactoring the
+  auth exception architecture are optional; the agreed smoke checks remain
+  required.
 
 #### Person 2 — Movie, Showtime & Seat Availability
 
@@ -77,15 +86,26 @@ not delete or relocate directories.
   repository handling, and concurrency tests from the required acceptance bar.
 - Keep focused tests for create, list-own, cancel-own, reject cancelling another
   user's booking, cancellation state, and sequential duplicate behavior if the
-  simple check remains. Load testing and race-condition guarantees are optional.
+  simple check remains. The Kaggle CPU load test is required; race-condition
+  guarantees are optional.
 
 ### Explicitly out of scope
 
 Payments, notifications, multiple theaters/screens, seat-grid management,
-reservations with expiry, production-grade race/concurrency protection, a
-standalone showtime-detail route, and containerized app deployment. Existing
-files related to these items remain in the repository; they are simply not
-required for acceptance.
+reservations with expiry, production-grade race/concurrency protection, and a
+standalone showtime-detail route. Docker packaging and the Kaggle CPU load test
+remain separate Phase 1 deliverables. Existing files for optional features stay
+in the repository but do not expand the required business workflows.
+
+### Required delivery items beyond the API workflows
+
+- Complete Docker packaging for the application and provide README instructions
+  covering architecture, API specification, and Docker build/run.
+- Complete a representative authenticated load test on Kaggle CPU after the
+  API is stable. High-collision booking behavior and race guarantees are not
+  required.
+- Provide focused smoke/workflow checks for registration, login, auth roles,
+  movie/showtime access, booking, ownership, and cancellation.
 
 ### Directory structure decision
 
@@ -99,7 +119,7 @@ reorganize modules for this scope reduction.
 > structure, integration risks, and operating rules — before writing a
 > single line of code.
 >
-> **Generated:** 2026-10-07  (revised with simplified Phase 1 scope decision)  
+> **Updated:** 2026-10-09 (scope and implementation decisions synchronized)
 > **Source repo:** `d:/BAITAPLON_KIENTRUCPHANMEM/Cinema-Booking/`
 
 ---
@@ -149,10 +169,8 @@ reorganize modules for this scope reduction.
 
 ### Current Overall Status
 
-```
-Phase 1 : PARTIALLY COMPLETE
-Integration : IN PROGRESS  (critical fixes applied post-audit; non-blocking risks remain)
-```
+> The status and progress tables in this document are dated audit snapshots,
+> not a live status report. Re-check the repository before reporting completion.
 
 ---
 
@@ -182,7 +200,7 @@ Integration : IN PROGRESS  (critical fixes applied post-audit; non-blocking risk
 - 2D seat-layout grid
 - Ticket printing / PDF export
 - Reservation expiry / timeout
-- Load testing and production-grade duplicate-seat race protection
+- Production-grade duplicate-seat race protection
 
 ---
 
@@ -225,7 +243,7 @@ All USER permissions plus:
 | Delete movie | YES |
 | Create showtime | YES |
 
-### CRITICAL IMPLEMENTATION GAP
+### Historical implementation gap (audit snapshot; verify against current code)
 
 Movie write endpoints (`POST /movies`, `PUT /movies/{id}`, `DELETE /movies/{id}`)
 and the showtime write endpoint (`POST /showtimes`) are implemented
@@ -237,7 +255,7 @@ Comments in `app/api/movie.py` and `app/api/showtime.py` explicitly state:
 
 `RollChecker` is defined in `app/core/permission.py` but **NOT wired** to any
 endpoint via `Depends()`.  
-**Status: ADMIN authorization for write operations is NOT IMPLEMENTED.**
+**Audit status at that time: ADMIN authorization for write operations was NOT IMPLEMENTED.**
 
 ---
 
@@ -263,14 +281,17 @@ endpoint via `Depends()`.
 
 ### 4.2 Movie
 
+> Requirements below describe the agreed behavior; response-code and guard
+> notes describe the audited implementation snapshot where explicitly stated.
+
 | Item | Detail |
 |---|---|
 | Purpose | CRUD on movie catalogue |
 | READ actor | Any caller (no auth guard on GET) |
-| WRITE actor | ADMIN only (not yet enforced — see §3) |
+| WRITE actor | ADMIN only (implementation gap in the audited snapshot — see §3) |
 | List movies | All movies ordered by `id DESC` |
 | Get movie | Single movie by ID; 404 if not found |
-| Create movie | Returns 200 (should be 201 per REST convention) |
+| Create movie | Audited implementation returned 200; current acceptance requires the documented response contract, not a REST-style status change |
 | Update movie | Partial update; 404 if not found |
 | Delete movie | **HARD DELETE**; returns 204 No Content |
 | Validation | `title`: 1–255 chars; `duration_minutes`: 1–600 |
@@ -281,22 +302,21 @@ endpoint via `Depends()`.
 |---|---|
 | Purpose | Manage screening schedules and seat availability |
 | List actor | Any (no auth guard) |
-| Create actor | ADMIN only (not yet enforced) |
+| Create actor | ADMIN only (implementation gap in the audited snapshot) |
 | List showtimes | All, optionally filtered by `movie_id`; ordered by `start_time` |
 | Create showtime | Validates movie exists; 404 if not |
 | Seat availability | `GET /showtimes/{id}/seats` returns `[{seat_number, is_available}]` |
 | Seat labeling | **Numeric strings**: `"1"` through `str(total_seats)` |
-| Booked seat query | Queries **ALL** booking statuses (incl. cancelled) — see Risk 8 |
+| Booked seat query | Must include active bookings only; cancelled seats reopen. The audited snapshot did not filter status (see Risk 8). |
 | Error | 404 if showtime not found |
 
-> **MISMATCH — Seat Format:**  
-> `ShowtimeService.get_seats()` generates numeric labels `"1"`, `"2"`, `"3"`...  
-> `BOOKING_CONTRACT.md` and tests use alphanumeric labels `"A1"`, `"B2"`, `"J10"`.  
-> `BookingService` accepts any string — no shared format validation. (Risk 7)
+> **Historical audit note — seat format:** the agreed format is numeric strings
+> `"1"` through `str(total_seats)` across availability and booking. Older tests
+> or contracts using alphanumeric labels are stale and must not override this.
 
-> **MISMATCH — Booked seat query:**  
-> `ShowtimeRepository.get_booked_seats()` returns seats from **all** statuses,
-> so cancelled bookings incorrectly appear as unavailable. (Risk 8)
+> **Historical implementation gap — booked seat query:** the audited
+> `ShowtimeRepository.get_booked_seats()` included all statuses, so cancelled
+> bookings could appear unavailable. The agreed behavior is active-only (Risk 8).
 
 ### 4.4 Booking
 
@@ -338,7 +358,7 @@ Service / Business Logic
 
 ## 5. API Specification
 
-### Baseline requirement: 13 endpoints
+### Original assignment endpoint list (reference only)
 
 ```
 AUTH      POST   /auth/register
@@ -356,7 +376,7 @@ BOOKING   POST   /bookings/
           DELETE /bookings/{booking_id}
 ```
 
-### Actual implementation (all routes prefixed `/api/v1`)
+### Audited implementation snapshot (all routes prefixed `/api/v1`; re-check code for current state)
 
 | # | Method | Actual Path | Auth | Admin Guard | HTTP Code | Status |
 |---|---|---|---|---|---|---|
@@ -374,7 +394,7 @@ BOOKING   POST   /bookings/
 | 12 | GET | /api/v1/bookings/me | JWT required | No | 200 | IMPLEMENTED |
 | 13 | DELETE | /api/v1/bookings/{id} | JWT required | No | 200 | IMPLEMENTED |
 
-**Planned vs Actual mismatches:**
+**Historical implementation differences (not additional acceptance criteria):**
 - All routes use `/api/v1/` prefix (not specified in original plan)
 - `GET /showtimes/{showtime_id}` (detail) → intentionally omitted from simplified acceptance scope
 - Auth endpoints return 200, not 201
@@ -414,7 +434,7 @@ Service:  MovieService.get_movie()
 ```
 Auth: NONE (ADMIN guard MISSING)
 Request:  {"title": str, "description": str|null, "duration_minutes": int}
-Response: MovieResponse   Success: 200 (should be 201)
+Response: MovieResponse   Success: 200 in audited contract; changing to 201 is not required by the revised scope
 ```
 
 #### PUT /api/v1/movies/{movie_id}
@@ -428,7 +448,7 @@ Response: MovieResponse   Success: 200   Errors: 404
 ```
 Auth: NONE (ADMIN guard MISSING)
 Response: empty   Success: 204   Errors: 404
-Note: HARD DELETE; cascade on related Showtimes/Bookings NOT DECIDED
+Note: HARD DELETE. Cascade deletion is out of scope; audited foreign keys use RESTRICT.
 ```
 
 #### GET /api/v1/showtimes
@@ -522,11 +542,11 @@ ORM: `movie = relationship("Movie")` — lazy-loaded; no back_populates.
 | `id` | Integer | INTEGER | YES | No | SERIAL | — |
 | `user_id` | Integer FK | INTEGER | No | No | — | FK→**users.user_id** |
 | `showtime_id` | Integer FK | INTEGER | No | No | — | FK→showtimes.id |
-| `seat_number` | String | VARCHAR | No | No | — | e.g. `"A1"` or `"1"` |
+| `seat_number` | String | VARCHAR | No | No | — | Numeric string: `"1"` through `str(total_seats)` |
 | `status` | String | VARCHAR | No | No | `"active"` | `"active"` or `"cancelled"` |
 | `created_at` | DateTime(timezone=True) | TIMESTAMPTZ | No | No | `datetime.now(UTC)` | **timezone-aware** |
 
-**Partial Unique Index (the core concurrency guard):**
+**Legacy partial unique index (present in the audited schema; not required by the simplified acceptance criteria):**
 ```sql
 CREATE UNIQUE INDEX uq_bookings_showtime_seat_active
 ON bookings (showtime_id, seat_number)
@@ -558,7 +578,7 @@ movies
                 showtime_id (FK → showtimes.id)
 ```
 
-### Full SQL Schema (as implemented by create_all)
+### Audited SQL Schema Snapshot (as implemented by create_all)
 
 ```sql
 CREATE TABLE users (
@@ -609,7 +629,7 @@ Status   : MISMATCH (both sides agreed to skip Alembic for Phase 1)
 
 ### ON DELETE Behavior
 
-All FKs use default `RESTRICT` (not explicitly set).
+All FKs use default `RESTRICT` (not explicitly set in the audited schema). No cascade policy is required for this phase; preserve this behavior unless a requested workflow needs deletion of referenced rows.
 
 | FK | On Delete | Implication |
 |---|---|---|
@@ -617,7 +637,7 @@ All FKs use default `RESTRICT` (not explicitly set).
 | bookings.showtime_id → showtimes.id | RESTRICT | Cannot delete Showtime with Bookings |
 | showtimes.movie_id → movies.id | RESTRICT | Cannot delete Movie with Showtimes |
 
-Business cascade policy: **NOT DECIDED** (see Risk 9).
+Business cascade policy: **OUT OF SCOPE** for this phase.
 
 ---
 
@@ -798,6 +818,9 @@ Cinema-Booking/
 
 ## 10. File Responsibility Map
 
+> The map below records the repository/audit snapshot, not current completion
+> status. Use the revised responsibilities in §11 for current acceptance work.
+
 | File | Layer | Responsibility | Owner | Status |
 |---|---|---|---|---|
 | `app/main.py` | Entry point | FastAPI app; middleware; router registration | P1 | DONE |
@@ -879,11 +902,13 @@ app/repositories/user_repository.py  app/services/auth_service.py
 app/api/auth.py  docker-compose.yml  Dockerfile (empty)
 ```
 
-**Pending tasks:**
-- Wire `RollChecker(Role.ADMIN)` to write endpoints in Person 2's movie & showtime APIs
-- Implement Dockerfile
-- Implement auth tests (`tests/test_auth.py`, `tests/unit/test_auth.py`)
-- Fix `AuthService` to raise domain exceptions instead of `HTTPException`
+**Acceptance work (re-check current code before acting):**
+- Ensure public registration always creates USER; document a simple internal ADMIN provisioning method.
+- Verify login/JWT/authenticated request and USER/ADMIN authorization with focused smoke tests.
+- Wire the ADMIN dependency to Person 2's write endpoints in coordination with Person 2.
+- Complete Docker packaging and README architecture/API/Docker instructions.
+
+**Optional:** broad auth test coverage and refactoring `AuthService` exception architecture.
 
 ---
 
@@ -917,14 +942,13 @@ tests/unit/test_movie.py  tests/unit/test_showtime.py
 tests/test_movie.py (STALE)  tests/test_showtime.py (STALE)
 ```
 
-**Pending tasks:**
-- Coordinate with Person 1 to wire ADMIN guards
-- Fix `seed.py` — replace `SessionLocal` with `AsyncSessionLocal` (async pattern)
-- Update stale integration tests to use async pattern
-- Decide cascade behavior for Movie/Showtime deletion
-- Confirm seat number format with Person 3 (numeric `"1"` vs alphanumeric `"A1"`)
-- Fix `get_booked_seats()` to filter by `status = 'active'`
-- Add `GET /showtimes/{showtime_id}` detail endpoint
+**Acceptance work (re-check current code before acting):**
+- Coordinate with Person 1 to enforce ADMIN-only movie writes and showtime creation.
+- Filter seat availability to active bookings only and use numeric labels consistently.
+- Preserve basic input validation and 404 behavior for missing Movie/Showtime resources.
+
+**Optional:** automated demo seeding, cascade-delete policy, timezone normalization,
+stale legacy integration tests, and `GET /showtimes/{showtime_id}` detail route.
 
 ---
 
@@ -939,9 +963,9 @@ GET    /api/v1/bookings/me
 DELETE /api/v1/bookings/{booking_id}
 ```
 
-**Business rules enforced:**
+**Agreed business rules:**
 - `user_id` always from auth token, never from request body
-- Duplicate seat: service pre-check + DB partial unique index
+- Duplicate seat: simple service-level check is sufficient; race/concurrency guarantees are optional
 - Ownership: only booking owner can cancel
 - State: `active → cancelled` only (terminal)
 - Soft-delete: no hard row removal; record always preserved
@@ -957,8 +981,11 @@ load_test/load_test.py  scripts/create_test_db.py
 BOOKING_CONTRACT.md  INTEGRATION_AUDIT.md
 ```
 
-**Pending tasks:**
-- Update `load_test.py` to include JWT auth header (currently documents old mock pattern)
+**Acceptance work (re-check current code before acting):**
+- Keep focused tests for booking, own-booking listing, owner-only cancellation, cancellation state, and sequential duplicates if the service check is retained.
+- Complete and run the Kaggle CPU load test after the integrated API is stable; authenticate requests with JWT.
+
+**Optional:** database race/concurrency tests and guarantees.
 
 ---
 
@@ -1048,11 +1075,11 @@ Post-audit fixes (PROMPT 11): async conversion + FK fix + auth wiring
         ↓
 System Integration Testing  ← PENDING
         ↓
-Conflict Resolution (seat format, booked seat query, ADMIN guards)
+Confirm the agreed numeric seat format, active-only availability, and ADMIN guards
         ↓
 Full Integration Testing    ← PENDING
         ↓
-Load Testing on integrated stack  ← PENDING
+Kaggle CPU load test on integrated stack  ← REQUIRED before acceptance
 ```
 
 ### Interface Compatibility Summary
@@ -1067,7 +1094,7 @@ Load Testing on integrated stack  ← PENDING
 | `Booking` FK to Showtime | `ForeignKey("showtimes.id")` | MATCH |
 | `BookingCreate` schema | `{showtime_id: int, seat_number: str}` | FROZEN |
 | `BookingResponse` schema | `{id, user_id, showtime_id, seat_number, status, created_at}` | FROZEN |
-| Seat number format | `"1".."N"` vs `"A1".."J10"` | **MISMATCH** (Risk 7) |
+| Seat number format | Numeric strings `"1".."N"` across availability and booking | AGREED; update stale fixtures/contracts |
 
 ---
 
@@ -1103,11 +1130,12 @@ TEST_DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/cinema_booking_te
 
 ## 15. Testing Strategy
 
-> **Simplified acceptance:** prioritize smoke/integration checks for register,
+> **Required quality work:** prioritize smoke/integration checks for register,
 > login, USER/ADMIN authorization, movie/showtime workflows, booking, ownership,
-> and cancellation. PostgreSQL race/concurrency tests and Locust load testing are
-> optional; their existing files remain in the tree and may be kept as extra
-> coverage.
+> and cancellation. Docker packaging and README instructions are required. The
+> Kaggle CPU load test is also required after API integration. PostgreSQL
+> race/concurrency tests and guarantees are optional; existing legacy test files
+> may remain in the tree without being part of acceptance.
 
 ### Test Directory Layout
 
@@ -1142,17 +1170,17 @@ tests/
 
 ### Database Constraint Tests (`tests/test_booking_constraints.py`)
 
-- Proves the partial unique index fires independently of the service pre-check
-- Test 4 uses two threads with independent PG connections (real concurrency)
-- 4 tests — Owner P3 ✅ DONE
+- Historical tests prove the legacy partial unique index and race behavior.
+- These tests are optional; a basic service-level sequential duplicate check is
+  sufficient for acceptance.
 
 ### Load Tests (`load_test/load_test.py`)
 
-- Tool: **Locust**
-- Scenario: 5 seats, `showtime_id=1`; all users race to book randomly
-- Classifies 201 ✅, expected 400 (DuplicateSeat) ✅, unexpected 4xx/5xx ❌
-- **Note:** docstring mentions old mock auth — needs update post-integration (Risk 12)
-- Owner P3 ✅ DONE (needs re-run on integrated stack)
+- Tool: **Locust** (or the agreed Kaggle CPU load-test method)
+- Run a representative booking workflow against the integrated API on Kaggle CPU.
+- Include valid JWT authentication and report successful/failed requests.
+- High-collision seat races and concurrency guarantees are not required.
+- Required deliverable; schedule after API integration is stable.
 
 ### Test Setup
 
@@ -1166,6 +1194,9 @@ pytest tests/unit/                  # unit tests (no DB needed)
 
 ### Test Ownership
 
+> Statuses below are from the audit snapshot; the Kaggle CPU test remains a
+> separate required deliverable even if the older Locust test was marked done.
+
 | Area | Owner | Status |
 |---|---|---|
 | Auth unit | P1 | NOT IMPLEMENTED |
@@ -1176,7 +1207,7 @@ pytest tests/unit/                  # unit tests (no DB needed)
 | Showtime integration | P2 | STALE |
 | Booking integration (11 tests) | P3 | DONE |
 | Booking constraints (4 tests) | P3 | DONE |
-| Load test | P3 | DONE (needs re-run) |
+| Kaggle CPU load test | P3 | REQUIRED (run after integration) |
 | Full system test | ALL | NOT DONE |
 
 ---
@@ -1253,20 +1284,22 @@ pytest tests/unit/                  # unit tests (no DB needed)
 | P1 ↔ P3 auth wire-up | DONE (post-audit) | Was: `user_id` vs `id`; fixed |
 | P2 ↔ P3 showtime FK | DONE | FK to `showtimes.id` correct |
 | ADMIN guards (P1 → P2) | **NOT DONE** | `RollChecker` not wired |
-| Seat format alignment (P2 ↔ P3) | **RISK** | Numeric vs alphanumeric |
-| Booked seat filter (P2) | **RISK** | All statuses queried, not active-only |
-| Full system test | NOT DONE | Requires all above resolved |
-| seed.py fix | BROKEN | `SessionLocal` undefined |
+| Seat format | AGREED | Numeric labels; update any stale fixtures |
+| Booked seat filter (P2) | **RISK** | Must include active bookings only |
+| Focused acceptance checks | NOT VERIFIED | Required workflows listed at top |
+| Full original test matrix | OPTIONAL | Broad integration/concurrency matrix is not required |
+| Automated demo seed script | OPTIONAL | Internal ADMIN provisioning method is required |
 
 ---
 
 ## 17. Integration Risks
 
-> **Revised demo blockers:** working login/JWT, ADMIN-only Movie/Showtime writes,
-> correct 404 behavior for missing Movie/Showtime resources, active-only seat
-> availability, and numeric seat labels shared by Showtime and Booking. The
-> partial unique index, concurrency guarantees, Locust test, and showtime-detail
-> endpoint are not blockers under the simplified scope.
+> **Required Phase 1 acceptance:** working registration/login/JWT and role checks;
+> the USER and ADMIN workflows listed above; active-only seat availability and
+> numeric labels; focused workflow checks; Docker packaging with README
+> architecture/API/Docker guidance; and a Kaggle CPU load test after API
+> integration. A database race/concurrency guarantee and standalone showtime
+> detail endpoint are not required.
 
 ### CRITICAL — Resolved (verify before merge to main)
 
@@ -1302,9 +1335,9 @@ Verify:   Integration tests pass
 
 ---
 
-### NON-BLOCKING — Must resolve before production / final demo
+### Known audit gaps and optional follow-up (implementation snapshot; re-check code)
 
-#### Risk 4 — ADMIN authorization not enforced on write endpoints
+#### Required gap — ADMIN authorization on write endpoints
 ```
 Risk:     POST/PUT/DELETE /movies and POST /showtimes accept any caller
 Evidence: app/api/movie.py comment; RollChecker defined but unused
@@ -1331,16 +1364,13 @@ Owner:    P2 (Showtime model)
 Fix:      Add timezone=True to Showtime.start_time: DateTime(timezone=True)
 ```
 
-#### Risk 7 — Seat number format mismatch
+#### Required gap — stale booking seat fixtures may not match the agreed numeric format
 ```
-Risk:     ShowtimeService generates "1","2"..."N" (numeric strings)
-          Booking tests and BOOKING_CONTRACT.md use "A1","B2","J10" (alphanumeric)
-Evidence: showtime_service.py: str(seat_number) for seat_number in range(1, total+1)
-          tests/test_booking.py: seat_number="A1", "B2", "J10"
-Impact:   GET /seats shows "1"; user books "A1" — the seat cannot be matched
-          Seat-availability display becomes meaningless
-Owner:    P2 (generates labels) + P3 (accepts any string)
-Fix:      Team must agree on ONE format; update ShowtimeService AND booking tests
+Agreed:   Numeric strings "1" through str(total_seats) throughout
+Audit:    Older contracts/tests may still contain alphanumeric examples
+Impact:   Stale fixtures can conceal an API mismatch
+Owner:    P2 + P3
+Fix:      Update stale fixtures/contracts to numeric labels; the format decision is settled
 ```
 
 #### Risk 8 — Booked seat query includes cancelled bookings
@@ -1348,32 +1378,30 @@ Fix:      Team must agree on ONE format; update ShowtimeService AND booking test
 Risk:     ShowtimeRepository.get_booked_seats() queries ALL booking statuses
 Evidence: showtime_repository.py: SELECT seat_number WHERE showtime_id = X
           (no WHERE status = 'active' filter)
-Impact:   Cancelled seat shown as unavailable; contradicts partial unique index
+Impact:   Cancelled seat remains unavailable, contradicting the agreed reopen-seat workflow
 Owner:    P2 (showtime_repository.py)
 Fix:      Add .where(Booking.status == "active") to get_booked_seats() query
 ```
 
-#### Risk 9 — Movie/Showtime deletion cascade undefined
+#### Optional — Movie/Showtime deletion cascade policy
 ```
-Risk:     No cascade rule defined; all FKs use default RESTRICT
-Evidence: listwork.md notes the decision is needed; movie.py delete() has no guard
-Impact:   Deleting Movie with Showtimes raises unhandled 500 IntegrityError
-Owner:    P2 (Movie/Showtime) + P1 (exception handling)
-Fix:      (a) Pre-check for related records → return 409 Conflict
-          or (b) SQLAlchemy cascade="all, delete-orphan" — decide policy first
+Scope:    No cascade behavior or policy is required for this phase
+Current:  Audited foreign keys use RESTRICT; deleting referenced records may fail
+Owner:    No acceptance task unless deletion behavior is explicitly expanded
 ```
 
-#### Risk 10 — seed.py is broken
+#### Optional — automated demo seed script
 ```
 Risk:     seed.py imports SessionLocal which does not exist in database.py
 Evidence: seed.py line 5: from app.db.database import SessionLocal
           database.py exports: AsyncSessionLocal (NOT SessionLocal)
-Impact:   ImportError on run; cannot seed initial demo data
+Impact:   Automated movie/showtime demo seeding is unavailable
 Owner:    P2
-Fix:      Convert seed.py to async pattern using AsyncSessionLocal + asyncio.run()
+Scope:    Automated demo seeding is optional. A documented internal method to
+          provision an ADMIN account is required and may be provided separately.
 ```
 
-#### Risk 11 — Dockerfile is empty
+#### Required gap — Docker packaging and README instructions
 ```
 Risk:     Dockerfile has zero content
 Evidence: File size = 0 bytes; direct read confirms empty file
@@ -1382,34 +1410,34 @@ Owner:    P1
 Fix:      Implement Dockerfile for FastAPI async app
 ```
 
-#### Risk 12 — Load test references old mock auth
+#### Required gap — Kaggle CPU load test
 ```
 Risk:     load_test.py docstring says "mock auth — no JWT needed"
           but booking.py now uses real JWT auth (get_current_user)
 Evidence: load_test.py lines 43–44 comment
-Impact:   All requests missing Authorization header → 401; load test not testing anything
+Impact:   Without valid JWT setup the load test cannot exercise booking
 Owner:    P3
-Fix:      Seed a test user; generate valid JWT; add Authorization header in Locust tasks
+Fix:      Use valid JWT authentication and run a representative booking workflow
+          after API integration is stable. Race-condition guarantees are optional.
 ```
 
-#### Risk 13 — tests/test_movie.py and tests/test_showtime.py are stale
+#### Optional — stale legacy Movie/Showtime integration tests
 ```
 Risk:     Files use synchronous pattern (no await); services are all async
 Evidence: tests/test_movie.py: service.list_movies() (no await)
           app/services/movie_service.py: async def list_movies()
-Impact:   Tests will fail or silently return coroutine objects instead of results
+Impact:   These legacy tests may fail; focused smoke/unit checks remain the acceptance bar
 Owner:    P2
-Fix:      Update to async tests with @pytest.mark.asyncio + await
-          (tests/unit/ versions are already correct)
+Fix:      Update only if needed for the chosen verification workflow; do not treat
+          the old full test matrix as mandatory scope
 ```
 
-#### Risk 14 — No showtime detail endpoint
+#### Out of scope — standalone showtime detail endpoint
 ```
 Risk:     GET /showtimes/{showtime_id} (detail) planned but not implemented
 Evidence: app/api/showtime.py has no @router.get("/{showtime_id}") handler
-Impact:   Clients cannot fetch single showtime details by ID
-Owner:    P2
-Fix:      Add GET /{showtime_id} in showtime.py + get_showtime() in ShowtimeService
+Scope:    Not required for this phase; the showtime list and seat-availability
+          endpoint provide the agreed user workflow.
 ```
 
 ---
@@ -1521,7 +1549,7 @@ BookingResponse schema   : {id, user_id, showtime_id, seat_number, status, creat
 Booking status values    : "active", "cancelled"
 Booking state lifecycle  : active → cancelled  (terminal; no re-activation)
 Delete policy            : soft-delete only — no hard DELETE on bookings rows
-Partial unique index     : uq_bookings_showtime_seat_active
+Partial unique index     : legacy implementation artifact; not required by the simplified acceptance criteria
 HTTP error codes         : 400 DuplicateSeat | 403 Ownership | 404 NotFound | 400 StateError
 ```
 
@@ -1532,11 +1560,12 @@ HTTP error codes         : 400 DuplicateSeat | 403 Ownership | 404 NotFound | 40
 When conflict exists between any two sources, apply this priority:
 
 ```
-Priority 1 : Explicit project requirements
-             (app/skills/skill.md, app/problem/2026.md)
+Priority 1 : Decisions recorded at the beginning of this file:
+             simplified Phase 1 scope plus later Docker/README/Kaggle CPU
+             load-test deliverables
 
-Priority 2 : Agreed team architecture/design
-             (app/skills/skill.md §4 — layered arch rules)
+Priority 2 : Explicit assignment requirements not superseded by the decisions above
+             (consult app/skills/skill.md and app/problem/2026.md)
 
 Priority 3 : Frozen contracts
              (BOOKING_CONTRACT.md)
@@ -1545,7 +1574,7 @@ Priority 4 : Current repository implementation (actual code)
 
 Priority 5 : Tests (reveal expected behaviour)
 
-Priority 6 : Supporting documents
+Priority 6 : Historical/supporting documents and audit snapshots
              (README.md, INTEGRATION_AUDIT.md, app/skills/listwork.md)
 
 Priority 7 : AI inference or assumption
@@ -1555,13 +1584,16 @@ Priority 7 : AI inference or assumption
 
 ### Conflict Reporting Template
 
-When `Requirement ≠ Current Code`, always report as:
+When implementation conflicts with an agreed requirement, state both clearly.
+Implement the agreed requirement within the assigned scope. If two approved
+decisions conflict and this document does not establish which is newer, report
+the conflict and ask the team to resolve it.
 
 ```
 CONFLICT DETECTED
 Expected (from requirement): X
 Actual   (from code):        Y
-Resolution: DO NOT AUTO-FIX — report and await team instruction
+Resolution: Follow the current agreed requirement; ask only when approved decisions conflict
 ```
 
 ### Status Vocabulary
@@ -1582,13 +1614,16 @@ Resolution: DO NOT AUTO-FIX — report and await team instruction
 
 ---
 
-*Document generated by READ-ONLY analysis of the repository.*  
-*No source files were modified during analysis.*  
-*Generated: 2026-10-06*
-## Cập nhật yêu cầu triển khai (2026-10-07)
+## Additional Required Phase 1 Deliverables (2026-10-07)
 
-- Đóng gói dịch vụ bằng Docker là yêu cầu bắt buộc theo đề bài Pha 1, không phải hạng mục tùy chọn sau đơn giản hóa.
-- Person 1 phụ trách Dockerfile/cấu hình khởi chạy và hướng dẫn build/run; phối hợp để cấu hình chạy được ứng dụng cùng cơ sở dữ liệu nếu dự án cần.
-- README phải mô tả kiến trúc và đặc tả API, đồng thời có hướng dẫn Docker.
-- Yêu cầu Docker chỉ ảnh hưởng đóng gói/triển khai; không mở rộng các chức năng nghiệp vụ đã đơn giản hóa.
-- Load test Kaggle CPU vẫn là yêu cầu Pha 1 riêng; có thể viết/chạy ở giai đoạn API ổn định trước nghiệm thu.
+- Docker packaging is required. Person 1 owns the Dockerfile and build/run guidance.
+- README must describe architecture and API contracts and explain Docker build/run.
+- These deployment/documentation requirements do not restore business features
+  removed by the simplified scope.
+- A representative authenticated Kaggle CPU load test is required and should be
+  run after the API is stable. Race-condition guarantees are not required.
+
+---
+
+*Updated: 2026-10-09. Historical implementation status is based on prior audit
+snapshots and must be re-verified against the current repository.*
