@@ -58,8 +58,8 @@ from locust.exception import RescheduleTask
 ENDPOINT = "/api/v1/bookings/"
 SHOWTIME_ID = 1
 
-# Five seats — deliberately few to maximise collision rate.
-SEATS = ["A1", "A2", "A3", "A4", "A5"]
+# Five numeric seats — deliberately few to maximise collision rate.
+SEATS = ["1", "2", "3", "4", "5"]
 
 # Phrases that appear in the detail field when DuplicateSeatError is raised.
 # Used to distinguish an *expected* 400 from an unexpected one.

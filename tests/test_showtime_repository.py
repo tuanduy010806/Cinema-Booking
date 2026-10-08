@@ -23,13 +23,13 @@ async def test_get_booked_seats_returns_only_active(
             Booking(
                 user_id=user1.user_id,
                 showtime_id=showtime1.id,
-                seat_number="A1",
+                seat_number="1",
                 status="active",
             ),
             Booking(
                 user_id=user1.user_id,
                 showtime_id=showtime1.id,
-                seat_number="A2",
+                seat_number="2",
                 status="cancelled",
             ),
         ]
@@ -38,4 +38,4 @@ async def test_get_booked_seats_returns_only_active(
 
     repository = ShowtimeRepository(_AsyncSessionAdapter(db_session))
 
-    assert await repository.get_booked_seats(showtime1.id) == {"A1"}
+    assert await repository.get_booked_seats(showtime1.id) == {"1"}
