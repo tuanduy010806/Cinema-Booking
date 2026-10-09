@@ -7,6 +7,33 @@
 > **Mode:** READ-ONLY — no source files were modified  
 > **Source of Truth:** `PROJECT_MASTER_CONTEXT.md` (Priority 1) vs Actual Repository (Priority 2)
 
+> **CURRENT PLAN AND REPOSITORY CHECK (2026-10-09):** The detailed audit below
+> records the 2026-10-06 inspection. The current status table below reflects a
+> fresh static check of the workspace against `PROJECT_MASTER_CONTEXT.md`.
+> Required P1 scope: working register/login/JWT; public registration creates
+> USER only; documented internal ADMIN provisioning; ADMIN dependency
+> coordinated with P2; focused auth/role smoke checks; Docker packaging; README
+> architecture/API/Docker instructions. Broad auth coverage and exception-layer
+> refactoring are optional.
+
+## Latest Repository Verification — Person 1
+
+| Area | Verified status on 2026-10-09 | Evidence |
+|---|---|---|
+| FastAPI app, PostgreSQL async session, User model/repository | Present | `app/main.py`, `app/db/database.py`, `app/models/user.py`, `app/repositories/user_repository.py` |
+| Public registration | Explicitly creates `Role.USER` and returns a token | `app/services/auth_service.py:26-34` |
+| Login/password verification | **Broken in current code inspection:** `verify_password()` passes stored hash before plaintext | `app/core/security.py:22-23`; call site `app/services/auth_service.py:40` |
+| JWT and middleware | Creation/decoding and bearer middleware are implemented | `app/core/security.py`, `app/core/auth_middleware.py` |
+| ADMIN role dependency | `RollChecker` exists, but Movie/Showtime write routes do not depend on it. It uses exact role matching; verify ADMIN inheritance if USER-only guards are introduced | `app/core/permission.py`; `app/api/movie.py:28-49`; `app/api/showtime.py:26-33` |
+| Internal ADMIN provisioning | No documented provisioning method found in the checked `README.md`, `seed.py`, or `scripts/` | Repository search on 2026-10-09 |
+| Auth tests | `tests/test_auth.py` remains TODO; focused smoke behavior is not demonstrated | `tests/test_auth.py` |
+| Docker, README, dependencies | Dockerfile is empty; README contains project structure but no architecture/API/Docker run guide; `requirements.txt` is incomplete for the app (includes `sqlalchemy.orm`, omits required runtime packages) | `Dockerfile` (0 bytes), `README.md`, `requirements.txt` |
+| Test execution | Not run: `pytest` command unavailable and `py -m pytest` reports pytest is not installed | Command output, 2026-10-09 |
+
+This is a static repository check, not a successful end-to-end auth run. The
+historical detailed audit below remains useful for design evidence; this table
+is the current observed status and supersedes its old readiness verdict.
+
 ---
 
 ## 1. Audit Summary
@@ -15,7 +42,7 @@
 
 | Gate | Result |
 |---|---|
-| **Overall Integration Readiness** | **READY WITH CONDITIONS** |
+| **Historical audit verdict (2026-10-06)** | **READY WITH CONDITIONS — not current status** |
 
 ### Key Statistics
 
@@ -28,9 +55,9 @@
 | LOW findings | 2 |
 | Person 1 endpoints | 2 (register, login) |
 | Tests implemented (Person 1) | 0 |
-| Tests required (Person 1) | 10+ |
+| Current required auth checks | Focused smoke checks for register, login, unauthenticated request, USER/ADMIN behavior |
 
-### CRITICAL findings (must fix before integration)
+### Critical findings at the historical audit date (verify before acting)
 
 1. **`verify_password()` parameter order is REVERSED** — login will always fail with `UnknownHashError`
 2. **`RollChecker` is NOT wired to any endpoint** — ADMIN authorization is completely unenforced
@@ -381,7 +408,7 @@ credentials results in a 500 error, not a 401.
 - Parameter order change in 0.3.1: [pwdlib changelog](https://github.com/frankie567/pwdlib)
 - Empirical test: `verify(hash, password)` raises `UnknownHashError`
 
-**Fix (DO NOT APPLY — report only):**
+**Proposed correction (apply only if this historical finding still reproduces):**
 ```python
 # Change line 23 from:
 return password_hasher.verify(hashed_password, plain_password)
@@ -701,7 +728,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 ### Transaction Isolation
 
 - No explicit transaction isolation level set (PostgreSQL default: `READ COMMITTED`).
-- The booking partial unique index provides the critical concurrency guard.
+- The audited Booking model includes a partial unique index; database-level race protection is not required by the current scope.
 - Status: **IMPLEMENTED** — adequate for Phase 1.
 
 ---
@@ -913,8 +940,8 @@ raise `CinemaException` subclasses. Only `AuthService` violates this rule.
 | **RollChecker** | `Depends(RollChecker(Role.ADMIN))` on write endpoints | Defined but **NOT WIRED** | **NOT WIRED** | `permission.py` + `movie.py` comments | ADMIN auth unenforced |
 | **ADMIN guard — movies** | Required on POST/PUT/DELETE | **MISSING** | **MISSING** | `movie.py:31,42,49` comments | Any caller can modify movies |
 | **ADMIN guard — showtimes** | Required on POST | **MISSING** | **MISSING** | `showtime.py:32` comment | Any caller can create showtimes |
-| **Auth integration tests** | Required | **TODO stubs only** | NOT IMPLEMENTED | `tests/test_auth.py` | No verification of auth |
-| **Auth unit tests** | Required | **TODO stubs only** | NOT IMPLEMENTED | `tests/unit/test_auth.py` | No verification of auth |
+| **Focused auth smoke checks** | Small required set | **TODO stubs only at audit date** | NOT VERIFIED | Auth test files | Cover register, login, unauthenticated access, USER/ADMIN behavior |
+| **Broad auth unit/integration coverage** | Optional | **TODO stubs only at audit date** | OPTIONAL | Auth test files | More coverage may be added but is not the acceptance bar |
 | **`requirements.txt`** | All dependencies listed | **Critically incomplete** | INCORRECT | `requirements.txt` | `pip install` fails |
 
 ---
@@ -934,7 +961,7 @@ raise `CinemaException` subclasses. Only `AuthService` violates this rule.
 | **Affected** | `POST /api/v1/auth/login` — completely broken |
 | **Evidence** | pwdlib 0.3.1 installed; empirical test confirms reversed order crashes |
 | **Integration Impact** | No user can authenticate → no JWT issued → booking endpoints return 401 |
-| **Fix (DO NOT APPLY)** | Swap arguments: `password_hasher.verify(plain_password, hashed_password)` |
+| **Proposed correction (if still present)** | `password_hasher.verify(plain_password, hashed_password)` |
 
 ### FINDING 2 — `RollChecker` NOT WIRED to any endpoint
 
@@ -947,7 +974,7 @@ raise `CinemaException` subclasses. Only `AuthService` violates this rule.
 | **Impact** | Any caller — authenticated or not — can create, update, delete movies and create showtimes |
 | **Evidence** | `movie.py` lines 31, 42, 49 contain placeholder comments only |
 | **Integration Impact** | Security vulnerability — entire movie catalogue is unprotected |
-| **Fix (DO NOT APPLY)** | Add `Depends(RollChecker(Role.ADMIN))` to write endpoints |
+| **Proposed correction (if still missing)** | Add `Depends(RollChecker(Role.ADMIN))` to write endpoints |
 
 ---
 
@@ -1186,91 +1213,37 @@ async def cancel_booking(self, user_id: int, booking_id: int):
 
 ---
 
-## 18. Recommended Fix Priority
+## 18. Current-Plan Work Priority
 
-### CRITICAL (must fix before any integration testing)
+The lists below replace the old audit's original-scope priorities. Audit facts elsewhere in this report remain snapshots; confirm them in the repository before assigning work.
 
-| # | Problem | File | Line | Impact |
-|---|---|---|---|---|
-| C1 | `verify_password()` parameter order reversed | `app/core/security.py` | 23 | Login always fails with 500; no user can authenticate |
-| C2 | `RollChecker` not wired to any endpoint | `app/api/movie.py`, `showtime.py` | 31,42,49,32 | Any caller can modify movies/showtimes; security violation |
+### Required for Phase 1 if still open
 
-### HIGH (should fix before merge to main)
-
-| # | Problem | File | Impact |
+| Order | Work | Owner | Acceptance evidence |
 |---|---|---|---|
-| H1 | `AuthService` raises `HTTPException` (violates layered arch) | `app/services/auth_service.py` | Service coupled to web framework |
-| H2 | `requirements.txt` critically incomplete | `requirements.txt` | Cannot reproduce environment from file |
-| H3 | Zero auth tests implemented | `tests/test_auth.py`, `tests/unit/test_auth.py` | No verification of auth functionality |
+| 1 | Fix password verification and verify register → login → JWT → authenticated request | P1 | Focused smoke flow succeeds |
+| 2 | Ensure public registration always assigns USER; document/provide internal ADMIN provisioning | P1 | Register request cannot assign ADMIN; internal process documented |
+| 3 | Provide ADMIN role dependency and coordinate guards for Movie writes and Showtime creation | P1 + P2 | USER/anonymous denied; ADMIN allowed |
+| 4 | Focused auth smoke checks | P1 | Register, login, unauthenticated access, USER/ADMIN behavior covered |
+| 5 | Complete Docker packaging and README architecture/API/Docker instructions | P1 | Documented build/run path works; dependencies needed for that path are present |
 
-### MEDIUM (should fix before production / final demo)
+### Optional under the simplified scope
 
-| # | Problem | File | Impact |
-|---|---|---|---|
-| M1 | No email format validation on register | `app/schemas/auth.py` | Accepts any string as email |
-| M2 | No startup env var validation | `app/db/database.py`, `app/core/security.py` | Cryptic crash if env vars missing |
-| M3 | `RollChecker` uses exact-match (not hierarchy) | `app/core/permission.py` | ADMIN blocked from USER-guarded endpoints |
-| M4 | Documentation says "bcrypt" but actual is Argon2id | `PROJECT_MASTER_CONTEXT.md` | Documentation inaccuracy |
-
-### LOW (nice to have)
-
-| # | Problem | File | Impact |
-|---|---|---|---|
-| L1 | `echo=True` on production engine | `app/db/database.py` | Logs all SQL in production |
-| L2 | Typo `exprie_delta` in function parameter | `app/core/security.py` | Cosmetic only |
-| L3 | `config.py` is empty dead file | `app/core/config.py` | Clutter |
-| L4 | Typo `RollChecker` class name (should be `RoleChecker`) | `app/core/permission.py` | Cosmetic only |
-| L5 | `Dockerfile` is empty | `Dockerfile` | Cannot containerize (planned for Phase 1) |
-| L6 | Docker `POSTGRES_PASSWORD: 123456` committed | `docker-compose.yml` | Credential in version control |
+- Broad auth unit/integration test coverage beyond the focused smoke checks.
+- Refactoring AuthService exception architecture, unless needed to make required behavior work.
+- Additional production hardening such as startup validation, rate limits, or JWT `iat` claims.
+- Cosmetic naming/config cleanup unrelated to required flows.
 
 ---
 
-## 19. Final Integration Verdict
+## 19. Current-Scope Verdict
 
-### Summary
+The 2026-10-09 static repository check confirms the reversed password verification call, unwired ADMIN dependency, empty Dockerfile, auth test stubs, and absence of a documented internal ADMIN provisioning method. These are current required gaps under the agreed plan. Registration code does explicitly assign new users the USER role. JWT creation/decoding and bearer middleware are present, but the end-to-end auth flow could not be run because pytest is unavailable in the active environment.
 
-Person 1's infrastructure is **architecturally sound** — the layered design, async database
-stack, JWT implementation, middleware chain, and dependency injection patterns all follow
-the project's documented architecture correctly.
+The old recommendation for 10+ auth tests is superseded: the agreed bar is a small focused smoke set. A complete dependency manifest is required only to the extent needed for the documented Docker build/run path. Findings about broad coverage, architectural refactors, and unrelated hardening do not independently block this scope.
 
-However, **two critical bugs** prevent the system from functioning as intended:
-
-1. **Login is completely broken** due to a reversed parameter order in `verify_password()`.
-   This is a one-line fix (`swap two arguments`) but it blocks all authenticated workflows.
-
-2. **ADMIN authorization is unenforced** — the `RollChecker` mechanism is fully implemented
-   but never wired to endpoints via `Depends()`. This is a wiring task, not a design problem.
-
-### Booking Integration Readiness
-
-Person 3's Booking domain **can integrate successfully** with Person 1's infrastructure.
-The critical components for booking — `get_current_user()`, `User.user_id` FK compatibility,
-`get_db()`, `AsyncSession`, `AuthMiddleware` — are all correctly implemented and compatible.
-
-The `verify_password()` bug does not affect the booking integration contract because:
-- In tests, `get_current_user` is overridden via `dependency_overrides` (bypasses real auth)
-- In production, fixing the one-line bug restores login → JWT → middleware → booking flow
-
-### Final Rating
-
-```
-PERSON 1 INTEGRATION STATUS: READY WITH CONDITIONS
-
-Condition 1: Fix verify_password() parameter order     [1-line change]
-Condition 2: Wire RollChecker to write endpoints        [4 endpoints]
-Condition 3: Complete requirements.txt                  [add missing packages]
-
-Without these fixes:
-- Login: BROKEN (500 on all attempts)
-- ADMIN auth: UNENFORCED (security hole)
-- Environment: NOT REPRODUCIBLE (requirements incomplete)
-
-With these fixes:
-- All integration gates PASS
-- Booking integration: FULLY COMPATIBLE
-- Architecture: SOUND
-```
+This document update synchronized priorities; it did not re-audit current code. Re-check the relevant files and record new evidence before marking any item open or complete.
 
 ---
 
-**PERSON 1 AUDIT COMPLETED — READ-ONLY — NO FILES MODIFIED — WAITING FOR NEXT INSTRUCTION**
+**Original technical audit completed read-only on 2026-10-06. Current-plan alignment updated 2026-10-09; no application source code was changed.**
