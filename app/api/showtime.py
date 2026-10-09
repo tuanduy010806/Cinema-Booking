@@ -39,15 +39,6 @@ async def create_showtime(
     return await service.create_showtime(payload)
 
 
-@router.get("/{showtime_id}", response_model=ShowtimeResponse)
-async def get_showtime(
-    showtime_id: int,
-    service: ShowtimeService = Depends(get_showtime_service),
-):
-    """Get a showtime by id."""
-    return await service.get_showtime(showtime_id)
-
-
 @router.get("/{showtime_id}/seats", response_model=list[SeatResponse])
 async def get_showtime_seats(
     showtime_id: int,

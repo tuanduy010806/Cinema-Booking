@@ -14,15 +14,15 @@ def _write_request(client: TestClient, method: str, path: str, payload: dict | N
     return client.request(method, path, json=payload)
 
 
-def test_list_movies_returns_seeded_movie(client: TestClient, movie: Movie):
-    response = client.get("/api/v1/movies")
+def test_list_movies_returns_seeded_movie(anonymous_client: TestClient, movie: Movie):
+    response = anonymous_client.get("/api/v1/movies")
 
     assert response.status_code == 200, response.text
     assert any(item["id"] == movie.id for item in response.json())
 
 
-def test_get_movie_returns_movie_details(client: TestClient, movie: Movie):
-    response = client.get(f"/api/v1/movies/{movie.id}")
+def test_get_movie_returns_movie_details(anonymous_client: TestClient, movie: Movie):
+    response = anonymous_client.get(f"/api/v1/movies/{movie.id}")
 
     assert response.status_code == 200, response.text
     assert response.json() == {

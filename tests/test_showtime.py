@@ -11,19 +11,21 @@ from app.models.user import User
 
 
 def test_list_showtimes_can_filter_by_movie(
-    client: TestClient,
+    anonymous_client: TestClient,
     movie: Movie,
     showtime1: Showtime,
     showtime2: Showtime,
 ):
-    response = client.get("/api/v1/showtimes", params={"movie_id": movie.id})
+    response = anonymous_client.get(
+        "/api/v1/showtimes", params={"movie_id": movie.id}
+    )
 
     assert response.status_code == 200, response.text
     assert {item["id"] for item in response.json()} == {showtime1.id, showtime2.id}
 
 
 def test_get_showtime_seats_uses_active_booking_status(
-    client: TestClient,
+    anonymous_client: TestClient,
     db_session: Session,
     user1: User,
     showtime1: Showtime,
@@ -33,36 +35,29 @@ def test_get_showtime_seats_uses_active_booking_status(
             Booking(
                 user_id=user1.user_id,
                 showtime_id=showtime1.id,
-                seat_number="1",
+                seat_number="A1",
                 status="active",
             ),
             Booking(
                 user_id=user1.user_id,
                 showtime_id=showtime1.id,
-                seat_number="2",
+                seat_number="A2",
                 status="cancelled",
             ),
         ]
     )
     db_session.flush()
 
-    response = client.get(f"/api/v1/showtimes/{showtime1.id}/seats")
+    response = anonymous_client.get(f"/api/v1/showtimes/{showtime1.id}/seats")
 
     assert response.status_code == 200, response.text
     seats = {seat["seat_number"]: seat["is_available"] for seat in response.json()}
-    assert seats["1"] is False
-    assert seats["2"] is True
+    assert seats["A1"] is False
+    assert seats["A2"] is True
 
 
-def test_get_missing_showtime_seats_returns_404(client: TestClient):
-    response = client.get("/api/v1/showtimes/999999999/seats")
-
-    assert response.status_code == 404, response.text
-    assert response.json() == {"detail": "Showtime not found"}
-
-
-def test_get_missing_showtime_returns_404(client: TestClient):
-    response = client.get("/api/v1/showtimes/999999999")
+def test_get_missing_showtime_seats_returns_404(anonymous_client: TestClient):
+    response = anonymous_client.get("/api/v1/showtimes/999999999/seats")
 
     assert response.status_code == 404, response.text
     assert response.json() == {"detail": "Showtime not found"}

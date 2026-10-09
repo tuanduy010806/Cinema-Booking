@@ -12,12 +12,6 @@ class ShowtimeService:
     async def list_showtimes(self, movie_id: int | None = None):
         return await self.showtime_repository.get_all(movie_id=movie_id)
 
-    async def get_showtime(self, showtime_id: int):
-        showtime = await self.showtime_repository.get_by_id(showtime_id)
-        if showtime is None:
-            raise NotFoundException("Showtime not found")
-        return showtime
-
     async def create_showtime(self, payload: ShowtimeCreate):
         movie = await self.movie_repository.get_by_id(payload.movie_id)
         if movie is None:
@@ -32,7 +26,7 @@ class ShowtimeService:
         booked_seats = await self.showtime_repository.get_booked_seats(showtime_id)
         seats = []
         for seat_index in range(1, showtime.total_seats + 1):
-            seat_number = str(seat_index)
+            seat_number = f"A{seat_index}"
             seats.append(
                 {
                     "seat_number": seat_number,
