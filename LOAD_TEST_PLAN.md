@@ -26,4 +26,6 @@
 
 ## Trạng thái hiện tại
 
-Kế hoạch đã được đưa vào phạm vi dự án. Notebook và số liệu Kaggle là đầu việc thực hiện ở giai đoạn kiểm thử/nghiệm thu, sau khi endpoint ổn định; chưa có kết quả chạy nào được khẳng định ở đây.
+Kịch bản Locust độc lập đã được cập nhật tại `load_test/load_test.py`: dùng JWT truyền qua biến môi trường, ID/capacity của showtime cấu hình được, nhãn ghế dạng `A1`, `A2`, …, một booking với ghế riêng cho mỗi người dùng, sau đó lặp lại thao tác xem danh sách booking của chính người dùng để tạo tải kéo dài mà không biến bài đo thành kiểm thử va chạm.
+
+Notebook Kaggle, số liệu chạy và phần tóm tắt trong README vẫn đang chờ. Chỉ chạy sau khi Person 1 hoàn tất luồng xác thực/tạo token và Person 2 đồng bộ nhãn A-row cho Showtime availability, sau đó API ổn định. Trước lúc chạy cần dùng showtime thử nghiệm còn ghế trống, lưu token bằng Kaggle Secrets/environment variables, và giới hạn số người dùng không vượt quá số ghế thử nghiệm đã dành riêng.
