@@ -1,148 +1,95 @@
-"""
-load_test/load_test.py
-======================
-Locust load test — HIGH COLLISION scenario for the Booking API.
+"""Authenticated, low-collision Locust scenario for the Booking API.
 
-Purpose
--------
-Only 5 seat labels are available.  Every virtual user picks one at random and
-tries to book it on showtime_id=1.  This deliberately maximises duplicate-seat
-collisions so we can observe:
+Configure the integrated test deployment before starting Locust:
 
-  * duplicate-seat behaviour under concurrent load
-  * response time distribution
-  * throughput (requests/s)
-  * unexpected server errors (HTTP 5xx)
+    BOOKING_ACCESS_TOKEN=<JWT>
+    BOOKING_SHOWTIME_ID=<existing showtime id>
+    BOOKING_TOTAL_SEATS=<showtime capacity>
+    locust -f load_test/load_test.py --host <API base URL> \
+        --headless -u <number of reserved seats> -r 1 -t 60s
 
-This is NOT a realistic cinema-traffic simulation.
-
-Usage
------
-    # Install locust first if needed:
-    #   pip install locust
-
-    # Headless run (10 users, spawn rate 2/s, run 60 s):
-    locust -f load_test/load_test.py \\
-           --host http://localhost:8000 \\
-           --headless -u 10 -r 2 -t 60s
-
-    # Interactive web UI (open http://localhost:8089 in your browser):
-    locust -f load_test/load_test.py --host http://localhost:8000
-
-Response classification
------------------------
-  201 Created          → success (booking created)
-  400 Bad Request      → success ONLY when the body identifies DuplicateSeatError
-                         (expected business outcome under collision load)
-  Any other 4xx / 5xx → failure (unexpected — logged as Locust failure)
-
-The host is NEVER hard-coded; it must always be passed via --host on the CLI.
-
-Auth note
----------
-The server uses the mock auth dependency (get_mock_current_user) which returns
-user id=1 with no credentials required.  No JWT setup is needed.
+Use a fresh test showtime (or a reserved range of unused seats) for each run.
+Each simulated user books one unique A-row seat (A1, A2, ...) and then repeatedly lists
+that user's bookings. Keep the user count within the available seats. This
+measures authenticated booking and listing paths; it does not test race guarantees.
+Store credentials as Kaggle secrets/environment variables, never in this file.
 """
 
 from __future__ import annotations
 
-import random
+import itertools
+import logging
+import os
 
 from locust import HttpUser, between, task
-from locust.exception import RescheduleTask
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-ENDPOINT = "/api/v1/bookings/"
-SHOWTIME_ID = 1
-
-# Five numeric seats — deliberately few to maximise collision rate.
-SEATS = ["1", "2", "3", "4", "5"]
-
-# Phrases that appear in the detail field when DuplicateSeatError is raised.
-# Used to distinguish an *expected* 400 from an unexpected one.
-_DUPLICATE_SEAT_PHRASES = (
-    "already booked",          # English message from DuplicateSeatError
-    "đã được đặt",             # Vietnamese fallback (legacy messages)
-    "duplicateseat",
-    "duplicate",
-    "seat",
-)
+from locust.exception import StopUser
 
 
-def _is_expected_duplicate(response_text: str) -> bool:
-    """Return True if the 400 body looks like a DuplicateSeatError."""
-    lower = response_text.lower()
-    return any(phrase in lower for phrase in _DUPLICATE_SEAT_PHRASES)
+def _required_env(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise RuntimeError(f"Set the {name} environment variable before running Locust.")
+    return value
 
 
-# ---------------------------------------------------------------------------
-# Load test user
-# ---------------------------------------------------------------------------
+ACCESS_TOKEN = _required_env("BOOKING_ACCESS_TOKEN")
+SHOWTIME_ID = int(_required_env("BOOKING_SHOWTIME_ID"))
+TOTAL_SEATS = int(_required_env("BOOKING_TOTAL_SEATS"))
+SEAT_START = int(os.getenv("BOOKING_SEAT_START", "1"))
 
-class BookingLoadTest(HttpUser):
-    """
-    Simulates concurrent users attempting to book one of five seats on the
-    same showtime.  With many users and few seats the duplicate-seat path is
-    hit frequently — this is intentional.
-    """
+if SHOWTIME_ID <= 0:
+    raise RuntimeError("BOOKING_SHOWTIME_ID must be a positive integer.")
+if TOTAL_SEATS <= 0 or SEAT_START <= 0 or SEAT_START > TOTAL_SEATS:
+    raise RuntimeError("BOOKING_TOTAL_SEATS and BOOKING_SEAT_START must define a valid seat range.")
 
-    # Pause between 0.1 s and 0.5 s between consecutive tasks.
+_seat_numbers = itertools.count(SEAT_START)
+
+
+class AuthenticatedBookingUser(HttpUser):
+    """Book one unique seat, then repeatedly list the user's bookings."""
+
     wait_time = between(0.1, 0.5)
 
+    def on_start(self) -> None:
+        self.client.headers.update({"Authorization": f"Bearer {ACCESS_TOKEN}"})
+        seat_number = next(_seat_numbers)
+        if seat_number > TOTAL_SEATS:
+            logging.error(
+                "No unique test seat remains; keep Locust user count within the "
+                "configured seat range."
+            )
+            raise StopUser()
+        self.seat_number = f"A{seat_number}"
+        self.booking_created = False
+
     @task
-    def book_random_seat(self) -> None:
-        """
-        POST /api/v1/bookings/ with a randomly selected seat.
-
-        Response handling
-        -----------------
-        201  → mark SUCCESS  (new active booking created)
-        400  → mark SUCCESS  if body indicates DuplicateSeatError
-               mark FAILURE  for any other 400 (unexpected domain error)
-        5xx  → mark FAILURE  (server error — should never happen)
-        else → mark FAILURE  (unexpected status code)
-        """
-        seat = random.choice(SEATS)
-        payload = {
-            "showtime_id": SHOWTIME_ID,
-            "seat_number": seat,
-        }
-
-        with self.client.post(
-            ENDPOINT,
-            json=payload,
-            catch_response=True,   # required — we decide success/failure ourselves
-            name="POST /bookings/ [high-collision]",
-        ) as response:
-
-            if response.status_code == 201:
-                # Happy path — booking created.
-                response.success()
-
-            elif response.status_code == 400:
-                # 400 is only expected when the seat is already taken.
-                # Any other domain meaning (malformed payload, etc.) is a failure.
-                if _is_expected_duplicate(response.text):
+    def booking_workflow(self) -> None:
+        if self.booking_created:
+            with self.client.get(
+                "/api/v1/bookings/me",
+                name="GET /api/v1/bookings/me",
+                catch_response=True,
+            ) as response:
+                if response.status_code == 200:
                     response.success()
                 else:
                     response.failure(
-                        f"Unexpected 400 (not a duplicate-seat error): "
+                        f"Expected HTTP 200, got {response.status_code}: "
                         f"{response.text[:200]}"
                     )
+            return
 
-            elif response.status_code >= 500:
-                # Server error — must never happen under normal conditions.
-                response.failure(
-                    f"HTTP {response.status_code} — server error: "
-                    f"{response.text[:200]}"
-                )
-
+        with self.client.post(
+            "/api/v1/bookings/",
+            json={"showtime_id": SHOWTIME_ID, "seat_number": self.seat_number},
+            name="POST /api/v1/bookings/",
+            catch_response=True,
+        ) as response:
+            if response.status_code == 201:
+                response.success()
+                self.booking_created = True
             else:
-                # Unexpected status code (401, 403, 404, other 4xx …)
                 response.failure(
-                    f"Unexpected HTTP {response.status_code}: "
+                    f"Expected HTTP 201, got {response.status_code}: "
                     f"{response.text[:200]}"
                 )

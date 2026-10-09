@@ -15,7 +15,7 @@ Thực hiện các công việc sau theo thứ tự:
 
   ```json
   {
-    "seat_number": "1",
+    "seat_number": "A1",
     "is_available": true
   }
   ```
@@ -30,7 +30,7 @@ Thực hiện các công việc sau theo thứ tự:
 
 - [`app/services/movie_service.py`](../services/movie_service.py): xử lý list/detail/create/update/delete và báo lỗi rõ ràng khi phim không tồn tại.
 - [`app/services/showtime_service.py`](../services/showtime_service.py): lấy danh sách suất chiếu; xác định ghế trống/đã đặt bằng cách so sánh `total_seats` với các booking của `showtime_id`.
-- Dùng thống nhất nhãn ghế số từ `"1"` đến `str(total_seats)` theo hợp đồng đã chốt với Người 3.
+- Current decision: use A-row labels such as A1, A2, ... through A{total_seats} consistently in Showtime availability and Booking.
 
 ## 5. Hoàn thiện API
 

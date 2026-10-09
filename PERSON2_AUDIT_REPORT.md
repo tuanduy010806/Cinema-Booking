@@ -10,8 +10,10 @@
 > records the 2026-10-07 inspection. The current status table below reflects a
 > fresh static check of the workspace against `PROJECT_MASTER_CONTEXT.md`.
 > P2 acceptance: public Movie/Showtime reads; ADMIN-only Movie writes and
-> Showtime creation; basic validation and 404 behavior; numeric seat labels;
-> active-only availability. Docker/README and Kaggle CPU load test are separate
+> Showtime creation; basic validation and 404 behavior; A-row seat labels
+> (`A1`, `A2`, …) per the project owner's later decision; active-only availability.
+> The current Showtime service still emits numeric-only labels and must be
+> aligned before integration. Docker/README and Kaggle CPU load test are separate
 > required P1/P3 deliverables. Showtime detail, automated seed, cascade policy,
 > timezone normalization, and stale broad integration tests are optional.
 
@@ -24,7 +26,7 @@
 | Movie create/update/delete and Showtime creation | Routes exist, but **no ADMIN dependency is wired** | `app/api/movie.py:28-49`, `app/api/showtime.py:26-33` |
 | Basic Movie/Showtime input validation | Present: Movie title/duration and Showtime movie ID/seat count have schema constraints | `app/schemas/movie.py`, `app/schemas/showtime.py` |
 | Missing-resource HTTP 404 behavior | **Not mapped in the API:** services raise `NotFoundException`; `app/main.py` has no handler for it | `app/services/movie_service.py:16-18`, `app/services/showtime_service.py:16-25`, `app/main.py` |
-| Seat labels | Showtime service generates numeric labels `"1"` through `str(total_seats)` | `app/services/showtime_service.py:27-34` |
+| Seat-label contract (latest decision) | **PENDING ALIGNMENT:** current Showtime service emits numeric labels, while the project owner selected `A1` through `A{total_seats}`; Person 2 must update the generator and availability tests | `app/services/showtime_service.py:27-34`; latest decision in `PROJECT_MASTER_CONTEXT.md` |
 | Cancelled-seat availability | **Incorrect in current code:** repository queries all booking statuses, not active only | `app/repositories/showtime_repository.py:32-35` |
 | Unit tests | Three async unit tests exist for Movie and three for Showtime | `tests/unit/test_movie.py`, `tests/unit/test_showtime.py` |
 | Legacy integration tests | Still use synchronous `def test_*` calls for async services; suite is stale but optional under current plan | `tests/test_movie.py`, `tests/test_showtime.py` |
@@ -32,6 +34,9 @@
 
 Static inspection confirms concrete implementation progress as well as the
 required gaps above; no functional API tests were executable in this workspace.
+The A-row label decision was made after that audit snapshot. Older numeric-label
+findings below describe the audited implementation and are superseded as
+acceptance criteria by the current decision at the top of `PROJECT_MASTER_CONTEXT.md`.
 
 ---
 

@@ -36,7 +36,7 @@ class BookingService:
             Injected by the caller; the service never constructs it directly.
         showtime_repo:
             A ShowtimeRepository instance used to validate the referenced
-            Showtime and its numeric seat range.
+            Showtime and its A-row seat range (A1 through A{total_seats}).
         """
         self.repo = repo
         self.showtime_repo = showtime_repo
@@ -74,7 +74,7 @@ class BookingService:
         if showtime is None:
             raise NotFoundError(f"Showtime {payload.showtime_id} not found.")
 
-        seat_number = int(payload.seat_number)
+        seat_number = int(payload.seat_number[1:])
         if seat_number > showtime.total_seats:
             raise NotFoundError(
                 f"Seat {payload.seat_number} not found for showtime {payload.showtime_id}."
