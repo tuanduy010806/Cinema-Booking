@@ -30,7 +30,7 @@ Thực hiện các công việc sau theo thứ tự:
 
 - [`app/services/movie_service.py`](../services/movie_service.py): xử lý list/detail/create/update/delete và báo lỗi rõ ràng khi phim không tồn tại.
 - [`app/services/showtime_service.py`](../services/showtime_service.py): lấy danh sách suất chiếu; xác định ghế trống/đã đặt bằng cách so sánh `total_seats` với các booking của `showtime_id`.
-- Thống nhất định dạng số ghế đơn giản như `A1`, `A2`, … hoặc `1`, `2`, … với Người 3 trước khi code.
+- Current decision: use A-row labels such as A1, A2, ... through A{total_seats} consistently in Showtime availability and Booking.
 
 ## 5. Hoàn thiện API
 
