@@ -6,6 +6,33 @@
 > **Source of Truth:** `PROJECT_MASTER_CONTEXT.md`  
 > **Source Code Modified:** NO  
 
+> **CURRENT PLAN AND REPOSITORY CHECK (2026-10-09):** The detailed audit below
+> records the 2026-10-07 inspection. The current status table below reflects a
+> fresh static check of the workspace against `PROJECT_MASTER_CONTEXT.md`.
+> P2 acceptance: public Movie/Showtime reads; ADMIN-only Movie writes and
+> Showtime creation; basic validation and 404 behavior; numeric seat labels;
+> active-only availability. Docker/README and Kaggle CPU load test are separate
+> required P1/P3 deliverables. Showtime detail, automated seed, cascade policy,
+> timezone normalization, and stale broad integration tests are optional.
+
+## Latest Repository Verification — Person 2
+
+| Area | Verified status on 2026-10-09 | Evidence |
+|---|---|---|
+| Movie and Showtime models, schemas, async repositories/services | Present | `app/models/`, `app/schemas/`, `app/repositories/`, `app/services/` |
+| Public Movie and Showtime reads | Implemented; Showtime list supports `movie_id` filtering | `app/api/movie.py:16-25`, `app/api/showtime.py:17-24` |
+| Movie create/update/delete and Showtime creation | Routes exist, but **no ADMIN dependency is wired** | `app/api/movie.py:28-49`, `app/api/showtime.py:26-33` |
+| Basic Movie/Showtime input validation | Present: Movie title/duration and Showtime movie ID/seat count have schema constraints | `app/schemas/movie.py`, `app/schemas/showtime.py` |
+| Missing-resource HTTP 404 behavior | **Not mapped in the API:** services raise `NotFoundException`; `app/main.py` has no handler for it | `app/services/movie_service.py:16-18`, `app/services/showtime_service.py:16-25`, `app/main.py` |
+| Seat labels | Showtime service generates numeric labels `"1"` through `str(total_seats)` | `app/services/showtime_service.py:27-34` |
+| Cancelled-seat availability | **Incorrect in current code:** repository queries all booking statuses, not active only | `app/repositories/showtime_repository.py:32-35` |
+| Unit tests | Three async unit tests exist for Movie and three for Showtime | `tests/unit/test_movie.py`, `tests/unit/test_showtime.py` |
+| Legacy integration tests | Still use synchronous `def test_*` calls for async services; suite is stale but optional under current plan | `tests/test_movie.py`, `tests/test_showtime.py` |
+| Test execution | Not run: `pytest` command unavailable and `py -m pytest` reports pytest is not installed | Command output, 2026-10-09 |
+
+Static inspection confirms concrete implementation progress as well as the
+required gaps above; no functional API tests were executable in this workspace.
+
 ---
 
 ## 1. Audit Metadata
@@ -18,8 +45,8 @@
 | Branch Audited | `le_hong_tuan_duy` (current HEAD, contains all merged P2 work) |
 | Latest Commit | `f3b9482` — Merge pull request #14 |
 | Working Tree | Clean (2 untracked files: audit reports) |
-| Master Context | `PROJECT_MASTER_CONTEXT.md` — 1472 lines, 56490 bytes |
-| Master Context Status | **LOCKED** |
+| Master Context used at audit time | Earlier `PROJECT_MASTER_CONTEXT.md` snapshot (1472 lines, 56490 bytes) |
+| Current governing context | Updated `PROJECT_MASTER_CONTEXT.md`; simplified scope and delivery decisions synchronized 2026-10-09 |
 
 ---
 
@@ -30,7 +57,7 @@
 - **Project:** Cinema Booking System — Backend REST API for a movie ticket booking system
 - **Context:** Software Architecture course — Phase 1 assignment
 - **Type:** API only; no frontend
-- **Phase 1 Status:** PARTIALLY COMPLETE
+- **Phase 1 Status at audit snapshot:** PARTIALLY COMPLETE; current status must be re-checked
 
 ### 2.2 Technology Stack
 
@@ -110,7 +137,7 @@ POST   /api/v1/showtimes                 (ADMIN guard MISSING)
 GET    /api/v1/showtimes/{id}/seats      (no auth guard)
 ```
 
-**MISSING per MASTER:** `GET /api/v1/showtimes/{showtime_id}` — detail endpoint not implemented.
+`GET /api/v1/showtimes/{showtime_id}` detail endpoint was absent at audit time; it is optional under the current scope.
 
 ### 2.7 Person 3 Scope (Integration-Relevant)
 
@@ -125,71 +152,25 @@ Per MASTER:
 - `Booking.showtime_id` → `ForeignKey("showtimes.id")` — **CORRECT**
 - Person 3 needs: Showtime model (PK=`id`, FK=`movie_id`), Movie model (PK=`id`)
 - Seat representation: `Booking.seat_number` is a string; no separate Seat entity
-- Seat format: Person 2 generates numeric `"1","2",...`; Person 3 tests use alphanumeric `"A1","B2"` — **MISMATCH** (Risk 7)
-- `get_booked_seats()` returns ALL statuses, not just active — **BUG** (Risk 8)
+- Agreed seat format: numeric strings `"1"` through `str(total_seats)` throughout; update stale alphanumeric fixtures/contracts.
+- Audit found `get_booked_seats()` included cancelled rows; current requirement is active-only so cancellation reopens the seat.
 
 ---
 
-## 3. Master Context Lock
+## 3. Current Scope Reference (supersedes the original audit lock)
 
-```
-PROJECT:
-Cinema Booking System — Backend REST API
+Person 2's current acceptance work is limited to:
 
-TECHNOLOGY STACK:
-Python 3.12+, FastAPI (async), SQLAlchemy 2.x async, PostgreSQL 16
+- Public Movie list/detail and Movie CRUD, with POST/PUT/DELETE restricted to ADMIN.
+- Public Showtime list (optionally filtered by Movie), ADMIN-only creation, and seat availability.
+- Basic input validation; missing Movie/Showtime resources map to HTTP 404.
+- Numeric seat labels shared with Booking and availability filtered to active bookings only.
 
-ARCHITECTURE:
-Layered: Router → Service → Repository → PostgreSQL
+Not required for this phase: standalone Showtime detail route, automated demo seeding, cascade-delete policy, timezone normalization, production race/concurrency guarantees, and repair of every stale legacy integration test. The separate Docker/README and Kaggle CPU load-test deliverables remain P1/P3 responsibilities.
 
-PERSON 2 RESPONSIBILITY:
-Movie CRUD domain + Showtime/Seat availability domain
-
-PERSON 2 MODELS:
-Movie (table: movies), Showtime (table: showtimes)
-
-PERSON 2 SCHEMAS:
-MovieCreate, MovieUpdate, MovieResponse, ShowtimeCreate, ShowtimeResponse, SeatResponse
-
-PERSON 2 SERVICES:
-MovieService, ShowtimeService
-
-PERSON 2 REPOSITORIES:
-MovieRepository, ShowtimeRepository
-
-PERSON 2 ROUTERS:
-app/api/movie.py (5 endpoints), app/api/showtime.py (3 endpoints)
-
-PERSON 2 ENDPOINTS:
-GET /api/v1/movies, GET /api/v1/movies/{movie_id},
-POST /api/v1/movies, PUT /api/v1/movies/{movie_id}, DELETE /api/v1/movies/{movie_id},
-GET /api/v1/showtimes, POST /api/v1/showtimes,
-GET /api/v1/showtimes/{id}/seats
-MISSING: GET /api/v1/showtimes/{showtime_id} (detail)
-
-PERSON 2 DATABASE RESPONSIBILITY:
-Movie table, Showtime table, FK showtimes.movie_id → movies.id
-
-PERSON 2 TEST RESPONSIBILITY:
-Unit tests (tests/unit/test_movie.py, tests/unit/test_showtime.py)
-Integration tests (tests/test_movie.py, tests/test_showtime.py — STALE)
-
-PERSON 2 → PERSON 3 CONTRACT:
-Showtime.id (PK, INTEGER) → Booking.showtime_id (FK)
-Movie.id (PK, INTEGER) → Showtime.movie_id (FK)
-Seat: no separate entity; Booking.seat_number (string)
-ShowtimeService.get_seats() provides seat availability
-
-OUT OF SCOPE FOR PERSON 2:
-Auth (P1), Booking (P3), User model (P1), test infrastructure (P3),
-load test (P3), Dockerfile (P1)
-
-MASTER CONTEXT STATUS:
-LOCKED
-```
+The detailed endpoint and file inventories that follow are historical audit evidence. They do not override this scope reference or the current `PROJECT_MASTER_CONTEXT.md`.
 
 ---
-
 ## 4. Repository / Git State
 
 ```
@@ -249,7 +230,7 @@ Person 2 Relevant Commits (from git log):
 | R2 | Showtime model: table `showtimes`, PK `id`, `movie_id` FK→movies.id, `start_time` DateTime, `total_seats` Integer | Exact match (timezone-naive noted) | **PASS** | `app/models/showtime.py` L9-18 | — |
 | R3 | Movie CRUD endpoints (5): GET list, GET detail, POST, PUT, DELETE | All 5 implemented | **PASS** | `app/api/movie.py` L16-51 | — |
 | R4 | Showtime endpoints (3): GET list, POST create, GET seats | All 3 implemented | **PASS** | `app/api/showtime.py` L17-42 | — |
-| R5 | GET /showtimes/{showtime_id} detail endpoint | NOT IMPLEMENTED | **MISSING** | No `@router.get("/{showtime_id}")` in `app/api/showtime.py` | MEDIUM |
+| R5 | GET /showtimes/{showtime_id} detail endpoint | NOT IMPLEMENTED | **OPTIONAL / OUT OF SCOPE** | No `@router.get("/{showtime_id}")` in `app/api/showtime.py` | Not a Phase 1 blocker |
 | R6 | ADMIN guard on Movie write endpoints (POST, PUT, DELETE) | NOT IMPLEMENTED — comments say "Person 1 will add" | **MISSING** | `app/api/movie.py` L31,42,49 comments | HIGH |
 | R7 | ADMIN guard on Showtime POST | NOT IMPLEMENTED — comment says "Person 1 will add" | **MISSING** | `app/api/showtime.py` L32 comment | HIGH |
 | R8 | Movie list ordered by `id DESC` | Implemented | **PASS** | `movie_repository.py` L15: `order_by(Movie.id.desc())` | — |
@@ -263,15 +244,15 @@ Person 2 Relevant Commits (from git log):
 | R16 | Showtime create: validate movie exists, 404 | Service raises `NotFoundException` → **500** (no catch in API) | **MISMATCH** | `showtime_service.py` L17-19, `app/api/showtime.py` no try/except | **CRITICAL** |
 | R17 | Seat availability: numeric strings "1".."N" | Implemented | **PASS** | `showtime_service.py` L28-34 | — |
 | R18 | Seat availability: 404 if showtime not found | Service raises `NotFoundException` → **500** (no catch in API) | **MISMATCH** | `showtime_service.py` L24-25, `app/api/showtime.py` no try/except | **CRITICAL** |
-| R19 | `get_booked_seats()` filter by `status='active'` only | Queries ALL statuses (no filter) | **MISMATCH** | `showtime_repository.py` L32-35: no `.where(Booking.status == "active")` | HIGH |
-| R20 | `seed.py` functional | BROKEN — imports `SessionLocal` which does not exist | **MISMATCH** | `seed.py` L5: `from app.db.database import SessionLocal`; `database.py` exports `AsyncSessionLocal` | MEDIUM |
-| R21 | Showtime `start_time` timezone consistency | timezone-naive `DateTime` vs Booking's `DateTime(timezone=True)` | **MISMATCH** | `showtime.py` L15: `DateTime` (no tz), `booking.py` L18: `DateTime(timezone=True)` | MEDIUM |
+| R19 | Availability uses active bookings only | Audit found ALL statuses queried | **REQUIRED GAP if still present** | `showtime_repository.py` L32-35: verify active-only filter | Required to reopen cancelled seats |
+| R20 | `seed.py` functional | BROKEN — imports `SessionLocal` which does not exist | **OPTIONAL** | `seed.py` L5: `from app.db.database import SessionLocal` | Automated demo seeding is not required; ADMIN provisioning still needs an internal documented method |
+| R21 | Showtime `start_time` timezone consistency | timezone-naive `DateTime` vs Booking's `DateTime(timezone=True)` | **OPTIONAL** | `showtime.py` L15: `DateTime` (no tz), `booking.py` L18: `DateTime(timezone=True)` | Normalization is out of scope |
 | R22 | Movie unit tests | 3 async tests implemented and correct | **PASS** | `tests/unit/test_movie.py` — 3 tests with `@pytest.mark.asyncio` | — |
 | R23 | Showtime unit tests | 3 async tests implemented and correct | **PASS** | `tests/unit/test_showtime.py` — 3 tests with `@pytest.mark.asyncio` | — |
-| R24 | Movie integration tests | STALE — sync pattern, service is async | **STALE** | `tests/test_movie.py` — `def test_*()`, no `await`, no `@pytest.mark.asyncio` | HIGH |
-| R25 | Showtime integration tests | STALE — sync pattern, service is async | **STALE** | `tests/test_showtime.py` — `def test_*()`, no `await`, no `@pytest.mark.asyncio` | HIGH |
-| R26 | Seat number format agreement with P3 | MISMATCH — P2 uses "1","2"; P3 tests use "A1","B2" | **MISMATCH** | `showtime_service.py` L30: `str(seat_number)`, `BOOKING_CONTRACT.md` uses "A1","B2" | HIGH |
-| R27 | Movie/Showtime deletion cascade policy | NOT DECIDED — FKs use default RESTRICT | **UNVERIFIED** | No explicit `ondelete` in `showtime.py` L14 or `booking.py` L14 | MEDIUM |
+| R24 | Movie integration tests | STALE — sync pattern, service is async | **OPTIONAL LEGACY TEST SUITE** | `tests/test_movie.py` — `def test_*()`, no `await`, no `@pytest.mark.asyncio` | Focused acceptance checks remain required |
+| R25 | Showtime integration tests | STALE — sync pattern, service is async | **OPTIONAL LEGACY TEST SUITE** | `tests/test_showtime.py` — `def test_*()`, no `await`, no `@pytest.mark.asyncio` | Focused acceptance checks remain required |
+| R26 | Seat number format | Agreement is numeric strings `"1"` through `str(total_seats)` | **DECIDED** | Older `BOOKING_CONTRACT.md`/tests may have alphanumeric examples | Update stale fixtures/contracts; no further format decision needed |
+| R27 | Movie/Showtime deletion cascade policy | FKs use default RESTRICT | **OPTIONAL / OUT OF SCOPE** | No explicit `ondelete` in audited models | No cascade policy required for this phase |
 
 ---
 
@@ -378,15 +359,15 @@ Relationship = movie = relationship("Movie") — lazy, no back_populates
 | `total_seats` | Integer | `mapped_column(Integer, nullable=False)` | PASS |
 | Relationship | `movie = relationship("Movie")` | Present | PASS |
 
-**Timezone Issue (Risk 6):**
+**Historical timezone observation (normalization is optional):**
 
 ```
 MASTER Requirement: Showtime.start_time is DateTime (timezone-naive) — TIMESTAMP
 Actual:             DateTime (no timezone=True) — matches MASTER description
 Risk:               Booking.created_at uses DateTime(timezone=True) — TIMESTAMPTZ
 Impact:             Inconsistent conventions across entities
-Owner:              P2 (pending fix per MASTER Risk 6)
-Severity:           MEDIUM
+Owner:              None under the current acceptance scope
+Current disposition: Do not treat this as a Phase 1 blocker
 ```
 
 ### 8.2 Showtime Schemas
@@ -473,16 +454,16 @@ Actual Seat Representation:
 
 This matches MASTER's design. No separate Seat entity is required.
 
-### 9.3 Seat Format Mismatch (Risk 7)
+### 9.3 Historical Seat Fixture Mismatch (format decision is settled)
 
 ```
 MASTER Requirement:   ShowtimeService generates "1","2",...,"N" (numeric strings)
 Actual Implementation: str(seat_number) for seat_number in range(1, total_seats+1) — CORRECT
-Risk:                 BOOKING_CONTRACT.md and tests use "A1","B2","J10" (alphanumeric)
-Impact:               Seat availability display shows "1" but booking uses "A1" — mismatch
-Owner:                P2 (generates labels) + P3 (accepts any string)
-Status:               MISMATCH — team must agree on ONE format
-Severity:             HIGH
+Audit note:           Older BOOKING_CONTRACT.md/tests use "A1","B2","J10" (alphanumeric)
+Current contract:     Numeric strings "1" through str(total_seats) in both APIs
+Impact:               Stale fixtures may hide or report a false mismatch
+Owner:                P2 + P3 align stale fixtures/contracts
+Status:               Decision settled; numeric format is authoritative
 ```
 
 ---
@@ -513,7 +494,7 @@ showtimes.movie_id:    No explicit ondelete → defaults to RESTRICT
 bookings.showtime_id:  No explicit ondelete → defaults to RESTRICT
 ```
 
-**Impact:** Deleting a Movie that has Showtimes will raise `IntegrityError` (unhandled → 500). This is documented as Risk 9 in MASTER — policy NOT DECIDED.
+**Current disposition:** Cascade behavior is out of scope; audited foreign keys use RESTRICT. No cascade policy is required for this phase.
 
 ### 10.4 Indexes
 
@@ -890,7 +871,7 @@ Seat Entity:         NO (no separate Seat model/table)
 Seat Representation: Virtual list from ShowtimeService.get_seats()
                      Stored as Booking.seat_number (free-form string)
 Format Generated:    Numeric strings "1","2",...,"N"
-Format in Tests:     Alphanumeric "A1","B2","J10" (MISMATCH)
+Format in Older Tests: Alphanumeric "A1","B2","J10" (stale examples; update to numeric contract)
 Validation:          NONE — any string accepted by Booking
 ```
 
@@ -947,102 +928,34 @@ Evidence: `GET /api/v1/movies/{movie_id}` exists. `Showtime.movie_id` provides F
 ```
 CONDITIONAL
 ```
-Evidence: `Booking.seat_number` accepts any string. `ShowtimeService.get_seats()` generates numeric strings. But Person 3 tests use alphanumeric format. The system will functionally work with either format, but the seat availability endpoint will show incorrect availability if formats don't match.
+Historical evidence: `Booking.seat_number` accepts any string and the audited `ShowtimeService.get_seats()` generates numeric strings, while some older Person 3 tests use alphanumeric examples. Current contract is numeric end-to-end; align stale fixtures.
 
 #### Q5: Contract mismatches Person 2 ↔ Person 3?
 
 | # | Mismatch | Impact |
 |---|---|---|
-| 1 | Seat format: numeric "1" vs alphanumeric "A1" | Seat availability display meaningless if formats differ |
+| 1 | Older fixtures use alphanumeric labels | Update them to the settled numeric contract |
 | 2 | `get_booked_seats()` includes cancelled bookings | Cancelled seats shown as unavailable |
 | 3 | `NotFoundException` → 500 (not 404) | If P3 calls P2 API endpoints, unexpected error responses |
 
 ---
 
-## 21. PERSON 3 — MOVIE / SHOWTIME / SEAT INTEGRATION HANDOFF
+## 21. Person 3 Integration Contract — Current Decision
 
-### A. Movie Contract
+- `Booking.showtime_id` references `showtimes.id`; `Showtime.movie_id` references `movies.id`.
+- Seat labels are numeric strings from `"1"` through `str(total_seats)` for both availability and Booking. Older alphanumeric examples in tests/contracts are stale and should be aligned.
+- `get_booked_seats()` must return active bookings only so cancelled seats reopen.
+- Person 3 can use `ShowtimeRepository.get_by_id()` to verify the showtime; a separate Showtime detail endpoint is not required.
+- Person 2's integration acceptance includes basic validation/404 behavior and ADMIN-only writes. P1 provides the role dependency; P2 coordinates and wires it.
+- Seed automation, timezone normalization, cascade policy, and legacy full test-suite repair remain optional.
 
-- **Model:** `Movie` at `app/models/movie.py`
-- **Table:** `movies`
-- **PK:** `id` (Integer, auto-increment)
-- **Columns:** `id`, `title` (String 255), `description` (Text, nullable), `duration_minutes` (Integer)
-- **Imports:** `from app.models.movie import Movie`
-
-### B. Showtime Contract
-
-- **Model:** `Showtime` at `app/models/showtime.py`
-- **Table:** `showtimes`
-- **PK:** `id` (Integer, auto-increment)
-- **FK:** `movie_id` → `movies.id`
-- **Columns:** `id`, `movie_id`, `start_time` (DateTime, tz-naive), `total_seats` (Integer)
-- **Relationship:** `movie = relationship("Movie")` (lazy)
-- **Imports:** `from app.models.showtime import Showtime`
-
-### C. Seat Contract
-
-- **No Seat entity.** Seats are virtual.
-- Generated by `ShowtimeService.get_seats()` as numeric strings `"1"` to `str(total_seats)`
-- Stored in `Booking.seat_number` (free-form string, no validation against seat list)
-- **FORMAT MISMATCH:** P2 generates `"1","2"` but P3 tests use `"A1","B2"`
-
-### D. Booking FK Contract
-
-- `Booking.showtime_id` → `ForeignKey("showtimes.id")` — **CORRECT**
-- Data type: Integer → Integer — **COMPATIBLE**
-- ON DELETE: RESTRICT (default) — cannot delete showtime with bookings
-
-### E. Required Imports
-
-```python
-from app.models.showtime import Showtime           # P2 model
-from app.models.movie import Movie                  # P2 model
-from app.repositories.showtime_repository import ShowtimeRepository  # For seat queries
-```
-
-All paths verified to exist in current repository.
-
-### F. Relevant APIs
-
-| Endpoint | Usage for P3 |
-|---|---|
-| `GET /api/v1/showtimes` | List available showtimes |
-| `GET /api/v1/showtimes/{id}/seats` | Check seat availability before booking |
-| `GET /api/v1/movies` | Display movie catalogue |
-| `GET /api/v1/movies/{movie_id}` | Get movie details for booking display |
-
-### G. Authentication / Authorization Dependencies
-
-- Movie/Showtime read endpoints: No auth required — P3 can call freely
-- Movie/Showtime write endpoints: No auth guard (should be ADMIN-only) — P3 should NOT depend on write endpoints
-- P3's own auth: Uses `get_current_user()` from `app/api/booking.py` — independent of P2
-
-### H. Known Integration Risks
-
-| # | Risk | Severity | Blocking P3? |
-|---|---|---|---|
-| 1 | Seat format mismatch (numeric vs alphanumeric) | HIGH | NO (functionally works, display incorrect) |
-| 2 | `get_booked_seats()` includes cancelled bookings | HIGH | NO (re-booking works due to partial unique index, but availability is wrong) |
-| 3 | `NotFoundException` produces 500 instead of 404 | CRITICAL | NO (P3 uses FK constraint, not API call for validation) |
-| 4 | No showtime detail endpoint | MEDIUM | NO (P3 can use `ShowtimeRepository.get_by_id()` directly) |
-| 5 | Mixed timezone conventions | MEDIUM | NO (P3 uses UTC for created_at independently) |
-
-### I. Required Changes Before Person 3 Integration
-
-| # | Issue | Why | Owner | Priority | Blocking P3 |
-|---|---|---|---|---|---|
-| 1 | Add `NotFoundException` → 404 mapping in Movie/Showtime API routers | Endpoints return 500 instead of 404 for not-found cases | P2 (or P1 via global handler) | CRITICAL | NO |
-| 2 | Fix `get_booked_seats()` to filter `status='active'` | Cancelled bookings shown as unavailable | P2 | HIGH | NO |
-| 3 | Agree on seat format with P3 | Numeric vs alphanumeric mismatch | P2 + P3 | HIGH | NO |
-| 4 | Wire ADMIN guards on write endpoints | Security vulnerability | P1 + P2 | HIGH | NO |
-| 5 | Fix `seed.py` | Cannot seed demo data | P2 | MEDIUM | NO |
-| 6 | Update stale integration tests | Tests broken (sync/async mismatch) | P2 | HIGH | NO |
-| 7 | Add `GET /showtimes/{showtime_id}` detail endpoint | MASTER identifies as missing | P2 | MEDIUM | NO |
-| 8 | Add `timezone=True` to `Showtime.start_time` | Inconsistent timezone conventions | P2 | MEDIUM | NO |
+The original handoff details and findings above this section describe audit-time code, not additional requirements.
 
 ---
+## 22. Historical Issues by Audit Severity
 
-## 22. Issues by Severity
+> Severity below reflects the audit-time technical impact. Whether an item is
+> an acceptance blocker is determined by §24 and the current Project Master.
 
 ### CRITICAL
 
@@ -1058,17 +971,17 @@ All paths verified to exist in current repository.
 | H1 | ADMIN guard missing on Movie write endpoints | `app/api/movie.py` L31,42,49 | Comments acknowledge; no `Depends(RollChecker)` | Any caller can create/update/delete movies |
 | H2 | ADMIN guard missing on Showtime POST | `app/api/showtime.py` L32 | Comment acknowledges; no `Depends(RollChecker)` | Any caller can create showtimes |
 | H3 | `get_booked_seats()` includes cancelled bookings | `app/repositories/showtime_repository.py` L32-35 | No `.where(Booking.status == "active")` | Cancelled seats shown as unavailable |
-| H4 | Seat format mismatch with P3 | `showtime_service.py` L30 vs `BOOKING_CONTRACT.md` | `str(seat_number)` vs `"A1","B2"` | Seat availability display meaningless |
-| H5 | Integration tests STALE (sync) | `tests/test_movie.py`, `tests/test_showtime.py` | `def test_*()` without async/await | Tests broken — won't work with async services |
+| H4 | Older fixtures/contracts use alphanumeric seats | Legacy tests/contracts | Numeric labels are the agreed format | Align stale fixtures; no open format decision |
+| H5 | Legacy integration tests STALE (sync) | `tests/test_movie.py`, `tests/test_showtime.py` | `def test_*()` without async/await | Broad legacy suite repair is optional; focused checks remain required |
 
 ### MEDIUM
 
 | # | Issue | File | Evidence | Impact |
 |---|---|---|---|---|
-| M1 | `seed.py` BROKEN | `seed.py` L5 | `from app.db.database import SessionLocal` — doesn't exist | Cannot seed demo data |
-| M2 | Showtime detail endpoint missing | `app/api/showtime.py` | No `@router.get("/{showtime_id}")` | Cannot fetch single showtime by ID |
-| M3 | `start_time` timezone-naive | `app/models/showtime.py` L15 | `DateTime` without `timezone=True` | Inconsistent with Booking's TIMESTAMPTZ |
-| M4 | Movie deletion cascade undefined | `app/models/showtime.py` L14 | No `ondelete` parameter | Deleting movie with showtimes → unhandled IntegrityError → 500 |
+| M1 | `seed.py` BROKEN | `seed.py` L5 | `from app.db.database import SessionLocal` — doesn't exist | Optional demo seed automation; internal ADMIN provisioning still needs documentation |
+| M2 | Showtime detail endpoint absent | `app/api/showtime.py` | No `@router.get("/{showtime_id}")` | Out of scope for this phase |
+| M3 | `start_time` timezone-naive | `app/models/showtime.py` L15 | `DateTime` without `timezone=True` | Timezone normalization is optional |
+| M4 | No cascade delete policy | `app/models/showtime.py` L14 | No `ondelete` parameter | Cascade behavior is out of scope |
 | M5 | No delete test in unit tests | `tests/unit/test_movie.py` | Only 3 tests: list, create+update, not-found | Delete logic untested |
 
 ### LOW
@@ -1083,71 +996,56 @@ All paths verified to exist in current repository.
 
 ## 23. Integration Gates
 
+> The results below describe the audit snapshot, not a fresh validation. Current
+> acceptance impact is summarized in §24.
+
 | Gate | Description | Result | Evidence |
 |---|---|---|---|
-| **A** | Master Requirement Compliance | **CONDITIONAL** | 5 CRITICAL mismatches (error handling), several HIGH mismatches |
+| **A** | Current-scope requirement compliance | **CONDITIONAL at audit date** | Required 404/error mapping, ADMIN guards, and active-only availability needed re-check/fix |
 | **B** | Movie Model | **PASS** | All columns match MASTER exactly |
 | **C** | Movie API | **CONDITIONAL** | Endpoints exist but error handling broken (500 instead of 404) |
 | **D** | Showtime Model | **PASS** | All columns match MASTER (timezone noted as risk) |
-| **E** | Showtime API | **CONDITIONAL** | Endpoints exist but error handling broken; detail endpoint missing |
-| **F** | Seat Contract | **CONDITIONAL** | Works functionally but format mismatch with P3; cancelled seat bug |
+| **E** | Showtime API | **CONDITIONAL** | Required error mapping/ADMIN guard; detail endpoint is out of scope |
+| **F** | Seat Contract | **CONDITIONAL** | Numeric format is settled; active-only filter is required |
 | **G** | Authentication | **FAIL** | No auth guard on any write endpoint |
 | **H** | Authorization | **FAIL** | No ADMIN role check on any write endpoint |
 | **I** | Database Contract | **PASS** | FK chain Movie → Showtime → Booking is correct and compatible |
-| **J** | Person 3 Booking Integration | **CONDITIONAL** | FK works; models compatible; seat format mismatch is non-blocking but problematic |
-| **K** | Tests | **CONDITIONAL** | Unit tests PASS; integration tests STALE |
+| **J** | Person 3 Booking Integration | **CONDITIONAL** | FK works; align stale fixtures and fix active-only availability |
+| **K** | Focused acceptance checks | **NOT VERIFIED** | Stale broad integration suite is optional; current focused checks must be verified |
 | **L** | Documentation | **PASS** | MASTER provides comprehensive documentation |
 
----
-
-## 24. Recommended Fixes
-
-> **NOTE:** These are recommendations only. No source code was modified during this audit.
-
-| # | Fix | Priority | Owner | Effort |
-|---|---|---|---|---|
-| 1 | **Add exception handling in Movie/Showtime API routers** — catch `NotFoundException` → `HTTPException(404)`. Either per-endpoint try/except or global `@app.exception_handler(NotFoundException)` in `main.py` | CRITICAL | P2 (per-endpoint) or P1 (global handler) | Low |
-| 2 | **Fix `get_booked_seats()` query** — add `.where(Booking.status == "active")` | HIGH | P2 | Low |
-| 3 | **Wire ADMIN guards** — `Depends(RollChecker(Role.ADMIN))` on write endpoints | HIGH | P1 + P2 | Low |
-| 4 | **Agree on seat format** — decide numeric vs alphanumeric; update both P2 and P3 | HIGH | P2 + P3 | Low |
-| 5 | **Update stale integration tests** — convert to async with `@pytest.mark.asyncio` + `await` | HIGH | P2 | Medium |
-| 6 | **Fix `seed.py`** — use `AsyncSessionLocal` + `asyncio.run()` | MEDIUM | P2 | Low |
-| 7 | **Add showtime detail endpoint** — `GET /showtimes/{showtime_id}` | MEDIUM | P2 | Low |
-| 8 | **Add `timezone=True`** to `Showtime.start_time` | MEDIUM | P2 | Low |
-| 9 | **Define cascade policy** for Movie → Showtime deletion | MEDIUM | P2 + Team | Low |
-| 10 | **Add delete and validation tests** to unit test suite | MEDIUM | P2 | Low |
+These audit-time gate results must not be reported as the current repository status without re-checking code.
 
 ---
 
-## 25. Final Verdict
+## 24. Current-Plan Work List
 
-```
-READY WITH CONDITIONS
-```
+This list supersedes the original-scope recommendations above. The 2026-10-09 static workspace check confirms these required gaps are present; unit tests were not run because pytest is unavailable.
 
-### Rationale
+### Required Person 2 work confirmed open at the latest static check
 
-Person 2's core implementation (models, schemas, repositories, services) is **architecturally sound and correctly structured**. The layered architecture is properly followed, async/await patterns are correctly implemented, database models match MASTER requirements, and FK contracts with Person 3 are compatible and working.
+| Order | Work | Owner / coordination | Acceptance result |
+|---|---|---|---|
+| 1 | Map Movie/Showtime missing-resource exceptions to HTTP 404 | P2; coordinate shared handler with P1 if needed | Missing Movie/Showtime cases return 404 |
+| 2 | Enforce ADMIN on Movie POST/PUT/DELETE and Showtime POST | P1 provides dependency; P2 wires it | Anonymous/USER denied; ADMIN allowed |
+| 3 | Filter availability to active bookings only | P2 | Cancelled seats reopen |
+| 4 | Use numeric seat strings end-to-end and update stale fixtures/contracts | P2 + P3 | Availability and Booking use `"1"` through `str(total_seats)` |
+| 5 | Cover the relevant Movie/Showtime workflows with focused checks | P2 | Public reads, ADMIN writes, validation, 404, seat availability covered |
 
-However, there are **significant gaps that must be addressed**:
+### Not required for this phase
 
-1. **CRITICAL: Error handling is completely absent in API routers.** All "not found" scenarios produce 500 errors instead of 404. This is the highest-priority fix needed.
-
-2. **HIGH: ADMIN authorization is not enforced** on any write endpoint (acknowledged by MASTER as pending P1 work, but P2 must coordinate).
-
-3. **HIGH: `get_booked_seats()` bug** — cancelled bookings incorrectly shown as unavailable.
-
-4. **HIGH: Stale integration tests** — sync tests for async services will not execute correctly.
-
-5. **HIGH: Seat format mismatch** with Person 3 needs team agreement.
-
-### Person 3 Integration Status
-
-Person 3 **CAN integrate** with Person 2's current implementation at the **model/database level**. The FK chain (Movie → Showtime → Booking) is correct and functional. The 11 integration tests for booking already pass against the current schema.
-
-The integration issues (seat format, booked seat query, error responses) affect **user experience and API correctness** but do **not block** Person 3's core booking functionality.
+Automated Movie/Showtime demo seeding, standalone Showtime detail endpoint, cascade-delete policy, timezone normalization, repair of every stale legacy integration test, database concurrency guarantees, and race-specific constraint tests. The separate Docker/README work belongs to P1; the authenticated Kaggle CPU load test belongs to P3 after integration.
 
 ---
 
-> **AUDIT COMPLETED — NO SOURCE CODE WAS MODIFIED**
-> **Report generated: 2026-10-07**
+## 25. Current-Scope Verdict
+
+The 2026-10-09 static repository check confirms that Movie/Showtime API exception mapping still does not return required 404 responses, ADMIN guards remain unwired, and the seat query still includes cancelled bookings. The Showtime service already generates the agreed numeric labels; older test/contract examples should be aligned, not used to reopen the format decision. Six P2 unit tests are present, but could not be run because pytest is not installed in the active Python environment.
+
+The audit also identified missing detail/seed features, timezone differences, cascade questions, and stale broad integration tests. Those are not acceptance blockers under the current plan. Person 2's acceptance work does not include Docker or the Kaggle CPU load test; those are required project deliverables owned by P1 and P3 respectively.
+
+This current status is based on static source inspection. No functional P2 test run was possible in the active environment.
+
+---
+
+**Original Person 2 technical audit completed read-only on 2026-10-07. Current-plan alignment updated 2026-10-09; no application source code was changed.**
