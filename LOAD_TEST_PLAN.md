@@ -26,6 +26,6 @@
 
 ## Trạng thái hiện tại
 
-Kịch bản Locust độc lập đã được cập nhật tại `load_test/load_test.py`: dùng JWT truyền qua biến môi trường, ID/capacity của showtime cấu hình được, nhãn ghế dạng `A1`, `A2`, …, một booking với ghế riêng cho mỗi người dùng, sau đó lặp lại thao tác xem danh sách booking của chính người dùng để tạo tải kéo dài mà không biến bài đo thành kiểm thử va chạm.
+Kịch bản Locust độc lập đã được cập nhật tại `load_test/load_test.py`: dùng JWT truyền qua biến môi trường, ID/capacity của showtime cấu hình được, nhãn ghế dạng `1`, `2`, …, một booking với ghế riêng cho mỗi người dùng, sau đó lặp lại thao tác xem danh sách booking của chính người dùng để tạo tải kéo dài mà không biến bài đo thành kiểm thử va chạm.
 
-Notebook Kaggle, số liệu chạy và phần tóm tắt trong README vẫn đang chờ. Chỉ chạy sau khi Person 1 hoàn tất luồng xác thực/tạo token và Person 2 đồng bộ nhãn A-row cho Showtime availability, sau đó API ổn định. Trước lúc chạy cần dùng showtime thử nghiệm còn ghế trống, lưu token bằng Kaggle Secrets/environment variables, và giới hạn số người dùng không vượt quá số ghế thử nghiệm đã dành riêng.
+Script Locust đã sẵn sàng tại `load_test/load_test.py`; chủ dự án sẽ chạy thủ công trên Kaggle sau khi chuẩn bị API URL, JWT, showtime còn ghế và dải ghế riêng cho lần chạy. Script không chứa thông tin xác thực, dùng numeric-string labels, mỗi user đặt một ghế duy nhất rồi liên tục list booking của user. Kaggle execution và metrics sẽ được ghi lại sau lần chạy thủ công; hiện chưa có kết quả nên không báo cáo số liệu.

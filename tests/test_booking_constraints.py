@@ -1,33 +1,10 @@
-"""
-tests/test_booking_constraints.py
-==================================
-PostgreSQL constraint tests for the Booking domain.
+"""Legacy PostgreSQL constraint and race tests, retained but intentionally skipped.
 
-Focus: the partial unique index
-    uq_bookings_showtime_seat_active
-    ON bookings (showtime_id, seat_number)
-    WHERE status = 'active'
-
-defined in app/models/booking.py.
-
-Test strategy
--------------
-Tests 1–3 exercise the *database layer* directly (via BookingRepository) so
-they prove that the DB constraint fires independently of the service-level
-pre-check.  This matters because the pre-check is a best-effort optimisation;
-the constraint is the authoritative guard.
-
-Test 4 (concurrency) spawns two threads, each with its own SQLAlchemy
-connection, that race to INSERT the same (showtime_id, seat_number).
-PostgreSQL's row-level locking guarantees exactly one succeeds.
-
-Limitation notice
------------------
-Concurrency tests run in a single Python process with threads.  This is
-sufficient to demonstrate that PostgreSQL prevents the duplicate at the
-database level when two real concurrent transactions collide.  It does NOT
-simulate multi-process / multi-server concurrency (e.g. two gunicorn workers),
-but the same constraint would block those too.
+The simplified Phase 1 contract requires only the service-level sequential
+duplicate check. The current Booking model has no partial unique index, so the
+legacy tests below do not represent current acceptance criteria and must stay
+skipped unless the database-level concurrency requirement is explicitly
+reintroduced.
 """
 
 from __future__ import annotations
@@ -41,7 +18,6 @@ pytestmark = pytest.mark.skip(
 import threading
 from datetime import datetime, timezone
 
-import pytest
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker

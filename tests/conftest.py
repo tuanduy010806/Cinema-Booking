@@ -20,7 +20,7 @@ Design decisions
 Integration details:
 - The client uses a real JWT and exercises AuthMiddleware → UserRepository →
   Booking's get_current_user adapter. It bypasses the login endpoint so the
-  known password-verification defect does not block Booking integration tests.
+  tests stay focused on the booking workflow instead of exercising login.
 - user1/user2 fixtures include username (required column); tokens use the
   actual user.user_id primary key (Audit #13).
 - get_booking_service is overridden with a sync-compatible shim that wraps
@@ -31,6 +31,7 @@ Integration details:
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import AsyncGenerator, Generator
 from datetime import datetime
 from pathlib import Path
@@ -72,7 +73,18 @@ _load_env_test()
 
 _TEST_DATABASE_URL: str = os.environ.get("TEST_DATABASE_URL", "").strip()
 
-if not _TEST_DATABASE_URL:
+_unit_test_dir = (Path(__file__).parent / "unit").resolve()
+_requested_test_paths = [
+    Path(arg).resolve()
+    for arg in sys.argv[1:]
+    if not arg.startswith("-") and (Path(arg).exists() or arg.endswith(".py"))
+]
+_running_only_unit_tests = bool(_requested_test_paths) and all(
+    path == _unit_test_dir or _unit_test_dir in path.parents
+    for path in _requested_test_paths
+)
+
+if not _TEST_DATABASE_URL and not _running_only_unit_tests:
     pytest.exit(
         reason=(
             "\n\n[BLOCKED] TEST_DATABASE_URL is not set.\n"

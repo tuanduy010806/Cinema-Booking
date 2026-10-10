@@ -13,14 +13,13 @@
 > conflict with older sections, the decisions at the beginning of this file
 > govern.
 
-> **SEAT LABEL DECISION UPDATE — 2026-10-09:** The project owner selected
-> alphabetic row labels such as `"A1"`, `"A2"`, through `"A{total_seats}"` for
-> Showtime availability and Booking requests. This supersedes every earlier
-> numeric-only seat-label decision and example below. Person 3's booking schema,
-> service, tests, and load scenario have been aligned. Person 2 must update the
-> Showtime availability generator and its checks to return the same labels
-> before end-to-end acceptance; until then, the cross-domain seat contract is
-> pending integration.
+> **SEAT LABEL DECISION UPDATE — 2026-10-10:** The project owner selected
+> numeric string labels `"1"`, `"2"`, `"3"`, … through `str(total_seats)` for
+> Showtime availability and Booking requests. This supersedes the 2026-10-09
+> A-row decision and every earlier seat-label example. Person 2 and Person 3
+> are now aligned on numeric strings in availability, validation, persistence,
+> tests, and the load scenario. Existing database rows saved as `A1`, `A2`, …
+> need one-time data normalization before deploying this contract to that DB.
 
 ## Simplified Scope Decision (2026-10-07)
 
@@ -40,8 +39,8 @@ not delete or relocate directories.
   body must never let a registrant choose ADMIN.
 - Cancellation is a soft state change from `active` to `cancelled`. Cancelled
   seats are available again.
-- Seat labels use A-row strings `"A1"` through `"A{total_seats}"` throughout
-  Showtime availability and Booking requests (decision updated 2026-10-09).
+- Seat labels use numeric strings `"1"` through `str(total_seats)` throughout
+  Showtime availability and Booking requests (decision updated 2026-10-10).
 - A simple service-level check may reject an already-active booking for the
   same showtime and seat. Database race/concurrency protection is not required.
   Existing databases created before this simplification may still contain the
@@ -76,7 +75,7 @@ not delete or relocate directories.
   and seat availability.
 - Validate basic input and referenced Movie existence; map missing resources to
   HTTP 404. Filter availability using active bookings so cancelled seats reopen.
-- Use the agreed A-row seat labels consistently with Person 3.
+- Use numeric-string seat labels consistently with Person 3.
 - A standalone `GET /showtimes/{id}` detail endpoint, automated demo seeding,
   cascade-delete policy, and timezone normalization are not required for this
   phase. Keep their existing files in place.
@@ -88,10 +87,8 @@ not delete or relocate directories.
 - Continue consuming the real authenticated User and the existing
   `users.user_id` / `showtimes.id` foreign-key contracts.
 - Use Person 2's real `ShowtimeRepository.get_by_id()` to verify the referenced
-  showtime exists and keep the numeric suffix of each A-row seat label within
-  `total_seats`; do not rely on the Showtime seats endpoint until its
-  cancelled-booking filter is fixed.
-- Use the agreed A-row seat labels. Keep a straightforward service-level
+  showtime exists and keep each numeric seat label within `1..total_seats`.
+- Use numeric-string seat labels. Keep a straightforward service-level
   duplicate check if convenient; remove the partial unique index, race-specific
   repository handling, and concurrency tests from the required acceptance bar.
 - Keep focused tests for create, list-own, cancel-own, reject cancelling another
@@ -129,7 +126,7 @@ reorganize modules for this scope reduction.
 > structure, integration risks, and operating rules — before writing a
 > single line of code.
 >
-> **Updated:** 2026-10-09 (scope and implementation decisions synchronized)
+> **Updated:** 2026-10-10 (scope and implementation decisions synchronized)
 > **Source repo:** `d:/BAITAPLON_KIENTRUCPHANMEM/Cinema-Booking/`
 
 ---
@@ -316,13 +313,12 @@ endpoint via `Depends()`.
 | List showtimes | All, optionally filtered by `movie_id`; ordered by `start_time` |
 | Create showtime | Validates movie exists; 404 if not |
 | Seat availability | `GET /showtimes/{id}/seats` returns `[{seat_number, is_available}]` |
-| Seat labeling | **A-row strings**: `"A1"` through `"A{total_seats}"` (latest decision) |
+| Seat labeling | **Numeric strings**: `"1"` through `str(total_seats)` (latest decision) |
 | Booked seat query | Must include active bookings only; cancelled seats reopen. The audited snapshot did not filter status (see Risk 8). |
 | Error | 404 if showtime not found |
 
-> **Historical audit note — seat format:** the audit-time format was numeric.
-> The current 2026-10-09 project-owner decision at the top supersedes it; use
-> A-row labels across availability and booking.
+> **Historical audit note — seat format:** the 2026-10-09 A-row decision is
+> superseded by the 2026-10-10 numeric-string decision at the top.
 
 > **Historical implementation gap — booked seat query:** the audited
 > `ShowtimeRepository.get_booked_seats()` included all statuses, so cancelled
@@ -476,9 +472,9 @@ Response: ShowtimeResponse   Success: 201   Errors: 404 (movie not found)
 
 #### GET /api/v1/showtimes/{showtime_id}/seats
 ```
-Response: list[SeatResponse] -> [{"seat_number": "A1", "is_available": true}, ...]
+Response: list[SeatResponse] -> [{"seat_number": "1", "is_available": true}, ...]
 Success: 200   Errors: 404
-Note: seat_number values are "A1" through "A{total_seats}" (latest decision)
+Note: seat_number values are "1" through str(total_seats) (latest decision)
 ```
 
 #### POST /api/v1/bookings/
@@ -552,7 +548,7 @@ ORM: `movie = relationship("Movie")` — lazy-loaded; no back_populates.
 | `id` | Integer | INTEGER | YES | No | SERIAL | — |
 | `user_id` | Integer FK | INTEGER | No | No | — | FK→**users.user_id** |
 | `showtime_id` | Integer FK | INTEGER | No | No | — | FK→showtimes.id |
-| `seat_number` | String | VARCHAR | No | No | — | A-row label: `"A1"` through `"A{total_seats}"` |
+| `seat_number` | String | VARCHAR | No | No | — | Numeric string: `"1"` through `str(total_seats)` |
 | `status` | String | VARCHAR | No | No | `"active"` | `"active"` or `"cancelled"` |
 | `created_at` | DateTime(timezone=True) | TIMESTAMPTZ | No | No | `datetime.now(UTC)` | **timezone-aware** |
 
@@ -853,7 +849,7 @@ Cinema-Booking/
 | `app/models/showtime.py` | Persistence | `Showtime` ORM + movie relationship | P2 | DONE |
 | `app/schemas/showtime.py` | Contract | `ShowtimeCreate`, `ShowtimeResponse`, `SeatResponse` | P2 | DONE |
 | `app/repositories/showtime_repository.py` | Data Access | `get_all`, `get_by_id`, `create`, `get_booked_seats` (async) | P2 | DONE |
-| `app/services/showtime_service.py` | Business | Showtime logic + seat availability; replace numeric generation with A-row labels | P2 | PENDING ALIGNMENT |
+| `app/services/showtime_service.py` | Business | Showtime logic + numeric-string seat availability | P2 | DONE |
 | `app/api/showtime.py` | API | 3 showtime endpoints — **MISSING ADMIN GUARD on POST** | P2 | PARTIAL |
 | `app/models/booking.py` | Persistence | `Booking` ORM + partial unique index | P3 | DONE |
 | `app/schemas/booking.py` | Contract | `BookingCreate`, `BookingResponse` (FROZEN) | P3 | DONE |
@@ -954,7 +950,7 @@ tests/test_movie.py (STALE)  tests/test_showtime.py (STALE)
 
 **Acceptance work (re-check current code before acting):**
 - Coordinate with Person 1 to enforce ADMIN-only movie writes and showtime creation.
-- Filter seat availability to active bookings only and use the agreed A-row labels consistently.
+- Filter seat availability to active bookings only and use numeric-string labels consistently.
 - Preserve basic input validation and 404 behavior for missing Movie/Showtime resources.
 
 **Optional:** automated demo seeding, cascade-delete policy, timezone normalization,
@@ -1085,7 +1081,7 @@ Post-audit fixes (PROMPT 11): async conversion + FK fix + auth wiring
         ↓
 System Integration Testing  ← PENDING
         ↓
-Confirm the agreed A-row seat format, active-only availability, and ADMIN guards
+Confirm the agreed numeric-string seat format, active-only availability, and ADMIN guards
         ↓
 Full Integration Testing    ← PENDING
         ↓
@@ -1104,7 +1100,7 @@ Kaggle CPU load test on integrated stack  ← REQUIRED before acceptance
 | `Booking` FK to Showtime | `ForeignKey("showtimes.id")` | MATCH |
 | `BookingCreate` schema | `{showtime_id: int, seat_number: str}` | FROZEN |
 | `BookingResponse` schema | `{id, user_id, showtime_id, seat_number, status, created_at}` | FROZEN |
-| Seat number format | A-row strings `"A1".."A{total_seats}"` across availability and booking | AGREED; P2 Showtime alignment pending |
+| Seat number format | Numeric strings `"1"..str(total_seats)` across availability and booking | AGREED; P2/P3 code aligned |
 
 ---
 
@@ -1263,7 +1259,7 @@ pytest tests/unit/                  # unit tests (no DB needed)
 | Showtime model | COMPLETED | `start_time` timezone-naive |
 | Showtime schemas | COMPLETED | |
 | Showtime repository (async) | COMPLETED | |
-| Showtime service | PARTIAL | Current numeric labels must change to the agreed A-row format |
+| Showtime service | IMPLEMENTED | Generates numeric-string seat labels from `"1"` through `str(total_seats)` |
 | Showtime API (3 endpoints) | PARTIAL | Missing ADMIN guard on POST |
 | GET showtime detail endpoint | NOT IMPLEMENTED | Only `/seats` sub-route exists |
 | seed.py | BROKEN | Uses `SessionLocal` (undefined in `database.py`) |
@@ -1294,7 +1290,7 @@ pytest tests/unit/                  # unit tests (no DB needed)
 | P1 ↔ P3 auth wire-up | DONE (post-audit) | Was: `user_id` vs `id`; fixed |
 | P2 ↔ P3 showtime FK | DONE | FK to `showtimes.id` correct |
 | ADMIN guards (P1 → P2) | **NOT DONE** | `RollChecker` not wired |
-| Seat format | AGREED | A-row labels; P2 Showtime generation still needs alignment |
+| Seat format | AGREED | Numeric strings; P2 Showtime and P3 Booking aligned |
 | Booked seat filter (P2) | **RISK** | Must include active bookings only |
 | Focused acceptance checks | NOT VERIFIED | Required workflows listed at top |
 | Full original test matrix | OPTIONAL | Broad integration/concurrency matrix is not required |
@@ -1306,7 +1302,7 @@ pytest tests/unit/                  # unit tests (no DB needed)
 
 > **Required Phase 1 acceptance:** working registration/login/JWT and role checks;
 > the USER and ADMIN workflows listed above; active-only seat availability and
-> A-row labels; focused workflow checks; Docker packaging with README
+> numeric-string seat labels; focused workflow checks; Docker packaging with README
 > architecture/API/Docker guidance; and a Kaggle CPU load test after API
 > integration. A database race/concurrency guarantee and standalone showtime
 > detail endpoint are not required.
@@ -1374,13 +1370,12 @@ Owner:    P2 (Showtime model)
 Fix:      Add timezone=True to Showtime.start_time: DateTime(timezone=True)
 ```
 
-#### Required gap — Showtime labels need alignment with the A-row seat decision
+#### Historical gap — Showtime labels did not match the then-current A-row decision (superseded)
 ```
-Agreed:   A-row labels "A1" through "A{total_seats}" throughout
-Current:  Person 3 Booking schema/tests use A-row labels; Person 2 Showtime service still emits numeric-only labels
-Impact:   Availability responses and Booking requests do not yet share the same label contract
-Owner:    P2 (availability generator); P3 Booking side aligned
-Fix:      Update Showtime seat generation and focused checks to return A-row labels
+Historical decision: A-row labels "A1" through "A{total_seats}"
+Current decision:    Numeric strings "1" through str(total_seats)
+Current code:        P2 availability and P3 Booking use numeric strings
+Status:              RESOLVED in code; verify with focused workflow tests
 ```
 
 #### Risk 8 — Booked seat query includes cancelled bookings
@@ -1522,7 +1517,7 @@ Before calling a function, verify:
 | `get_current_user()` return | `dict {"id": int, "role": str}` | `User` ORM object |
 | All repo/service methods | `async def` — must `await` | sync call |
 | DB session export name | `AsyncSessionLocal` | `SessionLocal` |
-| Showtime seat labels | `"A1"`, `"A2"`, `"A3"` | numeric-only labels such as `"1"`, `"2"` |
+| Showtime seat labels | Numeric strings `"1"`, `"2"`, `"3"` | Old A-row labels such as `"A1"`, `"B2"` |
 
 ### Rule 8 — Stop Condition
 

@@ -26,6 +26,7 @@ Isolation
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.core.security import create_access_token
@@ -55,7 +56,7 @@ def test_create_booking_success(client: TestClient, user1: User, showtime1: Show
     """POST /bookings/ creates a booking and returns 201 with correct fields."""
     resp = client.post(BASE + "/", json={
         "showtime_id": showtime1.id,
-        "seat_number": "A1",
+        "seat_number": "1",
     })
 
     assert resp.status_code == 201, resp.text
@@ -74,13 +75,84 @@ def test_create_booking_success(client: TestClient, user1: User, showtime1: Show
 
 def test_duplicate_seat_error(client: TestClient, showtime1: Showtime):
     """Booking the same seat twice in the same showtime returns 400."""
-    payload = {"showtime_id": showtime1.id, "seat_number": "A2"}
+    payload = {"showtime_id": showtime1.id, "seat_number": "2"}
 
     first = client.post(BASE + "/", json=payload)
     assert first.status_code == 201, first.text
 
     second = client.post(BASE + "/", json=payload)
     assert second.status_code == 400, second.text
+
+
+def test_booking_requires_authentication(anonymous_client: TestClient, showtime1: Showtime):
+    """Creating a booking without a bearer token returns 401."""
+    response = anonymous_client.post(
+        BASE + "/",
+        json={"showtime_id": showtime1.id, "seat_number": "1"},
+    )
+
+    assert response.status_code == 401, response.text
+
+
+def test_booking_list_and_cancel_require_authentication(anonymous_client: TestClient):
+    """Both booking management routes reject anonymous callers."""
+    list_response = anonymous_client.get(BASE + "/me")
+    cancel_response = anonymous_client.delete(f"{BASE}/999999999")
+
+    assert list_response.status_code == 401, list_response.text
+    assert cancel_response.status_code == 401, cancel_response.text
+
+
+def test_request_cannot_override_authenticated_booking_owner(
+    client: TestClient, user1: User, user2: User, showtime1: Showtime
+):
+    """An extra request user_id cannot replace the authenticated identity."""
+    response = client.post(
+        BASE + "/",
+        json={
+            "showtime_id": showtime1.id,
+            "seat_number": "1",
+            "user_id": user2.user_id,
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["user_id"] == user1.user_id
+
+
+def test_booking_rejects_seat_outside_showtime_capacity(
+    client: TestClient, showtime1: Showtime
+):
+    """A numeric seat label above capacity returns 404."""
+    response = client.post(
+        BASE + "/",
+        json={"showtime_id": showtime1.id, "seat_number": str(showtime1.total_seats + 1)},
+    )
+
+    assert response.status_code == 404, response.text
+
+
+def test_booking_rejects_missing_showtime(client: TestClient):
+    """A booking cannot reference a showtime that does not exist."""
+    response = client.post(
+        BASE + "/",
+        json={"showtime_id": 999999999, "seat_number": "1"},
+    )
+
+    assert response.status_code == 404, response.text
+
+
+@pytest.mark.parametrize("seat_number", ["B1", "A1", "0", "01", "-1", ""])
+def test_booking_rejects_malformed_seat_label(
+    client: TestClient, showtime1: Showtime, seat_number: str
+):
+    """Only positive decimal strings are accepted as seat labels."""
+    response = client.post(
+        BASE + "/",
+        json={"showtime_id": showtime1.id, "seat_number": seat_number},
+    )
+
+    assert response.status_code == 422, response.text
 
 
 # ---------------------------------------------------------------------------
@@ -91,8 +163,8 @@ def test_same_seat_different_showtime_allowed(
     client: TestClient, showtime1: Showtime, showtime2: Showtime
 ):
     """The same seat label is allowed on different showtimes."""
-    resp1 = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "A3"})
-    resp2 = client.post(BASE + "/", json={"showtime_id": showtime2.id, "seat_number": "A3"})
+    resp1 = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "3"})
+    resp2 = client.post(BASE + "/", json={"showtime_id": showtime2.id, "seat_number": "3"})
 
     assert resp1.status_code == 201, resp1.text
     assert resp2.status_code == 201, resp2.text
@@ -108,8 +180,8 @@ def test_get_my_bookings(
     client: TestClient, user1: User, showtime1: Showtime, showtime2: Showtime
 ):
     """GET /bookings/me returns only the current user's bookings."""
-    client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "A4"})
-    client.post(BASE + "/", json={"showtime_id": showtime2.id, "seat_number": "A5"})
+    client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "4"})
+    client.post(BASE + "/", json={"showtime_id": showtime2.id, "seat_number": "5"})
 
     resp = client.get(BASE + "/me")
     assert resp.status_code == 200, resp.text
@@ -127,7 +199,7 @@ def test_cancel_booking_success(
     client: TestClient, db_session: Session, showtime1: Showtime
 ):
     """DELETE /bookings/{id} cancels the booking; status becomes 'cancelled'."""
-    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "A6"})
+    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "6"})
     assert create_resp.status_code == 201, create_resp.text
     booking_id = create_resp.json()["id"]
 
@@ -151,7 +223,7 @@ def test_ownership_error(
 ):
     """User 2 cannot cancel a booking created by User 1 → 403."""
     # user1 creates the booking (client fixture is already user1)
-    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "A7"})
+    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "7"})
     assert create_resp.status_code == 201, create_resp.text
     booking_id = create_resp.json()["id"]
 
@@ -187,7 +259,7 @@ def test_not_found_booking(client: TestClient):
 
 def test_cancel_already_cancelled(client: TestClient, showtime1: Showtime):
     """Cancelling an already-cancelled booking returns a business error (400)."""
-    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "A8"})
+    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "8"})
     assert create_resp.status_code == 201, create_resp.text
     booking_id = create_resp.json()["id"]
 
@@ -209,13 +281,13 @@ def test_user_booking_isolation(
 ):
     """User 1 does not see User 2's bookings in GET /bookings/me."""
     # user1 creates a booking (client is user1)
-    client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "A9"})
+    client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "9"})
 
     # Authenticate as user2 through the real middleware.
     user2_headers = _auth_headers(user2)
     client.post(
         BASE + "/",
-        json={"showtime_id": showtime2.id, "seat_number": "A10"},
+        json={"showtime_id": showtime2.id, "seat_number": "10"},
         headers=user2_headers,
     )
     user2_bookings = client.get(BASE + "/me", headers=user2_headers).json()
@@ -241,7 +313,7 @@ def test_cancel_does_not_delete_record(
     client: TestClient, db_session: Session, showtime1: Showtime
 ):
     """After cancellation the record still exists in the database."""
-    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "A11"})
+    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "11"})
     assert create_resp.status_code == 201, create_resp.text
     booking_id = create_resp.json()["id"]
 
@@ -263,7 +335,7 @@ def test_cancelled_seat_can_be_rebooked(
     client: TestClient, user1: User, user2: User, showtime1: Showtime
 ):
     """A cancelled seat can be re-booked by a different user."""
-    seat = "A12"
+    seat = "12"
 
     # user1 books and then cancels
     create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": seat})
