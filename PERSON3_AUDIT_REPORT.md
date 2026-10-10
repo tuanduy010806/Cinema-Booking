@@ -17,7 +17,7 @@
 | Authenticated booking create, own-list, owner-only cancel and soft state transition | Implemented | `app/api/booking.py`, booking service/repository, workflow tests |
 | Showtime existence and numeric-string capacity validation | Implemented | Real `ShowtimeRepository.get_by_id()`; valid labels constrained to showtime capacity |
 | Sequential active-seat duplicate check | Implemented | Service-level pre-check; race protection is outside the agreed scope |
-| Focused workflow checks | Written; not executed | `tests/test_booking.py` covers create, duplicate, ownership, list isolation, cancel state/rebook, auth requirement and seat-label validation |
+| Focused workflow checks | Written; not executed | `tests/unit/test_booking.py` has 9 DB-free service cases; `tests/test_booking.py` has 17 API test functions (22 cases including parameterization), covering create, duplicates, ownership, list isolation, cancellation/rebooking, auth, owner spoofing, capacity and label validation |
 | Numeric-string Showtime integration | Aligned in current repository | P2 availability emits numeric strings from `"1"` through `str(total_seats)` and filters active bookings |
 | Kaggle CPU load scenario | Script prepared; manual run pending | `load_test/load_test.py`; owner will configure Kaggle secrets, target API and reserved seats, then record output |
 
@@ -76,7 +76,7 @@ Race-specific repository handling, partial-index guarantees, concurrency tests, 
 | Showtime and seat validation | PASS in Booking; cross-domain integration aligned | Booking parses the numeric string and checks capacity; Person 2 availability uses the same contract |
 | Ownership and soft-cancel lifecycle | PASS — implementation present | Foreign owner rejected; cancelled rows are preserved; repeated cancellation rejected |
 | Sequential duplicate behavior | PASS — implementation present | Active status is included in repository pre-check |
-| Focused tests | IMPLEMENTED; EXECUTION UNVERIFIED | Relevant cases use numeric-string labels; no test result claimed |
+| Focused tests | IMPLEMENTED; EXECUTION UNVERIFIED | 9 DB-free service tests plus 17 API test functions (22 cases); no test result claimed |
 | Authenticated Kaggle CPU test | SCENARIO PREPARED; EXECUTION PENDING | Script follows JWT/numeric-string contract; actual run requires stable integrated API and Kaggle environment |
 | Overall Person 3 acceptance | IMPLEMENTED; execution evidence pending | Booking and availability use numeric strings; test and Kaggle runs remain manual/unverified |
 
@@ -89,8 +89,9 @@ Race-specific repository handling, partial-index guarantees, concurrency tests, 
 | `app/repositories/booking_repository.py` | Async persistence and active-seat query | Creates with authenticated `user_id`, lists by user, looks up by ID, checks active duplicate |
 | `app/services/booking_service.py` | Booking business rules | Validates showtime and seat capacity; checks duplicate; enforces ownership and status transition |
 | `app/api/booking.py` | HTTP endpoints, auth adaptation, error mapping | Three routes; all require `get_current_user`; domain errors map to HTTP statuses |
-| `tests/conftest.py` | PostgreSQL integration fixtures and auth test setup | Requires `TEST_DATABASE_URL`; uses real token/middleware path with an adapted test DB session |
-| `tests/test_booking.py` | Focused booking API workflow cases | Fifteen cases use numeric-string labels consistently |
+| `tests/conftest.py` | PostgreSQL integration fixtures and auth test setup | Requires `TEST_DATABASE_URL` for integration runs; permits explicit `tests/unit`-only runs without a DB URL |
+| `tests/unit/test_booking.py` | DB-free BookingService unit tests | Nine cases cover create, validation, duplicate, list ownership, cancellation, rebooking and error paths |
+| `tests/test_booking.py` | Focused booking API workflow cases | Seventeen test functions / 22 cases including parameterized invalid labels; numeric-string labels consistently used |
 | `tests/test_booking_constraints.py` | Legacy DB constraint/concurrency cases | Present but marked skipped; race-specific tests are outside revised acceptance scope |
 | `load_test/load_test.py` | Locust scenario | Configurable JWT/showtime, numeric-string seat allocation, booking and own-booking listing; execution needs integrated API |
 | `LOAD_TEST_PLAN.md` | Load-test implementation checklist | Records the prepared script and manual Kaggle run requirement |
@@ -142,9 +143,9 @@ The test fixtures use a synchronous SQLAlchemy test session wrapped by an async-
 
 **Status: PRESENT; EXECUTION UNVERIFIED.**
 
-`tests/test_booking.py` includes successful creation, sequential duplicate rejection, same-seat/different-showtime behavior, own-booking listing, successful cancellation, ownership rejection, missing booking/showtime, repeated cancellation, list isolation, soft-delete preservation, cancelled-seat rebooking, unauthenticated rejection, out-of-capacity seat rejection, and malformed-label validation. The success case checks that the response preserves `1`.
+`tests/unit/test_booking.py` covers BookingService create with authenticated user identity, missing showtime, capacity, sequential duplicate, per-user listing, cancellation/rebooking, missing booking, ownership and repeated cancellation. `tests/test_booking.py` covers the HTTP contract: successful creation, sequential duplicate rejection, same-seat/different-showtime behavior, own-booking listing, successful cancellation, ownership rejection, missing booking/showtime, repeated cancellation, list isolation, soft-delete preservation, cancelled-seat rebooking, anonymous access to all three routes, request `user_id` spoofing, out-of-capacity seat rejection, and six malformed seat labels. This is 9 unit tests and 17 integration test functions (22 API cases after parameterization). The success case checks that the response preserves `1`.
 
-All booking workflow cases now use numeric-string labels. No test run is claimed in this update. The PostgreSQL integration suite depends on `TEST_DATABASE_URL` and a working test database.
+All booking workflow cases now use numeric-string labels. The root test setup now allows explicit unit-only invocations (for example, `pytest tests/unit`) without `TEST_DATABASE_URL`; integration cases still require PostgreSQL. No test run is claimed in this update.
 
 ### 3.7 Kaggle CPU Load Test
 
