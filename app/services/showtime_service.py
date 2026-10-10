@@ -1,19 +1,6 @@
 from app.core.exceptions import NotFoundException
 from app.schemas.showtime import ShowtimeCreate
 
-SEATS_PER_ROW = 12
-
-
-def _row_label(row_index: int) -> str:
-    """Convert a zero-based row index to spreadsheet-style labels (A..Z, AA..)."""
-    label = ""
-    while row_index >= 0:
-        row_index, remainder = divmod(row_index, 26)
-        label = chr(ord("A") + remainder) + label
-        row_index -= 1
-    return label
-
-
 
 class ShowtimeService:
     """Business logic for showtimes."""
@@ -24,12 +11,6 @@ class ShowtimeService:
 
     async def list_showtimes(self, movie_id: int | None = None):
         return await self.showtime_repository.get_all(movie_id=movie_id)
-
-    async def get_showtime(self, showtime_id: int):
-        showtime = await self.showtime_repository.get_by_id(showtime_id)
-        if showtime is None:
-            raise NotFoundException("Showtime not found")
-        return showtime
 
     async def create_showtime(self, payload: ShowtimeCreate):
         movie = await self.movie_repository.get_by_id(payload.movie_id)
@@ -44,11 +25,8 @@ class ShowtimeService:
 
         booked_seats = await self.showtime_repository.get_booked_seats(showtime_id)
         seats = []
-        for seat_index in range(showtime.total_seats):
-            seat_number = (
-                f"{_row_label(seat_index // SEATS_PER_ROW)}"
-                f"{seat_index % SEATS_PER_ROW + 1}"
-            )
+        for seat_index in range(1, showtime.total_seats + 1):
+            seat_number = f"A{seat_index}"
             seats.append(
                 {
                     "seat_number": seat_number,

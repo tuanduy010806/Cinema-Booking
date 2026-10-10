@@ -65,8 +65,10 @@ async def test_get_showtime_seats_marks_booked_seats_unavailable():
     seats = await service.get_seats(1)
 
     assert len(seats) == 5
+    assert [seat["seat_number"] for seat in seats] == [f"A{i}" for i in range(1, 6)]
     assert seats[0] == {"seat_number": "A1", "is_available": True}
     assert seats[1] == {"seat_number": "A2", "is_available": False}
+    assert seats[-1]["seat_number"] == "A5"
 
 
 @pytest.mark.asyncio

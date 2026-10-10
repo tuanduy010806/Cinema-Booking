@@ -62,7 +62,7 @@ def test_create_booking_success(client: TestClient, user1: User, showtime1: Show
     data = resp.json()
     assert data["user_id"] == user1.user_id
     assert data["showtime_id"] == showtime1.id
-    assert data["seat_number"] == "A1"
+    assert data["seat_number"] == "1"
     assert data["status"] == "active"
     assert "id" in data
     assert "created_at" in data

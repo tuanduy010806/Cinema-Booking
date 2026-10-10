@@ -346,3 +346,12 @@ def client(override_get_db, user1: User) -> Generator[TestClient, None, None]:
     token = create_access_token({"sub": str(user1.user_id)})
     with TestClient(app, headers={"Authorization": f"Bearer {token}"}) as c:
         yield c
+
+
+@pytest.fixture()
+def anonymous_client(override_get_db) -> Generator[TestClient, None, None]:
+    """Return a TestClient without an Authorization header."""
+    from app.main import app
+
+    with TestClient(app) as c:
+        yield c
