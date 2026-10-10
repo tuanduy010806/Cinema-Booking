@@ -1,7 +1,13 @@
 """
 tests/test_booking_constraints.py
 ==================================
-PostgreSQL constraint tests for the Booking domain.
+Historical PostgreSQL race/constraint tests for the Booking domain.
+
+These cases are intentionally skipped under the simplified Phase 1 scope:
+service-level sequential duplicate detection is sufficient, and database
+race/concurrency guarantees are not part of the acceptance criteria. The
+partial unique index described below is historical documentation and is not
+defined by the current `Booking` model.
 
 Focus: the partial unique index
     uq_bookings_showtime_seat_active

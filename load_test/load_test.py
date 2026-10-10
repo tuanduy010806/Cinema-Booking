@@ -9,7 +9,7 @@ Configure the integrated test deployment before starting Locust:
         --headless -u <number of reserved seats> -r 1 -t 60s
 
 Use a fresh test showtime (or a reserved range of unused seats) for each run.
-Each simulated user books one unique A-row seat (A1, A2, ...) and then repeatedly lists
+Each simulated user books one unique numeric seat (1, 2, ...) and then repeatedly lists
 that user's bookings. Keep the user count within the available seats. This
 measures authenticated booking and listing paths; it does not test race guarantees.
 Store credentials as Kaggle secrets/environment variables, never in this file.
@@ -59,7 +59,7 @@ class AuthenticatedBookingUser(HttpUser):
                 "configured seat range."
             )
             raise StopUser()
-        self.seat_number = f"A{seat_number}"
+        self.seat_number = str(seat_number)
         self.booking_created = False
 
     @task

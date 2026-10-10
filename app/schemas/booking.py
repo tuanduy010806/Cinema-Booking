@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class BookingCreate(BaseModel):
     showtime_id: int
-    seat_number: str = Field(pattern=r"^A[1-9][0-9]*$")
+    seat_number: str = Field(pattern=r"^[1-9][0-9]*$")
 
 
 class BookingResponse(BaseModel):

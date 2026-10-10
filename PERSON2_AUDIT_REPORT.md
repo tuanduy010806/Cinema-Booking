@@ -1,23 +1,52 @@
 # PERSON 2 AUDIT REPORT
 
+> **LATEST STATUS (2026-10-10):** Static repository review against the
+> simplified scope and the 2026-10-10 numeric-string seat decision found that most
+> previously open Person 2 acceptance work is now implemented. Movie
+> POST/PUT/DELETE and Showtime POST have ADMIN dependencies; seat generation
+> uses `1`…`str(total_seats)`; booked-seat lookup filters to `active`; and
+> `main.py` maps `NotFoundException` to HTTP 404. The existing unit fixtures
+> cover numeric-string availability. Focused API authorization/error-path coverage is
+> covered by the existing API test files but not executed in this environment.
+> Person 2's core implementation is therefore **statically
+> aligned**, with functional acceptance still requiring verification.
+
+## Current Verification (2026-10-10)
+
+| Requirement | Current repository evidence | Static result |
+|---|---|---|
+| Public Movie reads and Movie CRUD | `app/api/movie.py`; routes present | Implemented |
+| ADMIN-only Movie writes | `Depends(RollChecker(Role.ADMIN))` on POST/PUT/DELETE in `app/api/movie.py` | Implemented |
+| Public Showtime list/filter and ADMIN-only creation | `app/api/showtime.py`; admin dependency on POST | Implemented |
+| Basic schema validation | `app/schemas/movie.py`, `app/schemas/showtime.py` | Implemented |
+| Missing resource returns 404 | `NotFoundException` raised in services; handler in `app/main.py` | Implemented |
+| Numeric-string seat labels | `ShowtimeService.get_seats()` creates `"1"` through `str(total_seats)` | Implemented |
+| Cancelled bookings reopen seats | `ShowtimeRepository.get_booked_seats()` filters `Booking.status == "active"` | Implemented |
+| Focused unit and API checks | Unit and API suites cover seat availability, ADMIN-only creation, validation, and 404 paths | Present; not executed |
+
+The current worktree was clean at review time. Recent history includes changes
+for the active-booking filter (`6800c11`), seat-label work (subsequently
+updated to numeric-string labels in the current service), status-code handling, and a
+bug fix. This is a static code/history review; it does not establish runtime
+behavior.
+
 > **Scope:** Person 2 — Movie / Showtime / Seat  
 > **Auditor Role:** Senior Software Architect, Senior FastAPI Backend Engineer, Senior Code Auditor, Senior Integration Reviewer  
 > **Date:** 2026-10-07  
 > **Source of Truth:** `PROJECT_MASTER_CONTEXT.md`  
 > **Source Code Modified:** NO  
 
-> **CURRENT PLAN AND REPOSITORY CHECK (2026-10-09):** The detailed audit below
+> **HISTORICAL CHECK (2026-10-09; superseded by 2026-10-10 status above):** The detailed audit below
 > records the 2026-10-07 inspection. The current status table below reflects a
 > fresh static check of the workspace against `PROJECT_MASTER_CONTEXT.md`.
-> P2 acceptance: public Movie/Showtime reads; ADMIN-only Movie writes and
-> Showtime creation; basic validation and 404 behavior; A-row seat labels
-> (`A1`, `A2`, …) per the project owner's later decision; active-only availability.
-> The current Showtime service still emits numeric-only labels and must be
-> aligned before integration. Docker/README and Kaggle CPU load test are separate
+> P2 acceptance at that point: public Movie/Showtime reads; ADMIN-only writes;
+> basic validation/404; numeric-string seat labels; active-only availability.
+> Numeric labels in the current service match the 2026-10-10 project-owner
+> decision. Docker/README and Kaggle CPU load test are separate
 > required P1/P3 deliverables. Showtime detail, automated seed, cascade policy,
 > timezone normalization, and stale broad integration tests are optional.
 
-## Latest Repository Verification — Person 2
+## Historical Repository Verification — Person 2 (2026-10-09)
 
 | Area | Verified status on 2026-10-09 | Evidence |
 |---|---|---|
@@ -26,7 +55,7 @@
 | Movie create/update/delete and Showtime creation | Routes exist, but **no ADMIN dependency is wired** | `app/api/movie.py:28-49`, `app/api/showtime.py:26-33` |
 | Basic Movie/Showtime input validation | Present: Movie title/duration and Showtime movie ID/seat count have schema constraints | `app/schemas/movie.py`, `app/schemas/showtime.py` |
 | Missing-resource HTTP 404 behavior | **Not mapped in the API:** services raise `NotFoundException`; `app/main.py` has no handler for it | `app/services/movie_service.py:16-18`, `app/services/showtime_service.py:16-25`, `app/main.py` |
-| Seat-label contract (latest decision) | **PENDING ALIGNMENT:** current Showtime service emits numeric labels, while the project owner selected `A1` through `A{total_seats}`; Person 2 must update the generator and availability tests | `app/services/showtime_service.py:27-34`; latest decision in `PROJECT_MASTER_CONTEXT.md` |
+| Seat-label contract (latest decision) | **PENDING ALIGNMENT:** current Showtime service emits numeric labels, while the project owner selected `1` through `str(total_seats)`; Person 2 must update the generator and availability tests | `app/services/showtime_service.py:27-34`; latest decision in `PROJECT_MASTER_CONTEXT.md` |
 | Cancelled-seat availability | **Incorrect in current code:** repository queries all booking statuses, not active only | `app/repositories/showtime_repository.py:32-35` |
 | Unit tests | Three async unit tests exist for Movie and three for Showtime | `tests/unit/test_movie.py`, `tests/unit/test_showtime.py` |
 | Legacy integration tests | Still use synchronous `def test_*` calls for async services; suite is stale but optional under current plan | `tests/test_movie.py`, `tests/test_showtime.py` |
@@ -34,7 +63,7 @@
 
 Static inspection confirms concrete implementation progress as well as the
 required gaps above; no functional API tests were executable in this workspace.
-The A-row label decision was made after that audit snapshot. Older numeric-label
+The numeric-string label decision was made after that audit snapshot. Older numeric-label
 findings below describe the audited implementation and are superseded as
 acceptance criteria by the current decision at the top of `PROJECT_MASTER_CONTEXT.md`.
 
@@ -464,7 +493,7 @@ This matches MASTER's design. No separate Seat entity is required.
 ```
 MASTER Requirement:   ShowtimeService generates "1","2",...,"N" (numeric strings)
 Actual Implementation: str(seat_number) for seat_number in range(1, total_seats+1) — CORRECT
-Audit note:           Older BOOKING_CONTRACT.md/tests use "A1","B2","J10" (alphanumeric)
+Audit note:           Older BOOKING_CONTRACT.md/tests use "1","B2","J10" (alphanumeric)
 Current contract:     Numeric strings "1" through str(total_seats) in both APIs
 Impact:               Stale fixtures may hide or report a false mismatch
 Owner:                P2 + P3 align stale fixtures/contracts
@@ -876,7 +905,7 @@ Seat Entity:         NO (no separate Seat model/table)
 Seat Representation: Virtual list from ShowtimeService.get_seats()
                      Stored as Booking.seat_number (free-form string)
 Format Generated:    Numeric strings "1","2",...,"N"
-Format in Older Tests: Alphanumeric "A1","B2","J10" (stale examples; update to numeric contract)
+Format in Older Tests: Alphanumeric "1","B2","J10" (stale examples; update to numeric contract)
 Validation:          NONE — any string accepted by Booking
 ```
 
@@ -1023,7 +1052,7 @@ These audit-time gate results must not be reported as the current repository sta
 
 ---
 
-## 24. Current-Plan Work List
+## 24. Historical Current-Plan Work List (checked 2026-10-09; superseded)
 
 This list supersedes the original-scope recommendations above. The 2026-10-09 static workspace check confirms these required gaps are present; unit tests were not run because pytest is unavailable.
 
@@ -1043,7 +1072,7 @@ Automated Movie/Showtime demo seeding, standalone Showtime detail endpoint, casc
 
 ---
 
-## 25. Current-Scope Verdict
+## 25. Historical Current-Scope Verdict (checked 2026-10-09; superseded)
 
 The 2026-10-09 static repository check confirms that Movie/Showtime API exception mapping still does not return required 404 responses, ADMIN guards remain unwired, and the seat query still includes cancelled bookings. The Showtime service already generates the agreed numeric labels; older test/contract examples should be aligned, not used to reopen the format decision. Six P2 unit tests are present, but could not be run because pytest is not installed in the active Python environment.
 

@@ -26,7 +26,7 @@ class ShowtimeService:
         booked_seats = await self.showtime_repository.get_booked_seats(showtime_id)
         seats = []
         for seat_index in range(1, showtime.total_seats + 1):
-            seat_number = f"A{seat_index}"
+            seat_number = str(seat_index)
             seats.append(
                 {
                     "seat_number": seat_number,

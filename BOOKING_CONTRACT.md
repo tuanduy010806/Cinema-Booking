@@ -1,12 +1,10 @@
 # Booking Contract
 
 > **Status: FROZEN**
-> This document reflects the implemented Booking contract as integrated with the
-> completed User/FK and async database interfaces. Login verification and ADMIN
-> guards remain unresolved outside this contract. The simplified team contract
-> uses A-row seat labels (`"A1"` through `"A{total_seats}"`) per the 2026-10-09
-> project-owner decision. Person 2's Showtime availability implementation must
-> be aligned before end-to-end integration.
+> This document reflects the Booking contract integrated with the User/FK,
+> async database, and Showtime interfaces. Seat labels are numeric strings
+> (`"1"` through `str(total_seats)`) per the project-owner decision of
+> 2026-10-10; Person 2 availability and Person 3 Booking use the same format.
 > No production code may be changed without updating this document first.
 
 ---
@@ -38,7 +36,7 @@
 | `id` | `Integer` | `SERIAL` / `INTEGER` | No | auto | Primary key |
 | `user_id` | `Integer` | `INTEGER` | No | — | FK → `users.user_id` |
 | `showtime_id` | `Integer` | `INTEGER` | No | — | FK → `showtimes.id` |
-| `seat_number` | `String` | `VARCHAR` | No | — | A-row label from `"A1"` to `"A{total_seats}"` |
+| `seat_number` | `String` | `VARCHAR` | No | — | Numeric string from `"1"` to `str(total_seats)` |
 | `status` | `String` | `VARCHAR` | No | `"active"` | See [lifecycle](#8-booking-status-lifecycle) |
 | `created_at` | `DateTime(timezone=True)` | `TIMESTAMPTZ` | No | `datetime.now(UTC)` | Server-set on INSERT |
 
@@ -66,7 +64,7 @@ class BookingCreate(BaseModel):
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `showtime_id` | `int` | ✅ | ID of the showtime being booked |
-| `seat_number` | `str` | ✅ | A-row seat label (e.g. `"A1"`) |
+| `seat_number` | `str` | ✅ | numeric-string seat label (e.g. `"1"`) |
 
 > `user_id` is **never** part of the request body.
 > It is always sourced from the authenticated-user dependency.
@@ -151,14 +149,14 @@ Returns `True` if an **active** booking already exists for `(showtime_id, seat_n
 **Class:** `app.services.booking_service.BookingService`
 **Constructor:** `BookingService(booking_repo, showtime_repo)`
 
-The service contains all business logic. It has **no** FastAPI, SQLAlchemy, or HTTP imports. It uses Person 2's `ShowtimeRepository.get_by_id()` to validate that the requested showtime exists and that the A-row seat label is within its capacity.
+The service contains all business logic. It has **no** FastAPI, SQLAlchemy, or HTTP imports. It uses Person 2's `ShowtimeRepository.get_by_id()` to validate that the requested showtime exists and that the numeric-string seat label is within its capacity.
 
 ---
 
 ### `create_booking(user_id: int, payload: BookingCreate) -> Booking`
 
 Before writing, the service uses Person 2's `ShowtimeRepository` to confirm the
-showtime exists and that the numeric suffix in `seat_number` is within `1..total_seats` (for example, `"A12"` is valid when capacity is at least 12).
+showtime exists and that the numeric value in `seat_number` is within `1..total_seats` (for example, `"12"` is valid when capacity is at least 12).
 
 **Flow:**
 
@@ -241,7 +239,7 @@ Content-Type: application/json
 
 {
     "showtime_id": 1,
-    "seat_number": "A1"
+    "seat_number": "1"
 }
 ```
 
@@ -251,7 +249,7 @@ Content-Type: application/json
     "id": 42,
     "user_id": 1,
     "showtime_id": 1,
-    "seat_number": "A1",
+    "seat_number": "1",
     "status": "active",
     "created_at": "2026-10-01T12:00:00Z"
 }
@@ -260,7 +258,7 @@ Content-Type: application/json
 **Error response (400 — duplicate seat):**
 ```json
 {
-    "detail": "Seat 'A1' is already booked for showtime 1."
+    "detail": "Seat '1' is already booked for showtime 1."
 }
 ```
 
@@ -289,7 +287,7 @@ GET /api/v1/bookings/me HTTP/1.1
         "id": 42,
         "user_id": 1,
         "showtime_id": 1,
-        "seat_number": "A1",
+        "seat_number": "1",
         "status": "active",
         "created_at": "2026-10-01T12:00:00Z"
     },
@@ -297,7 +295,7 @@ GET /api/v1/bookings/me HTTP/1.1
         "id": 43,
         "user_id": 1,
         "showtime_id": 2,
-        "seat_number": "A2",
+        "seat_number": "2",
         "status": "cancelled",
         "created_at": "2026-10-01T13:00:00Z"
     }
@@ -332,7 +330,7 @@ DELETE /api/v1/bookings/42 HTTP/1.1
     "id": 42,
     "user_id": 1,
     "showtime_id": 1,
-    "seat_number": "A1",
+    "seat_number": "1",
     "status": "cancelled",
     "created_at": "2026-10-01T12:00:00Z"
 }
@@ -525,5 +523,5 @@ pytest tests/test_booking_constraints.py
 
 ---
 
-*Updated 2026-10-09 to use the project owner's A-row seat-label decision. Person 2 availability alignment remains pending.*
+*Updated 2026-10-10 to use the project owner's numeric-string seat-label decision. Showtime availability returns matching numeric-string labels and filters to active bookings.*
 *Files referenced: `app/models/booking.py`, `app/schemas/booking.py`, `app/repositories/booking_repository.py`, `app/services/booking_service.py`, `app/api/booking.py`, `app/core/exceptions.py`, `tests/conftest.py`.*

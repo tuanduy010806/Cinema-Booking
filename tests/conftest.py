@@ -20,7 +20,7 @@ Design decisions
 Integration details:
 - The client uses a real JWT and exercises AuthMiddleware → UserRepository →
   Booking's get_current_user adapter. It bypasses the login endpoint so the
-  known password-verification defect does not block Booking integration tests.
+  tests stay focused on the booking workflow instead of exercising login.
 - user1/user2 fixtures include username (required column); tokens use the
   actual user.user_id primary key (Audit #13).
 - get_booking_service is overridden with a sync-compatible shim that wraps
