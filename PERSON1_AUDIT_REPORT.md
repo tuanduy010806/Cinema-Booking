@@ -7,7 +7,7 @@
 > **Mode:** READ-ONLY — no source files were modified  
 > **Source of Truth:** `PROJECT_MASTER_CONTEXT.md` (Priority 1) vs Actual Repository (Priority 2)
 
-> **CURRENT PLAN AND REPOSITORY CHECK (2026-10-09):** The detailed audit below
+> **CURRENT PLAN AND REPOSITORY CHECK (2026-10-10):** The detailed audit below
 > records the 2026-10-06 inspection. The current status table below reflects a
 > fresh static check of the workspace against `PROJECT_MASTER_CONTEXT.md`.
 > Required P1 scope: working register/login/JWT; public registration creates
@@ -18,17 +18,17 @@
 
 ## Latest Repository Verification — Person 1
 
-| Area | Verified status on 2026-10-09 | Evidence |
+| Area | Verified status on 2026-10-10 | Evidence |
 |---|---|---|
 | FastAPI app, PostgreSQL async session, User model/repository | Present | `app/main.py`, `app/db/database.py`, `app/models/user.py`, `app/repositories/user_repository.py` |
-| Public registration | Explicitly creates `Role.USER` and returns a token | `app/services/auth_service.py:26-34` |
-| Login/password verification | **Broken in current code inspection:** `verify_password()` passes stored hash before plaintext | `app/core/security.py:22-23`; call site `app/services/auth_service.py:40` |
-| JWT and middleware | Creation/decoding and bearer middleware are implemented | `app/core/security.py`, `app/core/auth_middleware.py` |
-| ADMIN role dependency | `RollChecker` exists, but Movie/Showtime write routes do not depend on it. It uses exact role matching; verify ADMIN inheritance if USER-only guards are introduced | `app/core/permission.py`; `app/api/movie.py:28-49`; `app/api/showtime.py:26-33` |
-| Internal ADMIN provisioning | No documented provisioning method found in the checked `README.md`, `seed.py`, or `scripts/` | Repository search on 2026-10-09 |
-| Auth tests | `tests/test_auth.py` remains TODO; focused smoke behavior is not demonstrated | `tests/test_auth.py` |
-| Docker, README, dependencies | Dockerfile is empty; README contains project structure but no architecture/API/Docker run guide; `requirements.txt` is incomplete for the app (includes `sqlalchemy.orm`, omits required runtime packages) | `Dockerfile` (0 bytes), `README.md`, `requirements.txt` |
-| Test execution | Not run: `pytest` command unavailable and `py -m pytest` reports pytest is not installed | Command output, 2026-10-09 |
+| Public registration | Explicitly creates `Role.USER`; the registration smoke test submits `role=ADMIN` and confirms it is ignored | `app/services/auth_service.py`; `tests/test_auth.py` |
+| Login/password verification | Password verification uses the correct plaintext/hash order; valid and invalid login cases are covered by unit and API smoke tests | `app/core/security.py`; `tests/unit/test_auth.py`; `tests/test_auth.py` |
+| JWT and middleware | Creation/decoding and bearer middleware are implemented; smoke tests use returned tokens on a protected route | `app/core/security.py`, `app/core/auth_middleware.py`, `tests/test_auth.py` |
+| ADMIN role dependency | `RollChecker` is wired to Movie and Showtime write routes; smoke test verifies USER denied and ADMIN allowed | `app/core/permission.py`; `app/api/movie.py`; `app/api/showtime.py`; `tests/test_auth.py` |
+| Internal ADMIN provisioning | Documented as a direct PostgreSQL role update after normal registration | `README.md` ? Provision an ADMIN account |
+| Auth tests | Implemented: unit checks for USER-only creation, password hashing, JWT claim, valid/invalid login; API checks registration, login, protected route, anonymous rejection, and role authorization | `tests/unit/test_auth.py`; `tests/test_auth.py` |
+| Docker, README, dependencies | README now documents ADMIN provisioning and smoke-test commands; `requirements.txt` lists runtime, PostgreSQL/test, and Locust dependencies. App Dockerfile and full architecture/API/Docker guide remain open | `README.md`, `requirements.txt`, `Dockerfile` |
+| Test execution | Not run in this update; API smoke tests require `TEST_DATABASE_URL` and PostgreSQL | Current environment; no run result claimed |
 
 This is a static repository check, not a successful end-to-end auth run. The
 historical detailed audit below remains useful for design evidence; this table

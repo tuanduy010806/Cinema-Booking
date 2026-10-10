@@ -67,6 +67,30 @@ def _load_env_test() -> None:
 
 _load_env_test()
 
+# Importing app.db.database constructs the async engine during test collection.
+# Unit tests do not connect to a database, so give that unused engine a safe
+# local test URL when the developer has not configured the application URL.
+os.environ.setdefault("SECRET_KEY", "unit-test-secret-key-not-for-production")
+os.environ.setdefault("ALGORITHM", "HS256")
+os.environ.setdefault("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
+
+if not os.environ.get("DATABASE_URL", "").strip():
+    test_database_url = os.environ.get("TEST_DATABASE_URL", "").strip()
+    if test_database_url:
+        async_database_url = test_database_url.replace(
+            "postgresql+psycopg://", "postgresql+asyncpg://", 1
+        ).replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
+        if async_database_url.startswith("postgresql://"):
+            async_database_url = async_database_url.replace(
+                "postgresql://", "postgresql+asyncpg://", 1
+            )
+    else:
+        async_database_url = (
+            "postgresql+asyncpg://cinema:cinema@localhost:5432/"
+            "cinema_booking_unit_tests"
+        )
+    os.environ["DATABASE_URL"] = async_database_url
+
 # ---------------------------------------------------------------------------
 # Fail fast if TEST_DATABASE_URL is absent
 # ---------------------------------------------------------------------------
