@@ -1,5 +1,7 @@
-from datetime import date, datetime, time, timedelta
 import asyncio
+import json
+from datetime import date, datetime, time, timedelta
+from pathlib import Path
 
 from sqlalchemy import func, select
 
@@ -8,27 +10,47 @@ from app.models.movie import Movie
 from app.models.showtime import Showtime
 
 
+MOVIES_FILE = Path(__file__).resolve().parent / "data" / "movie.json"
+
+
+def load_movie_data() -> list[dict[str, object]]:
+    """Load and validate movie records from the project's JSON data file."""
+    try:
+        with MOVIES_FILE.open(encoding="utf-8") as file:
+            data = json.load(file)
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f"Movie data file was not found: {MOVIES_FILE}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Invalid JSON in {MOVIES_FILE} at line {exc.lineno}, column {exc.colno}."
+        ) from exc
+
+    if not isinstance(data, list):
+        raise ValueError(f"Expected a JSON array in {MOVIES_FILE}.")
+
+    required_fields = {"title", "description", "duration_minutes"}
+    for index, movie in enumerate(data):
+        if not isinstance(movie, dict):
+            raise ValueError(f"Movie at index {index} must be a JSON object.")
+        missing_fields = required_fields - movie.keys()
+        if missing_fields:
+            fields = ", ".join(sorted(missing_fields))
+            raise ValueError(f"Movie at index {index} is missing required fields: {fields}.")
+        if not isinstance(movie["title"], str) or not movie["title"].strip():
+            raise ValueError(f"Movie at index {index} must have a non-empty title.")
+        if not isinstance(movie["duration_minutes"], int) or movie["duration_minutes"] <= 0:
+            raise ValueError(f"Movie at index {index} must have a positive duration_minutes.")
+        if movie["description"] is not None and not isinstance(movie["description"], str):
+            raise ValueError(f"Movie at index {index} description must be a string or null.")
+
+    return data
+
+
 
 async def main():
     """Seed database with initial data."""
     async with AsyncSessionLocal() as session:
-        movie_data = [
-            {
-                "title": "Dune: Part Two",
-                "description": "Paul Atreides unites with Chani and the Fremen.",
-                "duration_minutes": 166,
-            },
-            {
-                "title": "Inside Out 2",
-                "description": "Joy and the other emotions meet Anxiety.",
-                "duration_minutes": 96,
-            },
-            {
-                "title": "The Wild Robot",
-                "description": "A robot learns to survive on a remote island.",
-                "duration_minutes": 102,
-            },
-        ]
+        movie_data = load_movie_data()
         movies = []
         for values in movie_data:
             movie = await session.scalar(select(Movie).where(Movie.title == values["title"]))
@@ -36,6 +58,9 @@ async def main():
                 movie = Movie(**values)
                 session.add(movie)
                 await session.flush()
+            else:
+                movie.description = values["description"]
+                movie.duration_minutes = values["duration_minutes"]
             movies.append(movie)
 
         first_day = date.today() + timedelta(days=1)
@@ -46,7 +71,8 @@ async def main():
             [(time(16, 0), 40), (time(20, 0), 40)],
         ]
 
-        for movie, showtimes in zip(movies, schedule):
+        for index, movie in enumerate(movies):
+            showtimes = schedule[index % len(schedule)]
             showtime_count = await session.scalar(
                 select(func.count(Showtime.id)).where(
                     Showtime.movie_id == movie.id,

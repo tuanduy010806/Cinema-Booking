@@ -1,4 +1,4 @@
-# Cinema Booking API
+﻿# Cinema Booking API
 
 REST API quản lý phim, lịch chiếu, ghế và đặt vé. README này hướng dẫn cài đặt,
 khởi chạy, kiểm thử và mô tả hợp đồng API của Phase 1.
@@ -42,8 +42,9 @@ py -m pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Đổi `SECRET_KEY` trong `.env` thành chuỗi ngẫu nhiên riêng tư. Không commit
-`.env` hoặc dùng secret ví dụ trong môi trường thật. Để chạy PostgreSQL local:
+Mở `.env`, kiểm tra `DATABASE_URL` trỏ tới PostgreSQL. Đổi `SECRET_KEY` thành
+chuỗi ngẫu nhiên riêng tư; không commit `.env` hoặc dùng secret ví dụ trong môi
+trường thật. Để chạy PostgreSQL local:
 
 ```powershell
 docker compose up -d db
@@ -60,11 +61,25 @@ py scripts/init_db.py
 py seed.py
 ```
 
-`init_db.py` tạo bảng còn thiếu nhưng không migrate/alter bảng cũ. Sau đó chạy:
+Danh sách phim mà `seed.py` nạp nằm trong `data.json`; thêm hoặc sửa phim
+ở file này rồi chạy lại `py seed.py`. Seeder thêm phim mới và đồng bộ mô tả/thời
+lượng của phim đã có theo JSON.
+
+`init_db.py` tạo bảng còn thiếu nhưng không migrate/alter bảng cũ. Khởi động API
+từ thư mục gốc repository bằng một trong hai cách sau:
+
+```powershell
+py main.py
+```
+
+Hoặc gọi Uvicorn trực tiếp:
 
 ```powershell
 py -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+Trong lệnh Uvicorn, `app.main:app` trỏ tới biến FastAPI `app` trong file
+`app/main.py`. `py main.py` dùng file launcher `main.py` ở thư mục gốc.
 
 Swagger UI: <http://127.0.0.1:8000/docs>. OpenAPI JSON:
 <http://127.0.0.1:8000/openapi.json>. Base URL local:
