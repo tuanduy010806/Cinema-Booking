@@ -30,6 +30,9 @@ class ShowtimeRepository:
         return showtime
 
     async def get_booked_seats(self, showtime_id: int):
-        statement = select(Booking.seat_number).where(Booking.showtime_id == showtime_id)
+        statement = select(Booking.seat_number).where(
+            Booking.showtime_id == showtime_id,
+            Booking.status == "active",
+        )
         result = await self.session.scalars(statement)
         return set(result.all())

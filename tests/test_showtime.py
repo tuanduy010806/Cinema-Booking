@@ -1,73 +1,137 @@
-from datetime import datetime
-from types import SimpleNamespace
+"""HTTP/DB integration tests for the Showtime API."""
 
 import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from app.core.exceptions import NotFoundException
-from app.schemas.showtime import ShowtimeCreate
-from app.services.showtime_service import ShowtimeService
-
-class FakeMovieRepository:
-    def get_by_id(self, movie_id: int):
-        if movie_id == 1:
-            return SimpleNamespace(id=1, title="Dune")
-        return None
+from app.models.booking import Booking
+from app.models.movie import Movie
+from app.models.showtime import Showtime
+from app.models.user import User
 
 
-class FakeShowtimeRepository:
-    def __init__(self):
-        self.showtimes = {
-            1: SimpleNamespace(
-                id=1,
-                movie_id=1,
-                start_time=datetime(2026, 10, 1, 19, 0),
-                total_seats=5,
-            )
-        }
-
-    def get_all(self, movie_id: int | None = None):
-        showtimes = list(self.showtimes.values())
-        if movie_id is not None:
-            showtimes = [showtime for showtime in showtimes if showtime.movie_id == movie_id]
-        return showtimes
-
-    def get_by_id(self, showtime_id: int):
-        return self.showtimes.get(showtime_id)
-
-    def create(self, showtime_data: dict):
-        showtime_id = max(self.showtimes) + 1
-        showtime = SimpleNamespace(id=showtime_id, **showtime_data)
-        self.showtimes[showtime_id] = showtime
-        return showtime
-
-    def get_booked_seats(self, showtime_id: int):
-        return {"2", "4"} if showtime_id == 1 else set()
-
-
-def test_list_and_create_showtimes():
-    repository = FakeShowtimeRepository()
-    service = ShowtimeService(repository, FakeMovieRepository())
-
-    showtime = service.create_showtime(
-        ShowtimeCreate(movie_id=1, start_time="2026-10-02T20:00:00", total_seats=40)
+def test_list_showtimes_can_filter_by_movie(
+    anonymous_client: TestClient,
+    movie: Movie,
+    showtime1: Showtime,
+    showtime2: Showtime,
+):
+    response = anonymous_client.get(
+        "/api/v1/showtimes", params={"movie_id": movie.id}
     )
 
-    assert showtime.movie_id == 1
-    assert len(service.list_showtimes(movie_id=1)) == 2
+    assert response.status_code == 200, response.text
+    assert {item["id"] for item in response.json()} == {showtime1.id, showtime2.id}
 
 
-def test_get_showtime_seats_marks_booked_seats_unavailable():
-    service = ShowtimeService(FakeShowtimeRepository(), FakeMovieRepository())
+def test_get_showtime_seats_uses_active_booking_status(
+    anonymous_client: TestClient,
+    db_session: Session,
+    user1: User,
+    showtime1: Showtime,
+):
+    db_session.add_all(
+        [
+            Booking(
+                user_id=user1.user_id,
+                showtime_id=showtime1.id,
+                seat_number="1",
+                status="active",
+            ),
+            Booking(
+                user_id=user1.user_id,
+                showtime_id=showtime1.id,
+                seat_number="2",
+                status="cancelled",
+            ),
+        ]
+    )
+    db_session.flush()
 
-    seats = service.get_seats(1)
+    response = anonymous_client.get(f"/api/v1/showtimes/{showtime1.id}/seats")
 
-    assert len(seats) == 5
-    assert seats[0] == {"seat_number": "1", "is_available": True}
-    assert seats[1] == {"seat_number": "2", "is_available": False}
+    assert response.status_code == 200, response.text
+    seats = {seat["seat_number"]: seat["is_available"] for seat in response.json()}
+    assert seats["1"] is False
+    assert seats["2"] is True
 
 
-def test_get_missing_showtime_raises_not_found():
-    service = ShowtimeService(FakeShowtimeRepository(), FakeMovieRepository())
+def test_get_missing_showtime_seats_returns_404(anonymous_client: TestClient):
+    response = anonymous_client.get("/api/v1/showtimes/999999999/seats")
 
-    with pytest.raises(NotFoundException, match="Showtime not found"):
-        service.get_seats(999)
+    assert response.status_code == 404, response.text
+    assert response.json() == {"detail": "Showtime not found"}
+
+
+def test_create_showtime_for_missing_movie_returns_404(
+    client: TestClient, db_session: Session, user1: User
+):
+    user1.role = "ADMIN"
+    db_session.flush()
+
+    response = client.post(
+        "/api/v1/showtimes",
+        json={
+            "movie_id": 999999999,
+            "start_time": "2026-12-01T18:00:00",
+            "total_seats": 50,
+        },
+    )
+
+    assert response.status_code == 404, response.text
+    assert response.json() == {"detail": "Movie not found"}
+
+
+def test_create_showtime_requires_admin(
+    anonymous_client: TestClient,
+    client: TestClient,
+    db_session: Session,
+    user1: User,
+    movie: Movie,
+):
+    payload = {
+        "movie_id": movie.id,
+        "start_time": "2026-12-01T18:00:00",
+        "total_seats": 50,
+    }
+
+    anonymous_response = anonymous_client.post("/api/v1/showtimes", json=payload)
+    assert anonymous_response.status_code == 401, anonymous_response.text
+
+    user_response = client.post("/api/v1/showtimes", json=payload)
+    assert user_response.status_code == 403, user_response.text
+
+    user1.role = "ADMIN"
+    db_session.flush()
+    admin_response = client.post("/api/v1/showtimes", json=payload)
+    assert admin_response.status_code == 201, admin_response.text
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"movie_id": 0},
+        {"start_time": "not-a-datetime"},
+        {"total_seats": 0},
+        {"total_seats": 501},
+    ],
+)
+def test_create_showtime_rejects_invalid_fields(
+    overrides: dict,
+    client: TestClient,
+    db_session: Session,
+    user1: User,
+    movie: Movie,
+):
+    user1.role = "ADMIN"
+    db_session.flush()
+    payload = {
+        "movie_id": movie.id,
+        "start_time": "2026-12-01T18:00:00",
+        "total_seats": 50,
+    }
+    payload.update(overrides)
+
+    response = client.post("/api/v1/showtimes", json=payload)
+
+    assert response.status_code == 422, response.text

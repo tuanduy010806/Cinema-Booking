@@ -2,7 +2,6 @@ from app.core.exceptions import NotFoundException
 from app.schemas.showtime import ShowtimeCreate
 
 
-
 class ShowtimeService:
     """Business logic for showtimes."""
 
@@ -25,10 +24,13 @@ class ShowtimeService:
             raise NotFoundException("Showtime not found")
 
         booked_seats = await self.showtime_repository.get_booked_seats(showtime_id)
-        return [
-            {
-                "seat_number": str(seat_number),
-                "is_available": str(seat_number) not in booked_seats,
-            }
-            for seat_number in range(1, showtime.total_seats + 1)
-        ]
+        seats = []
+        for seat_index in range(1, showtime.total_seats + 1):
+            seat_number = str(seat_index)
+            seats.append(
+                {
+                    "seat_number": seat_number,
+                    "is_available": seat_number not in booked_seats,
+                }
+            )
+        return seats

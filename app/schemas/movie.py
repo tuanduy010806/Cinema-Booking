@@ -21,3 +21,4 @@ class MovieResponse(BaseModel):
     title: str
     description: str | None = None
     duration_minutes: int
+        

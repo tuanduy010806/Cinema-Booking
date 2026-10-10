@@ -7,6 +7,9 @@ Rules enforced here:
 - No direct DB access.
 - All persistence work delegated to the injected repository.
 - All domain invariants (ownership, state transitions, duplicates) live here.
+
+Integration changes (PROMPT 11 — Audit item #7):
+- All public methods converted to async def to match the async BookingRepository.
 """
 
 from __future__ import annotations
@@ -24,21 +27,25 @@ from app.schemas.booking import BookingCreate
 class BookingService:
     """Business logic for bookings."""
 
-    def __init__(self, repo) -> None:
+    def __init__(self, repo, showtime_repo) -> None:
         """
         Parameters
         ----------
         repo:
             A BookingRepository instance (or any compatible duck-typed object).
             Injected by the caller; the service never constructs it directly.
+        showtime_repo:
+            A ShowtimeRepository instance used to validate the referenced
+            Showtime and seat range ("1" through str(total_seats)).
         """
         self.repo = repo
+        self.showtime_repo = showtime_repo
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def create_booking(self, user_id: int, payload: BookingCreate) -> Booking:
+    async def create_booking(self, user_id: int, payload: BookingCreate) -> Booking:
         """Create a new booking for *user_id*.
 
         Flow
@@ -48,11 +55,8 @@ class BookingService:
            that avoids a wasted INSERT in the common (non-concurrent) case.
         2. If duplicate found → raise DuplicateSeatError immediately.
         3. Otherwise → delegate to repo.create(), which performs the INSERT.
-           If a concurrent request raced past the pre-check and grabbed the
-           seat first, PostgreSQL's partial unique index will reject the INSERT
-           and the repository will convert IntegrityError → DuplicateSeatError
-           before it bubbles up here.  The service does **not** need to import
-           or catch IntegrityError.
+           Concurrent requests are not protected by a database constraint in
+           the simplified Phase 1 scope.
 
         Parameters
         ----------
@@ -64,11 +68,20 @@ class BookingService:
         Raises
         ------
         DuplicateSeatError:
-            When the seat is already taken (both pre-check path and
-            post-INSERT race-condition path).
+            When the pre-check finds an active booking for the same seat.
         """
-        # --- Step 1: best-effort pre-check (not the authoritative guard) ---
-        already_taken = self.repo.check_seat_exists(
+        showtime = await self.showtime_repo.get_by_id(payload.showtime_id)
+        if showtime is None:
+            raise NotFoundError(f"Showtime {payload.showtime_id} not found.")
+
+        seat_number = int(payload.seat_number)
+        if seat_number > showtime.total_seats:
+            raise NotFoundError(
+                f"Seat {payload.seat_number} not found for showtime {payload.showtime_id}."
+            )
+
+        # --- Step 1: simple duplicate check ---
+        already_taken = await self.repo.check_seat_exists(
             showtime_id=payload.showtime_id,
             seat_number=payload.seat_number,
         )
@@ -78,11 +91,11 @@ class BookingService:
                 seat_number=payload.seat_number,
             )
 
-        # --- Step 2: delegate persistence (repository handles race condition) ---
+        # --- Step 2: persist after the sequential duplicate check ---
         booking_data = payload.model_dump()
-        return self.repo.create(booking_data, user_id=user_id)
+        return await self.repo.create(booking_data, user_id=user_id)
 
-    def get_my_bookings(self, user_id: int) -> list[Booking]:
+    async def get_my_bookings(self, user_id: int) -> list[Booking]:
         """Return all bookings that belong to *user_id*.
 
         Parameters
@@ -95,9 +108,9 @@ class BookingService:
         list[Booking]:
             Possibly empty list of the user's bookings.
         """
-        return self.repo.get_by_user_id(user_id)
+        return await self.repo.get_by_user_id(user_id)
 
-    def cancel_booking(self, user_id: int, booking_id: int) -> Booking:
+    async def cancel_booking(self, user_id: int, booking_id: int) -> Booking:
         """Cancel a booking.
 
         Flow
@@ -127,7 +140,7 @@ class BookingService:
             When the booking is already cancelled (or in any non-active state).
         """
         # --- Step 1: existence check ---
-        booking = self.repo.get_by_id(booking_id)
+        booking = await self.repo.get_by_id(booking_id)
         if booking is None:
             raise NotFoundError(f"Booking {booking_id} not found.")
 
@@ -144,5 +157,5 @@ class BookingService:
             )
 
         # --- Step 4: persist cancellation (no hard-delete) ---
-        updated = self.repo.update_status(booking_id, "cancelled")
+        updated = await self.repo.update_status(booking_id, "cancelled")
         return updated
