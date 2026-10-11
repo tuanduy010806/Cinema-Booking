@@ -234,11 +234,17 @@ class _SyncSessionAsyncProxy:
     async def get(self, model: Any, ident: Any) -> Any:
         return self._session.get(model, ident)
 
+    async def scalar(self, statement: Any) -> Any:
+        return self._session.scalar(statement)
+
     async def execute(self, statement: Any) -> Any:
         return self._session.execute(statement)
 
     async def scalars(self, statement: Any) -> Any:
         return self._session.scalars(statement)
+
+    async def delete(self, instance: Any) -> None:
+        self._session.delete(instance)
 
 
 # ---------------------------------------------------------------------------

@@ -1,17 +1,17 @@
 # PERSON 2 AUDIT REPORT
 
-> **LATEST STATUS (2026-10-10):** Static repository review against the
+> **LATEST STATUS (2026-10-11):** Static repository review against the
 > simplified scope and the 2026-10-10 numeric-string seat decision found that most
 > previously open Person 2 acceptance work is now implemented. Movie
 > POST/PUT/DELETE and Showtime POST have ADMIN dependencies; seat generation
 > uses `1`…`str(total_seats)`; booked-seat lookup filters to `active`; and
 > `main.py` maps `NotFoundException` to HTTP 404. The existing unit fixtures
-> cover numeric-string availability. Focused API authorization/error-path coverage is
-> covered by the existing API test files but not executed in this environment.
-> Person 2's core implementation is therefore **statically
-> aligned**, with functional acceptance still requiring verification.
+> cover numeric-string availability. Focused API authorization/error-path
+> coverage ran successfully (53 passed), including ADMIN authorization and 404 paths.
+> A separate domain unit subset also passed (15 passed); broader collection
+> still has stale test issues documented in README.md.
 
-## Current Verification (2026-10-10)
+## Current Verification (2026-10-11)
 
 | Requirement | Current repository evidence | Static result |
 |---|---|---|
@@ -22,7 +22,7 @@
 | Missing resource returns 404 | `NotFoundException` raised in services; handler in `app/main.py` | Implemented |
 | Numeric-string seat labels | `ShowtimeService.get_seats()` creates `"1"` through `str(total_seats)` | Implemented |
 | Cancelled bookings reopen seats | `ShowtimeRepository.get_booked_seats()` filters `Booking.status == "active"` | Implemented |
-| Focused unit and API checks | Unit and API suites cover seat availability, ADMIN-only creation, validation, and 404 paths | Present; not executed |
+| Focused unit and API checks | API/integration suite: 53 passed; domain unit subset: 15 passed | Executed 2026-10-11; full pytest collection still has stale test issues |
 
 The current worktree was clean at review time. Recent history includes changes
 for the active-booking filter (`6800c11`), seat-label work (subsequently
