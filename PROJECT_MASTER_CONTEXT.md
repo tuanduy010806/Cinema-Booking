@@ -1220,11 +1220,10 @@ pytest tests/unit/                  # unit tests (no DB needed)
 
 ## 16. Current Project Status
 
-> The status tables below are the audited implementation snapshot from the
-> original scope. For current acceptance, compare implementation against the
-> simplified per-person criteria at the beginning of this document. A missing
-> optional feature (such as high-collision load testing or the showtime detail
-> endpoint) is not a blocker under the revised scope.
+> **Repository check and test run: 2026-10-11.** This is the current
+> progress snapshot against the simplified criteria above. Docker runtime and
+> focused tests have now been exercised; see `README.md` for exact commands,
+> pass counts, and the remaining full-suite collection issues.
 
 ### Person 1 — Nguyễn Hữu Hiếu
 
@@ -1233,7 +1232,7 @@ pytest tests/unit/                  # unit tests (no DB needed)
 | FastAPI app bootstrap | COMPLETED | `app/main.py` |
 | Database config (async) | COMPLETED | `AsyncSessionLocal`, `get_db()` |
 | Docker Compose (PostgreSQL) | COMPLETED | DB service only |
-| Dockerfile (app container) | NOT STARTED | File exists but is empty |
+| Dockerfile (app container) | IMPLEMENTED; RUNNING | Image built; API container starts after DB health and initializes missing tables |
 | User model | COMPLETED | PK is `user_id` — **critical** |
 | Auth schemas | COMPLETED | |
 | User repository (async) | COMPLETED | |
@@ -1241,10 +1240,12 @@ pytest tests/unit/                  # unit tests (no DB needed)
 | Auth API endpoints | COMPLETED | `/register`, `/login` |
 | JWT security | COMPLETED | `security.py` |
 | AuthMiddleware | COMPLETED | Sets `request.state.current_user` |
-| RollChecker permission | DEFINED | **NOT WIRED** to any endpoint |
-| ADMIN guard on Movie API | NOT DONE | Per comment in `app/api/movie.py` |
-| ADMIN guard on Showtime API | NOT DONE | Per comment in `app/api/showtime.py` |
-| Auth tests | NOT DONE | TODO stubs only |
+| RollChecker permission | IMPLEMENTED | Wired to Movie/Showtime write routes |
+| ADMIN guard on Movie API | VERIFIED | ADMIN behavior covered by passing focused API/integration suite |
+| ADMIN guard on Showtime API | VERIFIED | ADMIN behavior covered by passing focused API/integration suite |
+| Auth tests | API INTEGRATION PASS | Included in focused suite; stale unit auth module still fails collection |
+| README architecture/API | IMPLEMENTED | README covers system layers, routes, and contracts |
+| README Docker build/run | IMPLEMENTED; VERIFIED | `docker compose up --build -d`; `/docs` returned HTTP 200 |
 | `config.py` | EMPTY | No content |
 
 ### Person 2 — Vũ Tiến Mạnh
@@ -1255,30 +1256,29 @@ pytest tests/unit/                  # unit tests (no DB needed)
 | Movie schemas | COMPLETED | |
 | Movie repository (async) | COMPLETED | |
 | Movie service | COMPLETED | |
-| Movie API (5 endpoints) | PARTIAL | Missing ADMIN auth guard |
+| Movie API (5 endpoints) | VERIFIED | ADMIN write checks passed in focused API/integration suite |
 | Showtime model | COMPLETED | `start_time` timezone-naive |
 | Showtime schemas | COMPLETED | |
 | Showtime repository (async) | COMPLETED | |
 | Showtime service | IMPLEMENTED | Generates numeric-string seat labels from `"1"` through `str(total_seats)` |
-| Showtime API (3 endpoints) | PARTIAL | Missing ADMIN guard on POST |
-| GET showtime detail endpoint | NOT IMPLEMENTED | Only `/seats` sub-route exists |
-| seed.py | BROKEN | Uses `SessionLocal` (undefined in `database.py`) |
-| Movie unit tests | COMPLETED | `tests/unit/test_movie.py` |
-| Showtime unit tests | COMPLETED | `tests/unit/test_showtime.py` |
-| Movie/Showtime integration tests | STALE | Sync pattern; service is async |
+| Showtime API (3 endpoints) | VERIFIED | ADMIN create check passed in focused API/integration suite |
+| GET showtime detail endpoint | OUT OF SCOPE | Only `/seats` sub-route is required |
+| seed.py | IMPLEMENTED | README documents current seed workflow |
+| Movie unit tests | PASS | `tests/unit/test_movie.py` |
+| Showtime unit tests | PASS | `tests/unit/test_showtime.py` |
+| Movie/Showtime integration tests | PASS | Included in 53 passing focused API integration tests |
 
 ### Person 3 — Lê Hồng Tuấn Duy
 
 | Component | Status | Note |
 |---|---|---|
-| Booking model + partial index | COMPLETED | FK to `users.user_id` correct |
+| Booking model | IMPLEMENTED | FK to `users.user_id` correct; DB race protection optional |
 | Booking schemas | COMPLETED | Frozen contract |
 | Booking repository (async) | COMPLETED | Post-audit async conversion |
 | Booking service (async) | COMPLETED | All business rules |
 | Booking API (3 endpoints) | COMPLETED | Real auth dependency |
-| Integration tests (11) | COMPLETED | |
-| Constraint tests (4) | COMPLETED | Includes concurrency test |
-| Load test | COMPLETED | Needs re-run post-integration |
+| Focused booking checks | PASS | API suite included; domain unit suite passed |
+| Kaggle CPU load test | PENDING MANUAL RUN | Locust scenario prepared; no Kaggle result recorded |
 | Integration audit | COMPLETED | `INTEGRATION_AUDIT.md` |
 | Booking contract | COMPLETED | `BOOKING_CONTRACT.md` |
 | Test infrastructure | COMPLETED | `conftest.py`, `create_test_db.py` |
@@ -1289,10 +1289,12 @@ pytest tests/unit/                  # unit tests (no DB needed)
 |---|---|---|
 | P1 ↔ P3 auth wire-up | DONE (post-audit) | Was: `user_id` vs `id`; fixed |
 | P2 ↔ P3 showtime FK | DONE | FK to `showtimes.id` correct |
-| ADMIN guards (P1 → P2) | **NOT DONE** | `RollChecker` not wired |
-| Seat format | AGREED | Numeric strings; P2 Showtime and P3 Booking aligned |
-| Booked seat filter (P2) | **RISK** | Must include active bookings only |
-| Focused acceptance checks | NOT VERIFIED | Required workflows listed at top |
+| ADMIN guards (P1 → P2) | VERIFIED | Focused API/integration tests passed |
+| Seat format | ALIGNED | Numeric strings; P2 Showtime and P3 Booking aligned |
+| Booked seat filter (P2) | IMPLEMENTED | Availability includes active bookings only |
+| Focused acceptance checks | PASS (selected suites) | 53 API/integration + 15 domain unit cases passed; full collection still has stale-test issues |
+| Docker packaging + README Docker guide | VERIFIED 2026-10-11 | API image built; DB healthy; `/docs` and public GET routes returned 200 |
+| Kaggle CPU run | PENDING MANUAL RUN | Needs reachable API, reserved seats, Kaggle execution and results |
 | Full original test matrix | OPTIONAL | Broad integration/concurrency matrix is not required |
 | Automated demo seed script | OPTIONAL | Internal ADMIN provisioning method is required |
 
@@ -1406,13 +1408,12 @@ Scope:    Automated demo seeding is optional. A documented internal method to
           provision an ADMIN account is required and may be provided separately.
 ```
 
-#### Required gap — Docker packaging and README instructions
+#### Resolved 2026-10-11 — Docker packaging and README instructions
 ```
-Risk:     Dockerfile has zero content
-Evidence: File size = 0 bytes; direct read confirms empty file
-Impact:   Cannot containerize the application; docker build will fail
+Evidence: Dockerfile and Compose build completed; PostgreSQL healthy; API container initialized tables and started Uvicorn
+Smoke:    /docs = 200; /api/v1/movies = 200; /api/v1/showtimes = 200; anonymous /api/v1/bookings/me = 401
 Owner:    P1
-Fix:      Implement Dockerfile for FastAPI async app
+Follow-up: Run full API workflow tests with TEST_DATABASE_URL; load test remains a separate pending deliverable
 ```
 
 #### Required gap — Kaggle CPU load test

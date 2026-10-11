@@ -27,7 +27,35 @@ JWT được kiểm tra bởi `AuthMiddleware`. Các bảng chính là `users`, 
 `bookings.user_id -> users.user_id`, `bookings.showtime_id -> showtimes.id`.
 Availability chỉ tính booking `active`.
 
-## 2. Cài đặt và chạy local
+## 2. Chạy toàn hệ thống bằng Docker
+
+Yêu cầu Docker Desktop đang chạy. Từ thư mục gốc repository:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Mở `.env`, đặt `SECRET_KEY` thành chuỗi ngẫu nhiên riêng tư. Sau đó build image
+API và khởi chạy cả API lẫn PostgreSQL:
+
+```powershell
+docker compose up --build -d
+docker compose ps
+docker compose logs -f api
+```
+
+Container API đợi PostgreSQL healthy, tạo các bảng còn thiếu bằng
+`scripts/init_db.py`, rồi khởi chạy Uvicorn trên cổng `8000`. Mở
+<http://127.0.0.1:8000/docs> để xem API. Dừng các container bằng
+`docker compose down`; dữ liệu PostgreSQL vẫn được giữ trong volume. Dùng
+`docker compose down -v` chỉ khi muốn xóa cả dữ liệu database local.
+
+Mật khẩu PostgreSQL mặc định `123456` chỉ dành cho phát triển local; có thể
+đặt `POSTGRES_PASSWORD` trong `.env` trước khi tạo volume lần đầu. Nếu đã có
+volume với database cũ, thay đổi biến này không tự đổi mật khẩu bên trong
+database hiện hữu.
+
+## 3. Chạy Python trực tiếp
 
 Yêu cầu Python tương thích với `requirements.txt`, PostgreSQL và Docker Desktop
 (nếu muốn chạy PostgreSQL bằng compose).
@@ -50,8 +78,8 @@ trường thật. Để chạy PostgreSQL local:
 docker compose up -d db
 ```
 
-Đợi service `db` báo trạng thái healthy trước khi tạo schema. Compose hiện chỉ
-chạy PostgreSQL, chưa chạy API. Nếu dùng PostgreSQL khác, đặt
+Đợi service `db` báo trạng thái healthy trước khi tạo schema. Cách này chỉ chạy
+PostgreSQL; API vẫn chạy bằng Python trên máy host. Nếu dùng PostgreSQL khác, đặt
 `DATABASE_URL` dạng `postgresql+asyncpg://user:password@host:port/database`.
 
 Khởi tạo bảng trên database phát triển mới và (tuỳ chọn) thêm dữ liệu mẫu:
@@ -105,7 +133,7 @@ không gửi quyền ADMIN qua request body. ADMIN đăng nhập qua endpoint lo
 khi được cấp quyền. Chỉ operator có quyền database đáng tin cậy mới thực hiện
 thay đổi role.
 
-## 3. Mô hình dữ liệu và quy tắc
+## 4. Mô hình dữ liệu và quy tắc
 
 | Bảng | Trường chính | Quy tắc |
 |---|---|---|
@@ -118,7 +146,7 @@ Seat label hợp lệ là chuỗi số dương chuẩn như `"1"`, `"2"`; `"0"`,
 `"-1"`, `"A1"` không hợp lệ. Duplicate check hiện là kiểm tra tuần tự ở
 service; không có cam kết chống hai request đồng thời cùng đặt một ghế.
 
-## 4. Quy ước API và phân quyền
+## 5. Quy ước API và phân quyền
 
 - Base path: `/api/v1`; body và response dùng JSON.
 - Endpoint public không cần token. Endpoint booking yêu cầu
@@ -138,7 +166,7 @@ Showtime/Booking; `204` xóa Movie; `400` password confirmation sai, ghế activ
 `403` sai role/không sở hữu booking; `404` không có tài nguyên hoặc ghế vượt
 sức chứa; `409` email đã tồn tại; `422` dữ liệu không hợp lệ.
 
-## 5. Đặc tả API
+## 6. Đặc tả API
 
 ### Authentication
 
@@ -247,7 +275,7 @@ Chỉ owner đã đăng nhập có thể hủy booking active. Chuyển status s
 `cancelled`, giữ row và trả booking đã cập nhật (`200`). Booking đã hủy trả
 `400`; anonymous `401`; không phải owner `403`; không tìm thấy `404`.
 
-## 6. Ví dụ gọi API
+## 7. Ví dụ gọi API
 
 Đăng ký:
 
@@ -272,12 +300,12 @@ curl -X POST http://127.0.0.1:8000/api/v1/bookings/ \
   -d '{"showtime_id":1,"seat_number":"3"}'
 ```
 
-## 7. Test và load test
+## 8. Test và load test
 
-Unit tests không cần PostgreSQL:
+Domain unit tests không cần PostgreSQL:
 
 ```powershell
-py -m pytest tests/unit
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_booking.py tests/unit/test_movie.py tests/unit/test_showtime.py -q -p no:cacheprovider
 ```
 
 Integration tests cần database riêng. Copy `.env.test.example` thành `.env.test`,
@@ -285,15 +313,33 @@ Integration tests cần database riêng. Copy `.env.test.example` thành `.env.t
 database chứa `test`):
 
 ```powershell
-py scripts/create_test_db.py
-py -m pytest tests/test_auth.py tests/test_movie.py tests/test_showtime.py tests/test_booking.py tests/test_showtime_repository.py
+.\.venv\Scripts\python.exe scripts/create_test_db.py
+.\.venv\Scripts\python.exe -m pytest tests/test_auth.py tests/test_movie.py tests/test_showtime.py tests/test_booking.py tests/test_showtime_repository.py -q -p no:cacheprovider
 ```
+
+Với Docker Compose local mặc định, cấu hình `.env.test` trỏ tới database riêng
+`cinema_booking_test`, ví dụ:
+`postgresql+psycopg://cinema:123456@localhost:5432/cinema_booking_test`.
+Không trỏ test suite tới `cinema_booking`.
 
 Fixtures rollback dữ liệu sau từng test và xóa các bảng khỏi database test khi
 kết thúc cả session pytest. Chỉ dùng một database thử nghiệm dùng riêng; không
 dùng URL production. Không dùng chung database cần giữ dữ liệu.
 `tests/test_booking_constraints.py` là legacy race/constraint tests, bị skip
 theo scope Phase 1.
+
+### Kết quả kiểm tra gần nhất (2026-10-11)
+
+- API/integration: **53 passed** với năm file test phía trên, chạy trên
+  `cinema_booking_test`.
+- Domain unit tests: **15 passed** với lệnh
+  `.venv\Scripts\python.exe -m pytest tests/unit/test_booking.py tests/unit/test_movie.py tests/unit/test_showtime.py -q -p no:cacheprovider`.
+- Chưa có kết quả Kaggle/Locust.
+- `tests/unit/test_auth.py` hiện không thu thập được vì import
+  `_map_auth_exception` không có trong `app/api/auth.py`. Chạy toàn bộ `pytest`
+  mặc định cũng thu thập nhầm `load_test/load_test.py` và gặp trùng tên module
+  giữa test ở `tests/` và `tests/unit/`; vì vậy các con số pass trên là các
+  nhóm test được chạy riêng, không phải một lần chạy toàn suite.
 
 Locust script `load_test/load_test.py` cần API ở một địa chỉ mà Kaggle truy cập
 được; `localhost` trên máy cá nhân không tự truy cập được từ Kaggle. Đặt các
@@ -313,10 +359,14 @@ Dành ít nhất một ghế chưa đặt cho mỗi user mô phỏng; `-u` khôn
 trong dải. Tất cả virtual users dùng cùng JWT nên đây không phải mô phỏng nhiều
 tài khoản và không kiểm tra race-condition.
 
-## 8. Giới hạn hiện tại
+## 9. Giới hạn hiện tại
 
-- `Dockerfile` hiện rỗng; `docker-compose.yml` chỉ chạy PostgreSQL. Có thể chạy
-  API trực tiếp bằng Uvicorn theo hướng dẫn local.
+- Docker Compose cung cấp cấu hình phát triển local; PostgreSQL dùng mật khẩu
+  mặc định yếu nếu không đặt `POSTGRES_PASSWORD` trong `.env`.
+- Nhóm API/integration và domain unit đã chạy thành công; xem mục 8 để biết
+  chính xác số pass, lệnh chạy và phần test collection còn lỗi.
+- Kịch bản Locust đã chuẩn bị; lần chạy Kaggle CPU và số liệu kết quả còn chờ
+  thực hiện thủ công sau khi có API public/reachable cùng ghế test riêng.
 - Chưa có Alembic/migration; `scripts/init_db.py` chỉ tạo bảng thiếu, không
   migrate schema đã tồn tại.
 - Không có pagination, payment, reservation expiry hoặc route

@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: cinema_booking
       POSTGRES_USER: cinema
-      POSTGRES_PASSWORD: 123456 
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
     ports:
       - "5432:5432"
     volumes:
@@ -15,6 +15,22 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cinema:${POSTGRES_PASSWORD:-123456}@db:5432/cinema_booking
+      SECRET_KEY: ${SECRET_KEY:-local-dev-secret-change-before-deploy}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+    ports:
+      - "8000:8000"
 
 volumes:
   postgres_data:

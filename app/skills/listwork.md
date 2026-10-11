@@ -1,5 +1,14 @@
 # Việc nên làm tiếp theo
 
+> **Tiến độ rà soát 2026-10-11:** danh sách triển khai cũ bên dưới đã lỗi
+> thời điểm và không còn là backlog chính thức. Movie/Showtime, ADMIN guards,
+> numeric-string availability và booking workflows hiện có trong code. Các mục
+> còn mở ở cấp dự án là hoàn thiện Dockerfile + hướng dẫn Docker trong README,
+> chạy/xác nhận các focused tests, và chạy load test trên Kaggle CPU rồi lưu
+> kết quả. Xem `../../PROJECT_MASTER_CONTEXT.md` và các `*_AUDIT_REPORT.md`
+> để biết trạng thái chi tiết; mục `GET showtime detail`, seed tự động,
+> cascade policy và timezone normalization không nằm trong acceptance scope.
+
 Thực hiện các công việc sau theo thứ tự:
 
 ## 1. Hoàn thiện model

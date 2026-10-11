@@ -7,7 +7,7 @@
 > **Mode:** READ-ONLY — no source files were modified  
 > **Source of Truth:** `PROJECT_MASTER_CONTEXT.md` (Priority 1) vs Actual Repository (Priority 2)
 
-> **CURRENT PLAN AND REPOSITORY CHECK (2026-10-10):** The detailed audit below
+> **CURRENT PLAN AND REPOSITORY CHECK (2026-10-11):** The detailed audit below
 > records the 2026-10-06 inspection. The current status table below reflects a
 > fresh static check of the workspace against `PROJECT_MASTER_CONTEXT.md`.
 > Required P1 scope: working register/login/JWT; public registration creates
@@ -18,7 +18,7 @@
 
 ## Latest Repository Verification — Person 1
 
-| Area | Verified status on 2026-10-10 | Evidence |
+| Area | Verified status on 2026-10-11 | Evidence |
 |---|---|---|
 | FastAPI app, PostgreSQL async session, User model/repository | Present | `app/main.py`, `app/db/database.py`, `app/models/user.py`, `app/repositories/user_repository.py` |
 | Public registration | Explicitly creates `Role.USER`; the registration smoke test submits `role=ADMIN` and confirms it is ignored | `app/services/auth_service.py`; `tests/test_auth.py` |
@@ -27,10 +27,11 @@
 | ADMIN role dependency | `RollChecker` is wired to Movie and Showtime write routes; smoke test verifies USER denied and ADMIN allowed | `app/core/permission.py`; `app/api/movie.py`; `app/api/showtime.py`; `tests/test_auth.py` |
 | Internal ADMIN provisioning | Documented as a direct PostgreSQL role update after normal registration | `README.md` ? Provision an ADMIN account |
 | Auth tests | Implemented: unit checks for USER-only creation, password hashing, JWT claim, valid/invalid login; API checks registration, login, protected route, anonymous rejection, and role authorization | `tests/unit/test_auth.py`; `tests/test_auth.py` |
-| Docker, README, dependencies | README now documents ADMIN provisioning and smoke-test commands; `requirements.txt` lists runtime, PostgreSQL/test, and Locust dependencies. App Dockerfile and full architecture/API/Docker guide remain open | `README.md`, `requirements.txt`, `Dockerfile` |
-| Test execution | Not run in this update; API smoke tests require `TEST_DATABASE_URL` and PostgreSQL | Current environment; no run result claimed |
+| Docker and README | Dockerfile/Compose now build and start API + PostgreSQL; schema initialization ran; `/docs` verified HTTP 200 | `Dockerfile`, `docker-compose.yml`, `README.md`, runtime smoke check 2026-10-11 |
+| Runtime API smoke | `/api/v1/movies` and `/api/v1/showtimes` returned 200; anonymous booking-list request returned 401 | Docker Compose runtime, 2026-10-11 |
+| Test execution | Focused API/integration suite: 53 passed; domain unit subset: 15 passed. Full pytest collection still has stale test-module issues | `README.md` records exact commands and remaining collection failures |
 
-This is a static repository check, not a successful end-to-end auth run. The
+**Person 1 progress: auth/role implementation is present; Docker packaging is built and running locally.** Register/login and role integration checks passed within the focused API suite. Broader unit-test collection still needs cleanup. The
 historical detailed audit below remains useful for design evidence; this table
 is the current observed status and supersedes its old readiness verdict.
 

@@ -1,28 +1,28 @@
 # PERSON 3 AUDIT REPORT
 # Cinema Booking System — Booking & Quality
 
-> **CURRENT STATUS (2026-10-10):** Person 3's booking workflow and numeric-string
+> **CURRENT STATUS (2026-10-11):** Person 3's booking workflow and numeric-string
 > contract are aligned with the current Person 2 implementation. The booking
 > integration suite now includes explicit authentication, missing-showtime,
 > seat-capacity, and malformed-label checks; the success response assertion was corrected to
 > expect `1`. The authenticated low-collision Locust script is prepared for
-> the owner's manual Kaggle run. Pytest and Locust are not installed in this
-> workspace, and no Kaggle credentials, test database URL, or execution result
-> is available, so no runtime/test/load result is claimed.
+> the owner's manual Kaggle run. The focused API/integration suite now passes
+> (53 passed), and the booking/movie/showtime domain unit subset passes (15
+> passed). Full test collection still has known stale-test issues; no Kaggle
+> execution or load metrics are available.
 
-## Current Completion Status (2026-10-10)
+## Current Completion Status (2026-10-11)
 
 | Deliverable | Status | Evidence / remaining action |
 |---|---|---|
 | Authenticated booking create, own-list, owner-only cancel and soft state transition | Implemented | `app/api/booking.py`, booking service/repository, workflow tests |
 | Showtime existence and numeric-string capacity validation | Implemented | Real `ShowtimeRepository.get_by_id()`; valid labels constrained to showtime capacity |
 | Sequential active-seat duplicate check | Implemented | Service-level pre-check; race protection is outside the agreed scope |
-| Focused workflow checks | Written; not executed | `tests/unit/test_booking.py` has 9 DB-free service cases; `tests/test_booking.py` has 17 API test functions (22 cases including parameterization), covering create, duplicates, ownership, list isolation, cancellation/rebooking, auth, owner spoofing, capacity and label validation |
+| Focused workflow checks | API integration passed; booking domain unit cases passed | Booking API cases are included in the 53 passing API/integration tests; `tests/unit/test_booking.py` is part of the 15 passing domain unit tests |
 | Numeric-string Showtime integration | Aligned in current repository | P2 availability emits numeric strings from `"1"` through `str(total_seats)` and filters active bookings |
 | Kaggle CPU load scenario | Script prepared; manual run pending | `load_test/load_test.py`; owner will configure Kaggle secrets, target API and reserved seats, then record output |
 
-**Person 3 status: implementation and local deliverables complete; execution
-evidence pending.** No test or load command was run during this update.
+**Person 3 status: booking workflows verified by focused tests; Kaggle load execution remains pending.** The latest test results and full-suite collection limitations are recorded in `README.md`.
 
 > **Auditor Role:** Software Architect + FastAPI Backend Code Auditor  
 > **Person Audited:** Person 3 — Booking & Quality  
@@ -78,7 +78,7 @@ Race-specific repository handling, partial-index guarantees, concurrency tests, 
 | Sequential duplicate behavior | PASS — implementation present | Active status is included in repository pre-check |
 | Focused tests | IMPLEMENTED; EXECUTION UNVERIFIED | 9 DB-free service tests plus 17 API test functions (22 cases); no test result claimed |
 | Authenticated Kaggle CPU test | SCENARIO PREPARED; EXECUTION PENDING | Script follows JWT/numeric-string contract; actual run requires stable integrated API and Kaggle environment |
-| Overall Person 3 acceptance | IMPLEMENTED; execution evidence pending | Booking and availability use numeric strings; test and Kaggle runs remain manual/unverified |
+| Overall Person 3 acceptance | Focused workflow tests pass; Kaggle evidence pending | Booking/availability tests passed; authenticated Kaggle load has not run |
 
 ## 2. File and Component Inventory
 
@@ -169,7 +169,7 @@ The remaining external action is to prepare a known showtime with an unused nume
 | DONE | Align availability to active bookings | Booking duplicate check and Showtime availability filter to active bookings |
 | DONE | Prepare authenticated, configurable, low-collision Locust script | Reads JWT/showtime/seat-range settings from environment; assigns unique numeric-string seats |
 | DONE | Add/fix focused booking checks | Response asserts `1`; tests cover auth, capacity and malformed labels alongside core workflows |
-| PENDING MANUAL RUN | Execute focused booking workflow tests against configured PostgreSQL test DB | Requires `TEST_DATABASE_URL` and pytest; neither is available in this workspace |
+| DONE (FOCUSED SUITE) | Execute focused booking workflow tests against configured PostgreSQL test DB | 53 API/integration tests passed, including booking; domain unit subset passed 15 tests |
 | PENDING MANUAL RUN | Run authenticated load on Kaggle CPU and retain results | Owner will run manually; no Kaggle credentials are available here |
 
 The duplicate check may remain service-level. No partial unique index, DB race guard, concurrency guarantee, or race-specific test is required by the current acceptance criteria.
