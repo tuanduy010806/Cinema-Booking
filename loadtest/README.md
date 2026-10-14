@@ -1,9 +1,12 @@
-# Load test
+# Kiểm thử tải
 
-Bộ kiểm thử tải của dự án sẽ được chạy trên Kaggle CPU theo yêu cầu Pha 1. Có thể chuẩn bị notebook sau khi các API ổn định, trong giai đoạn kiểm thử và trước nghiệm thu.
+Kịch bản Locust hiện nằm tại [`load_test/load_test.py`](../load_test/load_test.py).
+Hướng dẫn cấu hình và các chỉ số cần ghi nhận nằm trong
+[`LOAD_TEST_PLAN.md`](../LOAD_TEST_PLAN.md).
 
-Đóng gói bằng Docker là yêu cầu bắt buộc độc lập với thời điểm chạy load test. README chính của dự án cần hướng dẫn build và chạy dịch vụ bằng Docker; notebook Kaggle có thể kiểm thử dịch vụ đã được triển khai theo cấu hình phù hợp.
+Kịch bản cần API có thể truy cập từ môi trường chạy, JWT thử nghiệm, một
+Showtime còn ghế và dải ghế riêng. Kaggle CPU chưa được chạy hoặc ghi nhận trong
+repository. Không lưu token thật trong notebook, mã nguồn hoặc tài liệu.
 
-Xem [kế hoạch kiểm thử tải](../LOAD_TEST_PLAN.md) để biết phạm vi, chỉ số cần ghi nhận và các bước thực hiện. Notebook cần cấu hình các endpoint và payload dựa trên OpenAPI/Swagger hiện hành, dùng tài khoản thử nghiệm, và không chứa thông tin xác thực thật.
-
-Kết quả cần ghi lại số request, tỷ lệ lỗi, thông lượng, độ trễ và cấu hình môi trường Kaggle. Đây là kiểm thử tải cơ bản; chống đặt trùng đồng thời và bảo vệ race condition không thuộc tiêu chí kiểm thử này.
+Đây là kiểm thử tải cơ bản; kết quả không chứng minh khả năng chống race
+condition khi nhiều request đồng thời đặt cùng một ghế.

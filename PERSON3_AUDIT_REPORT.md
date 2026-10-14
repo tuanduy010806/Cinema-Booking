@@ -1,6 +1,12 @@
 # PERSON 3 AUDIT REPORT
 # Cinema Booking System — Booking & Quality
 
+> **DOCUMENT STATUS — 2026-10-14:** This report and its pass counts describe
+> the 2026-10-11 verification snapshot. The auth unit test has since been
+> corrected to match the current API/service exceptions, but no tests were
+> rerun because pytest is unavailable in the active Python environments.
+> Booking and load-test status below is historical and was not revalidated.
+
 > **CURRENT STATUS (2026-10-11):** Person 3's booking workflow and numeric-string
 > contract are aligned with the current Person 2 implementation. The booking
 > integration suite now includes explicit authentication, missing-showtime,

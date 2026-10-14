@@ -89,7 +89,7 @@ py scripts/init_db.py
 py seed.py
 ```
 
-Danh sách phim mà `seed.py` nạp nằm trong `data.json`; thêm hoặc sửa phim
+Danh sách phim mà `seed.py` nạp nằm trong `data/movie.json`; thêm hoặc sửa phim
 ở file này rồi chạy lại `py seed.py`. Seeder thêm phim mới và đồng bộ mô tả/thời
 lượng của phim đã có theo JSON.
 
@@ -328,18 +328,21 @@ dùng URL production. Không dùng chung database cần giữ dữ liệu.
 `tests/test_booking_constraints.py` là legacy race/constraint tests, bị skip
 theo scope Phase 1.
 
-### Kết quả kiểm tra gần nhất (2026-10-11)
+### Kết quả kiểm tra
+
+Kết quả dưới đây là lần chạy thành công gần nhất được ghi nhận (2026-10-11):
 
 - API/integration: **53 passed** với năm file test phía trên, chạy trên
   `cinema_booking_test`.
 - Domain unit tests: **15 passed** với lệnh
   `.venv\Scripts\python.exe -m pytest tests/unit/test_booking.py tests/unit/test_movie.py tests/unit/test_showtime.py -q -p no:cacheprovider`.
 - Chưa có kết quả Kaggle/Locust.
-- `tests/unit/test_auth.py` hiện không thu thập được vì import
-  `_map_auth_exception` không có trong `app/api/auth.py`. Chạy toàn bộ `pytest`
-  mặc định cũng thu thập nhầm `load_test/load_test.py` và gặp trùng tên module
-  giữa test ở `tests/` và `tests/unit/`; vì vậy các con số pass trên là các
-  nhóm test được chạy riêng, không phải một lần chạy toàn suite.
+- Lỗi import `_map_auth_exception` trong `tests/unit/test_auth.py` đã được sửa
+  để kiểm tra trực tiếp `HTTPException` theo hành vi hiện tại của `AuthService`.
+  Chưa xác nhận được kết quả chạy mới: interpreter trong `.venv` không truy cập
+  được executable đã cấu hình và Python hệ thống chưa cài pytest.
+- Các con số pass trên là kết quả lịch sử của những nhóm test chạy riêng, không
+  phải kết quả chạy lại trên phiên bản hiện tại.
 
 Locust script `load_test/load_test.py` cần API ở một địa chỉ mà Kaggle truy cập
 được; `localhost` trên máy cá nhân không tự truy cập được từ Kaggle. Đặt các
@@ -363,8 +366,8 @@ tài khoản và không kiểm tra race-condition.
 
 - Docker Compose cung cấp cấu hình phát triển local; PostgreSQL dùng mật khẩu
   mặc định yếu nếu không đặt `POSTGRES_PASSWORD` trong `.env`.
-- Nhóm API/integration và domain unit đã chạy thành công; xem mục 8 để biết
-  chính xác số pass, lệnh chạy và phần test collection còn lỗi.
+- Lần chạy thành công gần nhất của API/integration và domain unit là
+  2026-10-11; xem mục 8. Chưa chạy lại sau các cập nhật tài liệu/test gần đây.
 - Kịch bản Locust đã chuẩn bị; lần chạy Kaggle CPU và số liệu kết quả còn chờ
   thực hiện thủ công sau khi có API public/reachable cùng ghế test riêng.
 - Chưa có Alembic/migration; `scripts/init_db.py` chỉ tạo bảng thiếu, không

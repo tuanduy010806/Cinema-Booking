@@ -1,6 +1,13 @@
 # PERSON 1 AUDIT REPORT
 # Cinema Booking System — Platform & Security Domain
 
+> **UPDATE — 2026-10-14:** The earlier verification below is dated 2026-10-11.
+> `tests/unit/test_auth.py` has since been corrected to match the current
+> `AuthService`/`decode_access_token` `HTTPException` behavior and no longer
+> imports `_map_auth_exception` or removed domain exception classes. This edit
+> has not been run: the local virtualenv interpreter is inaccessible and system
+> Python has no pytest. The 2026-10-11 pass counts remain historical results.
+
 > **Auditor Role:** Senior Software Architect + Senior FastAPI Backend Engineer + Code Auditor  
 > **Date:** 2026-10-06  
 > **Scope:** Person 1 (Nguyễn Hữu Hiếu) — Core, Platform, Auth, JWT, Authorization  

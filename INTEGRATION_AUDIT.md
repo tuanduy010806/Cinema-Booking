@@ -1,5 +1,10 @@
 # Integration Audit Report
 
+> **Historical report:** This audit describes integration mismatches observed
+> on 2026-10-04. It is retained as project history; its findings are not the
+> current implementation status. Consult `README.md`, `PROJECT_MASTER_CONTEXT.md`,
+> and the source tree for the current contract.
+
 > **Date:** 2026-10-04
 > **Type:** READ-ONLY. No code was modified during this audit.
 > **Auditor:** Person 3 (Booking module)

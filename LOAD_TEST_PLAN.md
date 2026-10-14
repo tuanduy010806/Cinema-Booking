@@ -26,7 +26,10 @@
 
 ## Trạng thái hiện tại
 
-**Cập nhật 2026-10-11:** kịch bản đã sẵn sàng để chạy, nhưng yêu cầu kiểm thử tải chưa hoàn tất cho tới khi có lần chạy Kaggle CPU và kết quả được lưu. Dockerfile và Compose hiện đã được build/chạy thành công trên máy phát triển; PostgreSQL healthy và API `/docs` trả HTTP 200.
+**Cập nhật trạng thái 2026-10-14:** Kịch bản Locust đã có trong
+`load_test/load_test.py`, nhưng chưa có bằng chứng chạy Kaggle CPU hoặc số liệu
+kết quả trong repository. Kết quả Docker/API smoke được ghi nhận ngày
+2026-10-11 là lịch sử, chưa được xác minh lại trong lần cập nhật tài liệu này.
 
 Kịch bản Locust độc lập đã được cập nhật tại `load_test/load_test.py`: dùng JWT truyền qua biến môi trường, ID/capacity của showtime cấu hình được, nhãn ghế dạng `1`, `2`, …, một booking với ghế riêng cho mỗi người dùng, sau đó lặp lại thao tác xem danh sách booking của chính người dùng để tạo tải kéo dài mà không biến bài đo thành kiểm thử va chạm.
 

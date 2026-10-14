@@ -1,5 +1,17 @@
 # PROJECT MASTER CONTEXT
 
+> **CURRENT REPOSITORY SNAPSHOT — 2026-10-14:** The API, Docker setup, README,
+> and Vietnamese business/API analysis are present. `seed.py` uses
+> `AsyncSessionLocal` and reads `data/movie.json`; older notes below that call
+> the seeder broken or point to `data.json` are historical. The stale duplicate
+> `app/skills/skill.md` and checklist `app/skills/listwork.md` were removed;
+> `skills/skill.md` is the retained copy. `tests/unit/test_auth.py` was updated
+> to assert the current `HTTPException` behavior instead of importing the
+> absent `_map_auth_exception`. A fresh test result is not available: the
+> workspace virtualenv interpreter cannot be executed and system Python has no
+> pytest. The historical audit tables and dated test results below are retained
+> as records and must not be read as a fresh verification.
+
 > **SIMPLIFIED PHASE 1 SCOPE — DECIDED 2026-10-07**
 > Keep the existing directory tree. Deliver the basic USER/ADMIN workflows and
 > booking. This decision supersedes conflicting older requirements and status

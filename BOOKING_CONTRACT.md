@@ -1,5 +1,12 @@
 # Booking Contract
 
+> **Current implementation note — 2026-10-14:** This contract documents the
+> booking interface and numeric seat labels. Duplicate-seat protection is a
+> sequential service/repository check only; concurrent requests are not
+> guaranteed to be serialized. Authentication and service validation currently
+> raise FastAPI `HTTPException` directly where implemented. The contract is
+> descriptive; source code and `/openapi.json` define the executable behavior.
+
 > **Status: FROZEN**
 > This document reflects the Booking contract integrated with the User/FK,
 > async database, and Showtime interfaces. Seat labels are numeric strings
