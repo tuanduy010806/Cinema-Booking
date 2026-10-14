@@ -5,13 +5,6 @@ import pytest
 from fastapi import HTTPException, status
 from starlette.requests import Request
 
-from app.api.auth import _map_auth_exception
-from app.core.exceptions import (
-    InvalidCredentialsError,
-    InvalidTokenError,
-    PasswordMismatchError,
-    UserAlreadyExistsError,
-)
 from app.core.permission import RollChecker
 from app.core.security import decode_access_token, verify_password
 from app.models.user import Role, User
@@ -55,7 +48,7 @@ def test_register_creates_user_and_returns_jwt():
 def test_register_rejects_mismatched_passwords():
     service = AuthService(FakeUserRepository())
 
-    with pytest.raises(PasswordMismatchError, match="Passwords do not match"):
+    with pytest.raises(HTTPException) as error:
         asyncio.run(
             service.register(
                 RegisterRequest(
@@ -65,6 +58,9 @@ def test_register_rejects_mismatched_passwords():
                 )
             )
         )
+
+    assert error.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert error.value.detail == "Passwords do not match"
 
 
 def test_register_rejects_existing_email():
@@ -77,8 +73,11 @@ def test_register_rejects_existing_email():
     )
     asyncio.run(service.register(payload))
 
-    with pytest.raises(UserAlreadyExistsError, match="Email is already registered"):
+    with pytest.raises(HTTPException) as error:
         asyncio.run(service.register(payload))
+
+    assert error.value.status_code == status.HTTP_409_CONFLICT
+    assert error.value.detail == "Email is already registered"
 
 
 def test_login_verifies_plaintext_password_against_stored_hash():
@@ -117,40 +116,32 @@ def test_login_rejects_unknown_email_or_wrong_password():
         )
     )
 
-    with pytest.raises(InvalidCredentialsError, match="Invalid email or password"):
+    with pytest.raises(HTTPException) as wrong_password_error:
         asyncio.run(
             service.login(
                 LoginRequest(email="user@example.com", password="wrong-password")
             )
         )
 
-    with pytest.raises(InvalidCredentialsError, match="Invalid email or password"):
+    assert wrong_password_error.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert wrong_password_error.value.detail == "Invalid email or password"
+
+    with pytest.raises(HTTPException) as missing_email_error:
         asyncio.run(
             service.login(
                 LoginRequest(email="missing@example.com", password="correct-password")
             )
         )
 
+    assert missing_email_error.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert missing_email_error.value.detail == "Invalid email or password"
 
-def test_decode_access_token_rejects_invalid_jwt_with_domain_exception():
-    with pytest.raises(InvalidTokenError, match="Could not validate credentials"):
+
+def test_decode_access_token_rejects_invalid_jwt_with_http_exception():
+    with pytest.raises(HTTPException) as error:
         decode_access_token("not-a-valid-jwt")
-
-
-@pytest.mark.parametrize(
-    ("domain_exception", "expected_status"),
-    [
-        (PasswordMismatchError("Passwords do not match"), status.HTTP_400_BAD_REQUEST),
-        (UserAlreadyExistsError("Email is already registered"), status.HTTP_409_CONFLICT),
-        (InvalidCredentialsError("Invalid email or password"), status.HTTP_401_UNAUTHORIZED),
-    ],
-)
-def test_auth_api_maps_domain_exceptions_to_http(domain_exception, expected_status):
-    http_exception = _map_auth_exception(domain_exception)
-
-    assert http_exception.status_code == expected_status
-    if expected_status == status.HTTP_401_UNAUTHORIZED:
-        assert http_exception.headers == {"WWW-Authenticate": "Bearer"}
+    assert error.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert error.value.detail == "could not validate"
 
 
 def _request_with_user(user: User | None) -> Request:
