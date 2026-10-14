@@ -120,9 +120,16 @@ py scripts/init_db.py
 py seed.py
 ```
 
-Danh sách phim mà `seed.py` nạp nằm trong `data/movie.json`; thêm hoặc sửa phim
-ở file này rồi chạy lại `py seed.py`. Seeder thêm phim mới và đồng bộ mô tả/thời
-lượng của phim đã có theo JSON.
+Mock data của `seed.py` nằm trong `data/movie.json`, `data/user.json` và
+`data/booking.json`. File booking dùng đúng các cột `user_id`, `showtime_id`,
+`seat_number`, `status`, `created_at`; các ID trong hai file user/booking phải
+khớp nhau. Các suất chiếu mẫu được cấp ID ổn định theo thứ tự phim và lịch chiếu.
+Thêm hoặc sửa dữ liệu ở các file này rồi chạy lại `py seed.py`. User mới được
+tạo với mật khẩu đã hash; booking trùng sẽ được bỏ qua.
+
+Các tài khoản trong `data/user.json` chỉ dành cho môi trường phát triển; mật
+khẩu mẫu được lưu dạng văn bản trong file JSON để tạo dữ liệu demo. Không dùng
+hoặc triển khai các tài khoản này trong môi trường thật.
 
 `init_db.py` tạo bảng còn thiếu nhưng không migrate/alter bảng cũ. Khởi động API
 từ thư mục gốc repository bằng một trong hai cách sau:
