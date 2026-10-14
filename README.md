@@ -1,7 +1,38 @@
-﻿# Cinema Booking API
+# Cinema Booking API
 
 REST API quản lý phim, lịch chiếu, ghế và đặt vé. README này hướng dẫn cài đặt,
 khởi chạy, kiểm thử và mô tả hợp đồng API của Phase 1.
+
+## Mục lục
+
+- [1. Phạm vi và kiến trúc](#1-phạm-vi-và-kiến-trúc)
+- [2. Chạy toàn hệ thống bằng Docker](#2-chạy-toàn-hệ-thống-bằng-docker)
+- [3. Chạy Python trực tiếp](#3-chạy-python-trực-tiếp)
+  - [Cấp tài khoản ADMIN](#cấp-tài-khoản-admin)
+- [4. Mô hình dữ liệu và quy tắc](#4-mô-hình-dữ-liệu-và-quy-tắc)
+- [5. Quy ước API và phân quyền](#5-quy-ước-api-và-phân-quyền)
+- [6. Đặc tả API](#6-đặc-tả-api)
+  - [Authentication](#authentication)
+    - [`POST /api/v1/auth/register`](#post-apiv1authregister)
+    - [`POST /api/v1/auth/login`](#post-apiv1authlogin)
+  - [Movies](#movies)
+    - [`GET /api/v1/movies`](#get-apiv1movies)
+    - [`GET /api/v1/movies/{movie_id}`](#get-apiv1moviesmovie_id)
+    - [`POST /api/v1/movies`](#post-apiv1movies)
+    - [`PUT /api/v1/movies/{movie_id}`](#put-apiv1moviesmovie_id)
+    - [`DELETE /api/v1/movies/{movie_id}`](#delete-apiv1moviesmovie_id)
+  - [Showtimes và ghế](#showtimes-và-ghế)
+    - [`GET /api/v1/showtimes?movie_id={movie_id}`](#get-apiv1showtimesmovie_idmovie_id)
+    - [`POST /api/v1/showtimes`](#post-apiv1showtimes)
+    - [`GET /api/v1/showtimes/{showtime_id}/seats`](#get-apiv1showtimesshowtime_idseats)
+  - [Bookings](#bookings)
+    - [`POST /api/v1/bookings/`](#post-apiv1bookings)
+    - [`GET /api/v1/bookings/me`](#get-apiv1bookingsme)
+    - [`DELETE /api/v1/bookings/{booking_id}`](#delete-apiv1bookingsbooking_id)
+- [7. Ví dụ gọi API](#7-ví-dụ-gọi-api)
+- [8. Test và load test](#8-test-và-load-test)
+  - [Kết quả kiểm tra](#kết-quả-kiểm-tra)
+- [9. Giới hạn hiện tại](#9-giới-hạn-hiện-tại)
 
 ## 1. Phạm vi và kiến trúc
 
