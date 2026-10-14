@@ -1,5 +1,11 @@
  # Cinema Booking System
 
+ > **Tài liệu kế hoạch ban đầu:** Nội dung dưới đây mô tả phân công và cấu trúc
+ > dự kiến khi bắt đầu dự án; một số việc trong danh sách đã hoàn tất hoặc thay
+ > đổi. Để xem trạng thái và cách chạy hiện tại, dùng `README.md`; để xem phân
+ > tích nghiệp vụ/API hiện tại, dùng `phantichnghiepvu.md`. Mã nguồn và OpenAPI
+ > là căn cứ cho hành vi thực tế.
+
  ## 1. Tổng quan
 
  Hệ thống đặt vé xem phim được xây dựng bằng FastAPI, SQLAlchemy và PostgreSQL.

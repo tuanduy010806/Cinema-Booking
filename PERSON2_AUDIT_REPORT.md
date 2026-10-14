@@ -1,5 +1,11 @@
 # PERSON 2 AUDIT REPORT
 
+> **DOCUMENT STATUS — 2026-10-14:** This report records a historical
+> implementation review, not a fresh test run. Movie/Showtime/seat behavior
+> described in its 2026-10-11 status remains the documented implementation;
+> the auth unit test was subsequently aligned with current HTTPException
+> behavior. No tests were rerun during this documentation update.
+
 > **LATEST STATUS (2026-10-11):** Static repository review against the
 > simplified scope and the 2026-10-10 numeric-string seat decision found that most
 > previously open Person 2 acceptance work is now implemented. Movie
