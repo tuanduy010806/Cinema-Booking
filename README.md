@@ -31,7 +31,8 @@ khởi chạy, kiểm thử và mô tả hợp đồng API của Phase 1.
     - [`DELETE /api/v1/bookings/{booking_id}`](#delete-apiv1bookingsbooking_id)
 - [7. Ví dụ gọi API](#7-ví-dụ-gọi-api)
 - [8. Test và load test](#8-test-và-load-test)
-  - [Kết quả kiểm tra](#kết-quả-kiểm-tra)
+  - [Chạy kiểm thử](#chạy-kiểm-thử)
+  - [Kiểm thử tải](#kiểm-thử-tải)
 - [9. Giới hạn hiện tại](#9-giới-hạn-hiện-tại)
 
 ## 1. Phạm vi và kiến trúc
@@ -459,39 +460,30 @@ dùng URL production. Không dùng chung database cần giữ dữ liệu.
 `tests/test_booking_constraints.py` là legacy race/constraint tests, bị skip
 theo scope Phase 1.
 
-### Kết quả kiểm tra
+### Chạy kiểm thử
 
-Kết quả dưới đây là lần chạy thành công gần nhất được ghi nhận (2026-10-11):
+Chạy nhóm kiểm thử đơn vị:
 
-- API/integration: **53 passed** với năm file test phía trên, chạy trên
-  `cinema_booking_test`.
-- Domain unit tests: **15 passed** với lệnh
-  `.venv\Scripts\python.exe -m pytest tests/unit/test_booking.py tests/unit/test_movie.py tests/unit/test_showtime.py -q -p no:cacheprovider`.
-- Chưa có kết quả Kaggle/Locust.
-- Lỗi import `_map_auth_exception` trong `tests/unit/test_auth.py` đã được sửa
-  để kiểm tra trực tiếp `HTTPException` theo hành vi hiện tại của `AuthService`.
-  Chưa xác nhận được kết quả chạy mới: interpreter trong `.venv` không truy cập
-  được executable đã cấu hình và Python hệ thống chưa cài pytest.
-- Các con số pass trên là kết quả lịch sử của những nhóm test chạy riêng, không
-  phải kết quả chạy lại trên phiên bản hiện tại.
-
-Locust script `load_test/load_test.py` cần API ở một địa chỉ mà Kaggle truy cập
-được; `localhost` trên máy cá nhân không tự truy cập được từ Kaggle. Đặt các
-giá trị sau trong Kaggle Secrets/environment, không lưu token trong script:
-
-- `BOOKING_ACCESS_TOKEN`: JWT hợp lệ.
-- `BOOKING_SHOWTIME_ID`: ID showtime tồn tại.
-- `BOOKING_TOTAL_SEATS`: sức chứa showtime.
-- `BOOKING_SEAT_START`: tùy chọn, ghế đầu dải dành riêng (mặc định 1).
-
-```sh
-locust -f load_test/load_test.py --host https://<api-host> \
-  --headless -u 10 -r 1 -t 60s
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_booking.py tests/unit/test_movie.py tests/unit/test_showtime.py -q -p no:cacheprovider
 ```
 
-Dành ít nhất một ghế chưa đặt cho mỗi user mô phỏng; `-u` không vượt số ghế
-trong dải. Tất cả virtual users dùng cùng JWT nên đây không phải mô phỏng nhiều
-tài khoản và không kiểm tra race-condition.
+Kiểm thử tích hợp cần database riêng. Cấu hình `.env.test` theo `.env.test.example`,
+đặt `TEST_DATABASE_URL` trỏ tới database thử nghiệm (ví dụ `cinema_booking_test`), rồi chạy:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/create_test_db.py
+.\.venv\Scripts\python.exe -m pytest tests/test_auth.py tests/test_movie.py tests/test_showtime.py tests/test_booking.py tests/test_showtime_repository.py -q -p no:cacheprovider
+```
+
+Không trỏ kiểm thử tích hợp tới database ứng dụng hoặc production. Fixtures
+của integration tests dọn dữ liệu sau khi chạy.
+
+### Kiểm thử tải
+
+Kịch bản Locust cần API có thể truy cập, JWT thử nghiệm, ID suất chiếu còn ghế
+và dải ghế riêng. Cấu hình các biến môi trường trong [hướng dẫn kiểm thử tải](LOAD_TEST_PLAN.md).
+Kịch bản không kiểm tra việc nhiều request đồng thời đặt cùng một ghế.
 
 ## 9. Giới hạn hiện tại
 

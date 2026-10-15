@@ -1,18 +1,10 @@
 # Booking Contract
 
-> **Current implementation note — 2026-10-14:** This contract documents the
-> booking interface and numeric seat labels. Duplicate-seat protection is a
-> sequential service/repository check only; concurrent requests are not
-> guaranteed to be serialized. Authentication and service validation currently
-> raise FastAPI `HTTPException` directly where implemented. The contract is
-> descriptive; source code and `/openapi.json` define the executable behavior.
-
-> **Status: FROZEN**
-> This document reflects the Booking contract integrated with the User/FK,
-> async database, and Showtime interfaces. Seat labels are numeric strings
-> (`"1"` through `str(total_seats)`) per the project-owner decision of
-> 2026-10-10; Person 2 availability and Person 3 Booking use the same format.
-> No production code may be changed without updating this document first.
+This document describes the booking API and behavior currently implemented.
+The source code and `/openapi.json` define the executable behavior. Seat labels
+are numeric strings from `"1"` through `str(total_seats)`. Duplicate-seat
+duplicate-seat checks run in the service before insertion; concurrent requests
+are not guaranteed to be serialized.
 
 ---
 
@@ -27,7 +19,7 @@
 7. [Business Rules](#7-business-rules)
 8. [Booking Status Lifecycle](#8-booking-status-lifecycle)
 9. [Duplicate Seat Handling](#9-duplicate-seat-handling)
-10. [Development vs Production](#10-development-vs-production)
+10. [Test and Authentication Integration](#10-test-and-authentication-integration)
 
 ---
 
@@ -65,7 +57,7 @@ Used as the **request body** for `POST /api/v1/bookings/`.
 ```python
 class BookingCreate(BaseModel):
     showtime_id: int
-    seat_number: str
+    seat_number: str = Field(pattern=r"^[1-9][0-9]*$")
 ```
 
 | Field | Type | Required | Description |
@@ -120,8 +112,8 @@ Inserts a new booking row.
 
 - Strips any `user_id` key from `booking_data` before INSERT (prevents caller override).
 - Commits and refreshes the row.
-- **Raises `DuplicateSeatError`** when the service-level check finds an active
-  booking for the same showtime and seat.
+- Duplicate-seat validation runs in the service before this method is called;
+  `create()` itself does not enforce uniqueness or translate database errors.
 
 #### `update_status(booking_id: int, status: str) -> Booking | None`
 
@@ -145,9 +137,9 @@ Returns all bookings (any status) belonging to a user. May be an empty list.
 
 Returns `True` if an **active** booking already exists for `(showtime_id, seat_number)`.
 
-> **Important:** This is a best-effort pre-check only.
-> The authoritative duplicate guard is the PostgreSQL partial unique index.
-> See [§9](#9-postgresql-protection).
+> **Important:** This is the only duplicate-seat protection in the current
+> application. There is no database constraint or lock that serializes
+> concurrent requests. See [§9](#9-duplicate-seat-handling).
 
 ---
 
@@ -156,13 +148,16 @@ Returns `True` if an **active** booking already exists for `(showtime_id, seat_n
 **Class:** `app.services.booking_service.BookingService`
 **Constructor:** `BookingService(booking_repo, showtime_repo)`
 
-The service contains all business logic. It has **no** FastAPI, SQLAlchemy, or HTTP imports. It uses Person 2's `ShowtimeRepository.get_by_id()` to validate that the requested showtime exists and that the numeric-string seat label is within its capacity.
+The service contains the booking business rules and delegates persistence to
+repositories. It uses `ShowtimeRepository.get_by_id()` to validate that the
+requested showtime exists and that the numeric-string seat label is within its
+capacity.
 
 ---
 
 ### `create_booking(user_id: int, payload: BookingCreate) -> Booking`
 
-Before writing, the service uses Person 2's `ShowtimeRepository` to confirm the
+Before writing, the service uses `ShowtimeRepository` to confirm the
 showtime exists and that the numeric value in `seat_number` is within `1..total_seats` (for example, `"12"` is valid when capacity is at least 12).
 
 **Flow:**
@@ -180,7 +175,7 @@ showtime exists and that the numeric value in `seat_number` is within `1..total_
 ```
 
 **Raises:**
-- `DuplicateSeatError` — seat already taken (optimistic check or DB constraint)
+- `DuplicateSeatError` — an active booking already exists for that seat
 
 ---
 
@@ -370,7 +365,7 @@ DELETE /api/v1/bookings/42 HTTP/1.1
 
 | Domain exception | HTTP status | Raised by | Scenario |
 |---|---|---|---|
-| `DuplicateSeatError` | `400 Bad Request` | Service (pre-check) or Repository (DB constraint) | Seat already has an active booking |
+| `DuplicateSeatError` | `400 Bad Request` | Service pre-check | Seat already has an active booking |
 | `OwnershipError` | `403 Forbidden` | Service | Cancelling another user's booking |
 | `NotFoundError` | `404 Not Found` | Service | `booking_id` does not exist |
 | `BookingStateError` | `400 Bad Request` | Service | Cancelling a booking that is not `active` |
@@ -390,10 +385,11 @@ The API layer is the only place that converts them to `HTTPException`.
 
 ### Duplicate-Seat Rule
 
-Two protections exist in series:
-
-1. **Service pre-check** (`check_seat_exists`) — optimistic, avoids a wasted INSERT in the common case.
-2. **Database race guard** — removed from simplified Phase 1; concurrent duplicate requests are not protected.
+The service checks for an existing active booking before inserting. The check
+and insert are not protected by a database constraint or transaction lock, so
+two concurrent requests may both pass the check and create a booking for the
+same seat. The legacy tests in `tests/test_booking_constraints.py` are skipped
+because database-level race protection is outside the current Phase 1 scope.
 
 A cancelled booking on the same seat does **not** block a new active booking,
 because the service pre-check considers only active rows.
@@ -451,7 +447,7 @@ is outside the Phase 1 acceptance scope.
 
 ---
 
-## 10. Test and Application Integration
+## 10. Test and Authentication Integration
 
 ### TESTS (current state)
 
@@ -498,37 +494,23 @@ pytest tests/test_booking_constraints.py
 
 ### APPLICATION AUTH AND DATABASE INTEGRATION
 
-> [!IMPORTANT]
-> Booking is integrated with the current async database and authentication middleware
-> interfaces. The `verify_password()` defect recorded in Person 1's audit still affects
-> the login flow. This document does not change that implementation.
+Booking uses the authenticated User loaded by `AuthMiddleware`; the booking
+dependency adapts `User.user_id` to the service's `user_id` argument. Login and
+password verification are implemented separately in the authentication
+service.
 
-| Component | Development | Production |
-|---|---|---|
-| **Auth** | Tests use JWT middleware with test-session adapter | AuthMiddleware sets the User on request state; Booking adapts it |
-| **Auth shape** | `{"id": int, "role": str}` | Booking maps `User.user_id` to `id`; endpoints consume `current_user["id"]` |
-| **Database** | Async SQLAlchemy session from `get_db()` | Async SQLAlchemy session from `get_db()` |
-| **DB URL** | Configured through project settings/environment | Configured through project settings/environment |
-| **Schema** | `Base.metadata.create_all()` in test setup | Project currently uses `Base.metadata.create_all()` |
-| **`get_db()`** | Yields an `AsyncSession` | Yields an `AsyncSession` |
+| Component | Current behavior |
+|---|---|
+| Auth | Middleware validates the JWT and loads the User into request state. |
+| Booking identity | `get_current_user` provides the authenticated user's ID; the client cannot choose another owner. |
+| Database | Async SQLAlchemy sessions are provided through `get_db()`. |
+| Tests | Booking tests use test database fixtures; legacy database-constraint tests are marked skipped. |
 
-**Integration state:**
-
-- [x] `get_db()` yields an async database session
-- [x] Booking reads authenticated User state and maps `user_id` to the Booking service's `id` interface
-- [ ] Fix login verification before validating the full register/login/JWT/Booking flow
-
-**What must NOT change:**
-
-- The `BookingCreate` and `BookingResponse` schemas (request/response contract)
-- The exception hierarchy in `app/core/exceptions.py`
-- The `BookingService` and `BookingRepository` public method signatures
-- The HTTP status codes for each error type
-- The partial unique index definition on `bookings`
-- The `active → cancelled` only state transition rule
-- The no-hard-delete policy
+See `README.md` for test database configuration and commands. The executable
+schemas, routers, services, and repositories remain the source of truth for
+this contract.
 
 ---
 
-*Updated 2026-10-10 to use the project owner's numeric-string seat-label decision. Showtime availability returns matching numeric-string labels and filters to active bookings.*
+Showtime availability returns numeric-string labels and marks seats with active bookings as unavailable.
 *Files referenced: `app/models/booking.py`, `app/schemas/booking.py`, `app/repositories/booking_repository.py`, `app/services/booking_service.py`, `app/api/booking.py`, `app/core/exceptions.py`, `tests/conftest.py`.*
