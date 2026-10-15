@@ -27,6 +27,8 @@
 - Các thao tác ghi phim và tạo suất chiếu yêu cầu ADMIN.
 - Booking cần JWT và dùng danh tính từ token.
 - Nhãn ghế là chuỗi số; trạng thái booking dùng `active` hoặc `cancelled`.
+- ADMIN đăng nhập qua cùng form với USER; `GET /api/v1/auth/me` cung cấp role để frontend hiện khu vực quản trị.
+- Giao diện ADMIN hiện hỗ trợ tạo/sửa/xóa phim và tạo suất chiếu; backend kiểm tra role trên các API ghi.
 
 ## Chạy và tài liệu
 

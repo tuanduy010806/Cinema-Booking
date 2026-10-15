@@ -1,7 +1,7 @@
 # Cinema Booking API
 
-REST API quản lý phim, lịch chiếu, ghế và đặt vé. README này hướng dẫn cài đặt,
-khởi chạy, kiểm thử và mô tả hợp đồng API của Phase 1.
+Ứng dụng đặt vé xem phim gồm giao diện web, REST API FastAPI và PostgreSQL.
+README này hướng dẫn thiết lập, chạy ứng dụng và sử dụng các API hiện có.
 
 ## Mục lục
 
@@ -15,6 +15,7 @@ khởi chạy, kiểm thử và mô tả hợp đồng API của Phase 1.
   - [Authentication](#authentication)
     - [`POST /api/v1/auth/register`](#post-apiv1authregister)
     - [`POST /api/v1/auth/login`](#post-apiv1authlogin)
+    - [`GET /api/v1/auth/me`](#get-apiv1authme)
   - [Movies](#movies)
     - [`GET /api/v1/movies`](#get-apiv1movies)
     - [`GET /api/v1/movies/{movie_id}`](#get-apiv1moviesmovie_id)
@@ -38,16 +39,17 @@ khởi chạy, kiểm thử và mô tả hợp đồng API của Phase 1.
 ## 1. Phạm vi và kiến trúc
 
 Người dùng có thể đăng ký/đăng nhập, xem phim và lịch chiếu, xem ghế, tạo
-booking, xem booking của mình và hủy booking của mình. ADMIN có thể tạo/sửa/xóa
-phim và tạo lịch chiếu. Nhãn ghế là chuỗi số từ `"1"` đến
+booking, xem booking của mình và hủy booking của mình. ADMIN đăng nhập bằng cùng
+form với USER; giao diện quản trị cho phép tạo/sửa/xóa phim và tạo lịch chiếu.
+Nhãn ghế là chuỗi số từ `"1"` đến
 `str(total_seats)`. Hủy booking là chuyển trạng thái `active` sang `cancelled`,
 không xóa row; ghế cancelled được mở lại.
 
 Thanh toán, thông báo, sơ đồ ghế nhiều hàng, hết hạn giữ chỗ và bảo vệ
-race-condition ở tầng database không thuộc Phase 1.
+race-condition ở tầng database chưa được triển khai.
 
 ```text
-HTTP client / Swagger UI
+Browser / HTTP client / Swagger UI
           -> FastAPI routers (app/api)
           -> Services (business rules)
           -> Repositories (SQLAlchemy async)
@@ -57,7 +59,9 @@ HTTP client / Swagger UI
 JWT được kiểm tra bởi `AuthMiddleware`. Các bảng chính là `users`, `movies`,
 `showtimes`, `bookings`. Khóa ngoại: `showtimes.movie_id -> movies.id`,
 `bookings.user_id -> users.user_id`, `bookings.showtime_id -> showtimes.id`.
-Availability chỉ tính booking `active`.
+Availability chỉ tính booking `active`. Giao diện gọi `GET /api/v1/auth/me` sau
+đăng nhập để nhận role và chỉ hiện khu vực quản trị cho tài khoản ADMIN. Các API
+ghi vẫn tự kiểm tra role ở backend.
 
 ## 2. Clone, thiết lập và chạy bằng Docker
 
@@ -247,23 +251,38 @@ Swagger UI: <http://127.0.0.1:8000/docs>. OpenAPI JSON:
 
 ### Cấp tài khoản ADMIN
 
-Đăng ký account qua API như USER bình thường. Sau đó, với database compose:
+ADMIN đăng nhập qua cùng form đăng nhập như USER. Đăng ký công khai luôn tạo
+role `USER`, vì vậy cần cấp role quản trị riêng trong database.
+
+Tài khoản ADMIN local hiện tại:
+
+- Email: `admin@gmail`
+- Mật khẩu: `admin`
+
+Đây là thông tin demo với mật khẩu yếu; chỉ dùng local, không dùng trên môi
+trường triển khai và không chia sẻ repository chứa thông tin này. Hãy đổi mật
+khẩu hoặc xóa tài khoản trước khi đưa hệ thống ra ngoài máy cá nhân.
+
+Để thiết lập một tài khoản ADMIN khác, đăng ký email và mật khẩu mong muốn trên
+giao diện tại <http://localhost:8000/>. Sau đó mở PowerShell ở thư mục gốc dự án
+và kết nối database Compose:
 
 ```powershell
 docker compose exec db psql -U cinema -d cinema_booking
 ```
 
-Trong psql, cấp role cho đúng email và kiểm tra kết quả:
+Trong `psql`, thay email bên dưới bằng email vừa đăng ký, cấp role và xác nhận
+kết quả:
 
 ```sql
-UPDATE users SET role = 'ADMIN' WHERE email = 'admin@example.com';
-SELECT email, role FROM users WHERE email = 'admin@example.com';
+UPDATE users SET role = 'ADMIN' WHERE email = 'your-admin@example.com';
+SELECT email, role FROM users WHERE email = 'your-admin@example.com';
 ```
 
-Xác nhận UPDATE chỉ tác động một row. Public registration luôn đặt role USER;
-không gửi quyền ADMIN qua request body. ADMIN đăng nhập qua endpoint login sau
-khi được cấp quyền. Chỉ operator có quyền database đáng tin cậy mới thực hiện
-thay đổi role.
+Xác nhận câu `UPDATE` chỉ tác động đúng một row, rồi thoát bằng `\q`. Đăng xuất
+và đăng nhập lại bằng email/mật khẩu vừa đăng ký; giao diện sẽ hiện khu vực
+quản trị khi `/api/v1/auth/me` trả role `ADMIN`. Chỉ operator đáng tin cậy có
+quyền database mới được cấp hoặc thay đổi role.
 
 ## 4. Mô hình dữ liệu và quy tắc
 
@@ -318,6 +337,12 @@ hai password khác nhau, `409` nếu email tồn tại, `422` nếu thiếu trư
 
 Request: `{"email":"user@example.com","password":"your-password"}`.
 Response token cùng cấu trúc register (`200`); sai email/password trả `401`.
+
+#### `GET /api/v1/auth/me`
+
+Yêu cầu `Authorization: Bearer <access_token>`. Trả `user_id`, `email` và `role`
+của tài khoản hiện tại. Frontend dùng thông tin này để hiện trạng thái tài khoản
+và khu vực ADMIN; đây không thay thế kiểm tra quyền trên các API quản trị.
 
 ### Movies
 
@@ -434,6 +459,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/bookings/ \
 
 ## 8. Test và load test
 
+### Chạy kiểm thử
+
 Domain unit tests không cần PostgreSQL:
 
 ```powershell
@@ -454,30 +481,10 @@ Với Docker Compose local mặc định, cấu hình `.env.test` trỏ tới da
 `postgresql+psycopg://cinema:123456@localhost:5432/cinema_booking_test`.
 Không trỏ test suite tới `cinema_booking`.
 
-Fixtures rollback dữ liệu sau từng test và xóa các bảng khỏi database test khi
-kết thúc cả session pytest. Chỉ dùng một database thử nghiệm dùng riêng; không
-dùng URL production. Không dùng chung database cần giữ dữ liệu.
-`tests/test_booking_constraints.py` là legacy race/constraint tests, bị skip
-theo scope Phase 1.
-
-### Chạy kiểm thử
-
-Chạy nhóm kiểm thử đơn vị:
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest tests/unit/test_booking.py tests/unit/test_movie.py tests/unit/test_showtime.py -q -p no:cacheprovider
-```
-
-Kiểm thử tích hợp cần database riêng. Cấu hình `.env.test` theo `.env.test.example`,
-đặt `TEST_DATABASE_URL` trỏ tới database thử nghiệm (ví dụ `cinema_booking_test`), rồi chạy:
-
-```powershell
-.\.venv\Scripts\python.exe scripts/create_test_db.py
-.\.venv\Scripts\python.exe -m pytest tests/test_auth.py tests/test_movie.py tests/test_showtime.py tests/test_booking.py tests/test_showtime_repository.py -q -p no:cacheprovider
-```
-
-Không trỏ kiểm thử tích hợp tới database ứng dụng hoặc production. Fixtures
-của integration tests dọn dữ liệu sau khi chạy.
+Fixtures cô lập dữ liệu test và dọn các bảng ở database test khi session pytest
+kết thúc. Chỉ dùng database thử nghiệm riêng; không trỏ test suite vào database
+ứng dụng hoặc production. `tests/test_booking_constraints.py` hiện được skip vì
+database chưa bảo đảm chống đặt cùng ghế đồng thời.
 
 ### Kiểm thử tải
 
@@ -489,12 +496,9 @@ Kịch bản không kiểm tra việc nhiều request đồng thời đặt cùn
 
 - Docker Compose cung cấp cấu hình phát triển local; PostgreSQL dùng mật khẩu
   mặc định yếu nếu không đặt `POSTGRES_PASSWORD` trong `.env`.
-- Lần chạy thành công gần nhất của API/integration và domain unit là
-  2026-10-11; xem mục 8. Chưa chạy lại sau các cập nhật tài liệu/test gần đây.
-- Kịch bản Locust đã chuẩn bị; lần chạy Kaggle CPU và số liệu kết quả còn chờ
-  thực hiện thủ công sau khi có API public/reachable cùng ghế test riêng.
 - Chưa có Alembic/migration; `scripts/init_db.py` chỉ tạo bảng thiếu, không
   migrate schema đã tồn tại.
-- Không có pagination, payment, reservation expiry hoặc route
-  `/api/v1/showtimes/{id}` riêng.
+- Chưa có pagination, thanh toán, giữ ghế có thời hạn hoặc endpoint lấy chi tiết
+  riêng `GET /api/v1/showtimes/{showtime_id}`.
+- ADMIN được cấp role ngoài luồng đăng ký công khai; đăng ký mới chỉ tạo USER.
 - Swagger/OpenAPI được FastAPI cung cấp ở `/docs` và `/openapi.json`.

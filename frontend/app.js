@@ -3,6 +3,7 @@ const TOKEN_KEY = "cinema_booking_access_token";
 
 const state = {
   token: localStorage.getItem(TOKEN_KEY),
+  user: null,
   movies: [],
   selectedMovie: null,
   selectedShowtime: null,
@@ -36,6 +37,14 @@ const elements = {
   bookButton: document.querySelector("#book-button"),
   bookingList: document.querySelector("#booking-list"),
   toast: document.querySelector("#toast"),
+  adminNav: document.querySelector("#admin-nav"),
+  adminPanel: document.querySelector("#admin-panel"),
+  movieCreateForm: document.querySelector("#movie-create-form"),
+  movieEditForm: document.querySelector("#movie-edit-form"),
+  showtimeCreateForm: document.querySelector("#showtime-create-form"),
+  showtimeMovieId: document.querySelector("#showtime-movie-id"),
+  adminMovieList: document.querySelector("#admin-movie-list"),
+  adminMessage: document.querySelector("#admin-message"),
 };
 
 async function api(path, options = {}) {
@@ -44,7 +53,7 @@ async function api(path, options = {}) {
   if (state.token) headers.set("Authorization", `Bearer ${state.token}`);
 
   const response = await fetch(`${API}${path}`, { ...options, headers });
-  if (state.token && response.status === 401 && !path.startsWith("/auth/")) {
+  if (state.token && response.status === 401 && !["/auth/login", "/auth/register"].includes(path)) {
     clearSession();
   }
 
@@ -63,11 +72,11 @@ async function api(path, options = {}) {
 function setSession(token) {
   state.token = token;
   localStorage.setItem(TOKEN_KEY, token);
-  updateAccountUI();
 }
 
 function clearSession() {
   state.token = null;
+  state.user = null;
   localStorage.removeItem(TOKEN_KEY);
   updateAccountUI();
   renderBookings([]);
@@ -75,10 +84,26 @@ function clearSession() {
 
 function updateAccountUI() {
   const signedIn = Boolean(state.token);
-  elements.authStatus.textContent = signedIn ? "Đã đăng nhập" : "Chưa đăng nhập";
+  elements.authStatus.textContent = signedIn
+    ? (state.user?.role === "ADMIN" ? "Quản trị viên" : "Đã đăng nhập")
+    : "Chưa đăng nhập";
   elements.authOpen.classList.toggle("hidden", signedIn);
   elements.logout.classList.toggle("hidden", !signedIn);
+  const isAdmin = signedIn && state.user?.role === "ADMIN";
+  elements.adminNav.classList.toggle("hidden", !isAdmin);
+  elements.adminPanel.classList.toggle("hidden", !isAdmin);
   elements.bookButton.disabled = !state.selectedSeat;
+}
+
+async function loadCurrentUser() {
+  if (!state.token) {
+    state.user = null;
+    updateAccountUI();
+    return null;
+  }
+  state.user = await api("/auth/me");
+  updateAccountUI();
+  return state.user;
 }
 
 function showToast(message, isError = false) {
@@ -110,6 +135,7 @@ async function loadMovies() {
   try {
     state.movies = await api("/movies");
     renderMovies();
+    renderAdminMovies();
   } catch (error) {
     showError(elements.movieList, `${error.message}. Hãy kiểm tra API và database.`);
   }
@@ -363,10 +389,11 @@ async function submitAuth(event) {
       body: JSON.stringify(payload),
     });
     setSession(result.access_token);
+    await loadCurrentUser();
     elements.authDialog.close();
     elements.authForm.reset();
     showToast(registering ? "Tạo tài khoản thành công." : "Đăng nhập thành công.");
-    await loadBookings();
+    await Promise.all([loadBookings(), state.user?.role === "ADMIN" ? loadMovies() : Promise.resolve()]);
     updateSeatSelection();
   } catch (error) {
     elements.authMessage.textContent = error.message;
@@ -375,6 +402,143 @@ async function submitAuth(event) {
     elements.authSubmit.disabled = false;
   }
 }
+
+function setAdminMessage(message, isError = false) {
+  elements.adminMessage.textContent = message;
+  elements.adminMessage.className = `form-message${isError ? " error" : " success"}`;
+}
+
+function renderAdminMovies() {
+  if (state.user?.role !== "ADMIN") return;
+  elements.adminMovieList.replaceChildren();
+  elements.showtimeMovieId.replaceChildren();
+
+  if (!state.movies.length) {
+    showError(elements.adminMovieList, "Chưa có phim để quản lý hoặc tạo suất chiếu.");
+    return;
+  }
+
+  for (const movie of state.movies) {
+    const option = document.createElement("option");
+    option.value = movie.id;
+    option.textContent = movie.title;
+    elements.showtimeMovieId.append(option);
+
+    const card = document.createElement("article");
+    card.className = "admin-movie-card";
+    const info = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = movie.title;
+    const detail = document.createElement("small");
+    detail.textContent = `${movie.duration_minutes} phút · ID ${movie.id}`;
+    info.append(title, detail);
+
+    const actions = document.createElement("div");
+    actions.className = "admin-actions";
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "button button-outline";
+    edit.textContent = "Sửa";
+    edit.addEventListener("click", () => openMovieEditor(movie));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "cancel-button";
+    remove.textContent = "Xóa";
+    remove.addEventListener("click", () => deleteMovie(movie));
+    actions.append(edit, remove);
+    card.append(info, actions);
+    elements.adminMovieList.append(card);
+  }
+}
+
+function openMovieEditor(movie) {
+  const form = elements.movieEditForm;
+  form.elements.movie_id.value = movie.id;
+  form.elements.title.value = movie.title;
+  form.elements.description.value = movie.description || "";
+  form.elements.duration_minutes.value = movie.duration_minutes;
+  form.classList.remove("hidden");
+  form.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+async function deleteMovie(movie) {
+  if (!window.confirm(`Xóa phim “${movie.title}”?`)) return;
+  try {
+    await api(`/movies/${movie.id}`, { method: "DELETE" });
+    setAdminMessage(`Đã xóa phim “${movie.title}”.`);
+    await loadMovies();
+  } catch (error) {
+    setAdminMessage(error.message, true);
+  }
+}
+
+elements.movieCreateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  try {
+    const movie = await api("/movies", {
+      method: "POST",
+      body: JSON.stringify({
+        title: data.get("title").trim(),
+        description: data.get("description").trim() || null,
+        duration_minutes: Number(data.get("duration_minutes")),
+      }),
+    });
+    form.reset();
+    setAdminMessage(`Đã thêm phim “${movie.title}”.`);
+    await loadMovies();
+  } catch (error) {
+    setAdminMessage(error.message, true);
+  }
+});
+
+elements.movieEditForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const movieId = data.get("movie_id");
+  try {
+    const movie = await api(`/movies/${movieId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        title: data.get("title").trim(),
+        description: data.get("description").trim() || null,
+        duration_minutes: Number(data.get("duration_minutes")),
+      }),
+    });
+    form.classList.add("hidden");
+    setAdminMessage(`Đã cập nhật phim “${movie.title}”.`);
+    await loadMovies();
+  } catch (error) {
+    setAdminMessage(error.message, true);
+  }
+});
+
+elements.showtimeCreateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  try {
+    const showtime = await api("/showtimes", {
+      method: "POST",
+      body: JSON.stringify({
+        movie_id: Number(data.get("movie_id")),
+        start_time: data.get("start_time"),
+        total_seats: Number(data.get("total_seats")),
+      }),
+    });
+    form.reset();
+    setAdminMessage(`Đã tạo suất chiếu #${showtime.id}.`);
+  } catch (error) {
+    setAdminMessage(error.message, true);
+  }
+});
+
+document.querySelector("#movie-edit-cancel").addEventListener("click", () => {
+  elements.movieEditForm.classList.add("hidden");
+});
+document.querySelector("#admin-refresh-movies").addEventListener("click", loadMovies);
 
 elements.authOpen.addEventListener("click", () => openAuthDialog("login"));
 elements.logout.addEventListener("click", () => {
@@ -389,6 +553,17 @@ elements.bookButton.addEventListener("click", bookSelectedSeat);
 document.querySelector("#refresh-movies").addEventListener("click", loadMovies);
 document.querySelector("#refresh-bookings").addEventListener("click", loadBookings);
 
-updateAccountUI();
-loadMovies();
-loadBookings();
+async function initializeApp() {
+  if (state.token) {
+    try {
+      await loadCurrentUser();
+    } catch {
+      // api() clears an expired or invalid session.
+    }
+  } else {
+    updateAccountUI();
+  }
+  await Promise.all([loadMovies(), loadBookings()]);
+}
+
+initializeApp();

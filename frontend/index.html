@@ -17,6 +17,7 @@
       <nav class="topnav" aria-label="Điều hướng chính">
         <a href="#movies">Phim</a>
         <a href="#my-bookings">Vé của tôi</a>
+        <a id="admin-nav" class="hidden" href="#admin-panel">Quản trị</a>
         <a href="/docs" target="_blank" rel="noreferrer">API Docs</a>
       </nav>
       <div class="account-actions">
@@ -85,6 +86,50 @@
           <div class="empty-state">Đăng nhập để xem các vé đã đặt.</div>
         </div>
       </section>
+
+      <section id="admin-panel" class="section-block section-divider hidden" aria-labelledby="admin-title">
+        <div class="section-heading">
+          <div><p class="eyebrow">ADMIN</p><h2 id="admin-title">Quản trị hệ thống</h2></div>
+          <span class="admin-badge">Chỉ dành cho quản trị viên</span>
+        </div>
+
+        <div class="admin-grid">
+          <form id="movie-create-form" class="admin-card form-stack">
+            <h3>Thêm phim</h3>
+            <label>Tên phim<input name="title" maxlength="255" required /></label>
+            <label>Mô tả<textarea name="description" rows="3"></textarea></label>
+            <label>Thời lượng (phút)<input name="duration_minutes" type="number" min="1" max="600" required /></label>
+            <button class="button button-accent" type="submit">Tạo phim</button>
+          </form>
+
+          <form id="showtime-create-form" class="admin-card form-stack">
+            <h3>Tạo suất chiếu</h3>
+            <label>Phim<select name="movie_id" id="showtime-movie-id" required></select></label>
+            <label>Thời gian bắt đầu<input name="start_time" type="datetime-local" required /></label>
+            <label>Sức chứa ghế<input name="total_seats" type="number" min="1" max="500" required /></label>
+            <button class="button button-accent" type="submit">Tạo suất chiếu</button>
+          </form>
+        </div>
+
+        <form id="movie-edit-form" class="admin-card form-stack hidden">
+          <div class="section-heading admin-form-heading">
+            <h3>Sửa phim</h3>
+            <button id="movie-edit-cancel" class="button button-quiet" type="button">Đóng</button>
+          </div>
+          <input name="movie_id" type="hidden" />
+          <label>Tên phim<input name="title" maxlength="255" required /></label>
+          <label>Mô tả<textarea name="description" rows="3"></textarea></label>
+          <label>Thời lượng (phút)<input name="duration_minutes" type="number" min="1" max="600" required /></label>
+          <button class="button button-accent" type="submit">Lưu thay đổi</button>
+        </form>
+
+        <div class="admin-movie-heading">
+          <h3>Danh sách phim</h3>
+          <button id="admin-refresh-movies" class="button button-quiet" type="button">Làm mới</button>
+        </div>
+        <div id="admin-movie-list" class="admin-movie-list" aria-live="polite"></div>
+        <p id="admin-message" class="form-message" role="status"></p>
+      </section>
     </main>
 
     <footer class="footer">
@@ -106,6 +151,7 @@
         <label>Email<input id="auth-email" type="email" autocomplete="email" required /></label>
         <label>Mật khẩu<input id="auth-password" type="password" autocomplete="current-password" required /></label>
         <label id="repassword-field" class="hidden">Nhập lại mật khẩu<input id="auth-repassword" type="password" autocomplete="new-password" /></label>
+        <p class="auth-role-hint">Tài khoản ADMIN cũng đăng nhập tại đây. Quyền quản trị do hệ thống cấp.</p>
         <button id="auth-submit" class="button button-accent button-full" type="submit">Đăng nhập</button>
         <p id="auth-message" class="form-message" role="status"></p>
       </form>

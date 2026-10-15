@@ -4,8 +4,9 @@
 
 1. Trình duyệt tải giao diện từ FastAPI tại `/` và `/frontend/`.
 2. JavaScript gọi API cùng origin với tiền tố `/api/v1`.
-3. Router nhận request, service xử lý quy tắc nghiệp vụ, repository dùng SQLAlchemy để đọc/ghi PostgreSQL.
-4. API trả JSON cho giao diện hoặc Swagger UI.
+3. Sau đăng nhập, frontend gọi `GET /api/v1/auth/me` để lấy role. Tài khoản ADMIN được hiện khu vực quản trị phim và suất chiếu.
+4. Router kiểm tra schema và quyền, service xử lý nghiệp vụ, repository dùng SQLAlchemy bất đồng bộ để đọc/ghi PostgreSQL.
+5. API trả JSON cho giao diện hoặc Swagger UI. API quản trị vẫn tự kiểm tra role ADMIN, kể cả khi gọi ngoài giao diện.
 
 ## Kết nối database
 

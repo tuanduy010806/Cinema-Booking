@@ -13,7 +13,7 @@ Tài liệu này mô tả hành vi đang có trong mã nguồn; các chức năn
 - Xem suất chiếu, lọc theo phim; ADMIN tạo suất chiếu.
 - Xem danh sách ghế và trạng thái còn trống/đã đặt.
 - USER và ADMIN đã đăng nhập đặt ghế, xem lịch sử booking cá nhân và hủy booking của mình.
-- Giao diện web cho phép duyệt phim, chọn suất/ghế, đăng ký/đăng nhập, đặt vé, xem và hủy vé. Giao diện hiện chưa có màn hình quản trị.
+- Giao diện web cho phép duyệt phim, chọn suất/ghế, đăng ký/đăng nhập, đặt vé, xem/hủy vé và cung cấp khu vực ADMIN để quản lý phim, tạo suất chiếu.
 
 Chưa có thanh toán, hoàn tiền, thông báo, giữ ghế tạm thời, sơ đồ ghế theo hàng/khu vực, phân trang/tìm kiếm nâng cao hoặc báo cáo doanh thu.
 
@@ -55,7 +55,7 @@ Chủ booking có thể hủy booking đang `active`. Hệ thống đổi trạn
 
 ### 3.5. Quản lý phim và lịch chiếu
 
-ADMIN tạo/sửa/xóa phim. Khi sửa, chỉ các trường được gửi mới thay đổi; body rỗng không làm thay đổi dữ liệu. ADMIN có thể tạo suất chiếu cho phim đang tồn tại. Hệ thống chưa kiểm tra giờ chiếu phải nằm trong tương lai hoặc tránh các suất chiếu trùng nhau.
+ADMIN đăng nhập bằng cùng form/API như USER; tài khoản phải được cấp role `ADMIN` trước. Sau khi gọi `GET /api/v1/auth/me`, giao diện hiện khu vực quản trị nếu role là ADMIN. Khu vực này hỗ trợ tạo/sửa/xóa phim và tạo suất chiếu; backend vẫn kiểm tra role trên các API ghi. Khi sửa phim, chỉ các trường được gửi mới thay đổi; body rỗng không làm thay đổi dữ liệu. Hệ thống chưa kiểm tra giờ chiếu phải nằm trong tương lai hoặc tránh các suất chiếu trùng nhau.
 
 ## 4. Dữ liệu nghiệp vụ
 
@@ -85,6 +85,7 @@ Ghế hiện được đánh số bằng chuỗi liên tiếp từ `"1"` đến 
 |---|---|---|---|
 | POST | `/register` | Công khai | Tạo USER và trả access token. Body: `email`, `password`, `repassword`. |
 | POST | `/login` | Công khai | Xác thực email/mật khẩu và trả access token. Body: `email`, `password`. |
+| GET | `/me` | Đã đăng nhập | Trả `user_id`, `email`, `role` của tài khoản gắn với token hiện tại. |
 
 Response thành công gồm `access_token` và `token_type: "bearer"`. Mật khẩu và repassword hiện là chuỗi bắt buộc; schema chưa khai báo quy tắc độ dài/phức tạp mật khẩu hay chuẩn hóa email.
 
@@ -154,5 +155,5 @@ Browser / API client
 - Chưa có thanh toán, hoàn tiền, hóa đơn, thông báo hoặc cơ chế giữ ghế có thời hạn.
 - Chưa có phân trang/tìm kiếm phim nâng cao, chính sách timezone thống nhất, kiểm tra giờ chiếu tương lai hay ngăn suất chiếu chồng lấn.
 - Xóa phim đang được suất chiếu tham chiếu có thể bị ràng buộc khóa ngoại từ chối.
-- Không có giao diện quản trị; các thao tác ADMIN hiện dùng API/Swagger hoặc client khác.
+- Giao diện quản trị hiện hỗ trợ thao tác phim và tạo suất chiếu; các chức năng quản trị khác chưa có.
 - Khởi tạo bảng và nạp dữ liệu mẫu là các thao tác riêng; xem README để biết cấu hình/chạy hệ thống.

@@ -3,7 +3,7 @@
 This document describes the booking API and behavior currently implemented.
 The source code and `/openapi.json` define the executable behavior. Seat labels
 are numeric strings from `"1"` through `str(total_seats)`. Duplicate-seat
-duplicate-seat checks run in the service before insertion; concurrent requests
+checks run in the service before insertion; concurrent requests
 are not guaranteed to be serialized.
 
 ---
@@ -168,8 +168,6 @@ showtime exists and that the numeric value in `seat_number` is within `1..total_
         ├─ True  → raise DuplicateSeatError  (fast path, no INSERT wasted)
         │
         └─ False → repo.create(booking_data, user_id)
-                        │
-                        ├─ success  → return Booking
                         │
                         └─ success → return Booking
 ```
@@ -371,7 +369,7 @@ DELETE /api/v1/bookings/42 HTTP/1.1
 | `BookingStateError` | `400 Bad Request` | Service | Cancelling a booking that is not `active` |
 
 All domain exceptions are **pure Python** (no FastAPI/SQLAlchemy dependency).
-The API layer is the only place that converts them to `HTTPException`.
+The API layer maps them to JSON HTTP responses with the configured status code.
 
 ---
 
@@ -389,7 +387,7 @@ The service checks for an existing active booking before inserting. The check
 and insert are not protected by a database constraint or transaction lock, so
 two concurrent requests may both pass the check and create a booking for the
 same seat. The legacy tests in `tests/test_booking_constraints.py` are skipped
-because database-level race protection is outside the current Phase 1 scope.
+because database-level race protection is not implemented.
 
 A cancelled booking on the same seat does **not** block a new active booking,
 because the service pre-check considers only active rows.
@@ -439,11 +437,11 @@ The row persists in the database indefinitely.
 
 ## 9. Duplicate Seat Handling
 
-The simplified implementation uses a service-level check for an already-active
+The current implementation uses a service-level check for an already-active
 booking with the same `(showtime_id, seat_number)`. This is sufficient for
 ordinary sequential requests. Concurrent requests are not serialized, and the
 database does not enforce uniqueness for active seats. Race-condition protection
-is outside the Phase 1 acceptance scope.
+is not implemented.
 
 ---
 
@@ -485,10 +483,12 @@ cp .env.test.example .env.test
 # 2. Create the test database (one-time)
 python scripts/create_test_db.py
 
-# 3. Run tests
+# 3. Run the booking tests
 pytest tests/test_booking.py
-pytest tests/test_booking_constraints.py
 ```
+
+`tests/test_booking_constraints.py` contains legacy database race tests and is
+marked skipped because the current booking flow has no database uniqueness guard.
 
 ---
 
