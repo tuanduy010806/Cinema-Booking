@@ -6,7 +6,7 @@ khởi chạy, kiểm thử và mô tả hợp đồng API của Phase 1.
 ## Mục lục
 
 - [1. Phạm vi và kiến trúc](#1-phạm-vi-và-kiến-trúc)
-- [2. Chạy toàn hệ thống bằng Docker](#2-chạy-toàn-hệ-thống-bằng-docker)
+- [2. Clone, thiết lập và chạy bằng Docker](#2-clone-thiết-lập-và-chạy-bằng-docker)
 - [3. Chạy Python trực tiếp](#3-chạy-python-trực-tiếp)
   - [Cấp tài khoản ADMIN](#cấp-tài-khoản-admin)
 - [4. Mô hình dữ liệu và quy tắc](#4-mô-hình-dữ-liệu-và-quy-tắc)
@@ -58,33 +58,133 @@ JWT được kiểm tra bởi `AuthMiddleware`. Các bảng chính là `users`, 
 `bookings.user_id -> users.user_id`, `bookings.showtime_id -> showtimes.id`.
 Availability chỉ tính booking `active`.
 
-## 2. Chạy toàn hệ thống bằng Docker
+## 2. Clone, thiết lập và chạy bằng Docker
 
-Yêu cầu Docker Desktop đang chạy. Từ thư mục gốc repository:
+Hướng dẫn này dành cho máy Windows mới clone repository từ GitHub. Cần cài
+Git, Docker Desktop, Python 3.12 và PowerShell. Docker Desktop phải đang chạy
+trước khi dùng Docker Compose.
+
+### 2.1 Clone repository
+
+Thay `<GITHUB_REPOSITORY_URL>` bằng URL **Code → HTTPS** của repository trên
+GitHub:
+
+```powershell
+git clone <GITHUB_REPOSITORY_URL>
+cd Cinema-Booking
+```
+
+Nếu thư mục clone có tên khác, `cd` vào đúng thư mục đó. Kiểm tra Docker:
+
+```powershell
+docker version
+docker compose version
+```
+
+### 2.2 Tạo file cấu hình local
+
+Repository không lưu file `.env` thật. Tạo file local từ mẫu:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Mở `.env`, đặt `SECRET_KEY` thành chuỗi ngẫu nhiên riêng tư. Sau đó build image
-API và khởi chạy cả API lẫn PostgreSQL:
+Mở `.env` và đặt `SECRET_KEY` thành một chuỗi ngẫu nhiên riêng. Với cấu hình
+mặc định trong `.env.example`, PostgreSQL dùng database `cinema_booking`, user
+`cinema`, mật khẩu `123456`; API trong Docker tự kết nối tới service `db`.
+Nếu thay `POSTGRES_PASSWORD`, cập nhật mật khẩu tương ứng trong `DATABASE_URL`
+để lệnh seed chạy từ máy host kết nối được database. Không commit `.env` lên
+GitHub.
+
+### 2.3 Tạo môi trường Python cho bước nạp dữ liệu mẫu
+
+Docker chạy API và PostgreSQL, nhưng bước nạp dữ liệu dùng `seed.py` trên máy
+host. Tạo virtual environment và cài dependencies:
 
 ```powershell
-docker compose up --build -d
-docker compose ps
-docker compose logs -f api
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Container API đợi PostgreSQL healthy, tạo các bảng còn thiếu bằng
-`scripts/init_db.py`, rồi khởi chạy Uvicorn trên cổng `8000`. Mở
-<http://127.0.0.1:8000/docs> để xem API. Dừng các container bằng
-`docker compose down`; dữ liệu PostgreSQL vẫn được giữ trong volume. Dùng
-`docker compose down -v` chỉ khi muốn xóa cả dữ liệu database local.
+Nếu máy đã có Python tương thích nhưng lệnh `py -3.12` không hoạt động, dùng
+`py -m venv .venv` thay thế.
 
-Mật khẩu PostgreSQL mặc định `123456` chỉ dành cho phát triển local; có thể
-đặt `POSTGRES_PASSWORD` trong `.env` trước khi tạo volume lần đầu. Nếu đã có
-volume với database cũ, thay đổi biến này không tự đổi mật khẩu bên trong
-database hiện hữu.
+### 2.4 Build và khởi động hệ thống
+
+Từ thư mục gốc repository, build image API và khởi chạy API cùng PostgreSQL:
+
+```powershell
+docker compose up -d --build
+```
+
+Kiểm tra trạng thái:
+
+```powershell
+docker compose ps
+```
+
+Chờ `db` báo `healthy` và `api` đang chạy. Nếu dịch vụ chưa lên, xem log:
+
+```powershell
+docker compose logs --tail 100 db api
+```
+
+Container API tự tạo các bảng database còn thiếu khi khởi động. Dữ liệu phim
+và suất chiếu mẫu là bước riêng, thực hiện sau khi database đã sẵn sàng.
+
+### 2.5 Nạp phim và suất chiếu mẫu
+
+Chạy lệnh sau từ thư mục gốc dự án:
+
+```powershell
+.\.venv\Scripts\python.exe seed.py
+```
+
+Seeder đọc `data/movie.json`, thêm phim và suất chiếu mẫu còn thiếu. Có thể
+chạy lại để bổ sung dữ liệu mẫu; phim đã tồn tại sẽ được đồng bộ mô tả và thời
+lượng theo file JSON.
+
+### 2.6 Mở hệ thống
+
+- Giao diện: <http://localhost:8000/>
+- Swagger UI: <http://localhost:8000/docs>
+- OpenAPI JSON: <http://localhost:8000/openapi.json>
+
+### 2.7 Dừng và khởi động lại
+
+Dừng các container nhưng giữ database:
+
+```powershell
+docker compose down
+```
+
+#### Chạy lại sau khi đã thiết lập trước đó
+
+Lần sau, không cần clone lại repository, tạo lại `.env`, tạo `.venv` hay chạy
+seed lại. Mở Docker Desktop, chờ Docker chạy, rồi mở PowerShell tại thư mục
+repository đã clone và chạy:
+
+```powershell
+docker compose up -d
+docker compose ps
+```
+
+Chờ `db` ở trạng thái `healthy` và `api` đang chạy, sau đó mở giao diện tại
+<http://localhost:8000/> hoặc Swagger tại <http://localhost:8000/docs>. Nếu
+cần xem lỗi khởi động, dùng `docker compose logs --tail 100 db api`.
+
+Nếu đã thay đổi mã nguồn hoặc `Dockerfile` kể từ lần build trước, build lại
+image bằng:
+
+```powershell
+docker compose up -d --build
+```
+
+Không thêm `-v` nếu muốn giữ dữ liệu. `docker compose down -v` xóa volume
+PostgreSQL và toàn bộ database local. Mật khẩu PostgreSQL mặc định `123456`
+chỉ phù hợp cho phát triển local; nếu đổi mật khẩu sau khi volume đã được tạo,
+database hiện hữu không tự cập nhật mật khẩu.
 
 ## 3. Chạy Python trực tiếp
 

@@ -41,14 +41,17 @@ class FakeShowtimeRepository:
         self.showtimes[showtime_id] = showtime
         return showtime
 
-    async def get_booked_seats(self, showtime_id: int):
+
+
+class FakeBookingRepository:
+    async def get_active_seat_numbers(self, showtime_id: int):
         return {"2", "4"} if showtime_id == 1 else set()
 
 
 @pytest.mark.asyncio
 async def test_list_and_create_showtimes():
     repository = FakeShowtimeRepository()
-    service = ShowtimeService(repository, FakeMovieRepository())
+    service = ShowtimeService(repository, FakeMovieRepository(), FakeBookingRepository())
 
     showtime = await service.create_showtime(
         ShowtimeCreate(movie_id=1, start_time="2026-10-02T20:00:00", total_seats=40)
@@ -60,7 +63,9 @@ async def test_list_and_create_showtimes():
 
 @pytest.mark.asyncio
 async def test_get_showtime_seats_marks_booked_seats_unavailable():
-    service = ShowtimeService(FakeShowtimeRepository(), FakeMovieRepository())
+    service = ShowtimeService(
+        FakeShowtimeRepository(), FakeMovieRepository(), FakeBookingRepository()
+    )
 
     seats = await service.get_seats(1)
 
@@ -73,7 +78,9 @@ async def test_get_showtime_seats_marks_booked_seats_unavailable():
 
 @pytest.mark.asyncio
 async def test_get_missing_showtime_raises_not_found():
-    service = ShowtimeService(FakeShowtimeRepository(), FakeMovieRepository())
+    service = ShowtimeService(
+        FakeShowtimeRepository(), FakeMovieRepository(), FakeBookingRepository()
+    )
 
     with pytest.raises(NotFoundException, match="Showtime not found"):
         await service.get_seats(999)

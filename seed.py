@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from app.db.database import AsyncSessionLocal
 from app.models.movie import Movie
 from app.models.showtime import Showtime
+from app.schemas.movie import MovieCreate
 
 
 MOVIES_FILE = Path(__file__).resolve().parent / "data" / "movie.json"
@@ -28,22 +29,16 @@ def load_movie_data() -> list[dict[str, object]]:
     if not isinstance(data, list):
         raise ValueError(f"Expected a JSON array in {MOVIES_FILE}.")
 
-    required_fields = {"title", "description", "duration_minutes"}
+    validated_movies: list[dict[str, object]] = []
     for index, movie in enumerate(data):
         if not isinstance(movie, dict):
             raise ValueError(f"Movie at index {index} must be a JSON object.")
-        missing_fields = required_fields - movie.keys()
-        if missing_fields:
-            fields = ", ".join(sorted(missing_fields))
-            raise ValueError(f"Movie at index {index} is missing required fields: {fields}.")
-        if not isinstance(movie["title"], str) or not movie["title"].strip():
+        validated = MovieCreate.model_validate(movie)
+        if not validated.title.strip():
             raise ValueError(f"Movie at index {index} must have a non-empty title.")
-        if not isinstance(movie["duration_minutes"], int) or movie["duration_minutes"] <= 0:
-            raise ValueError(f"Movie at index {index} must have a positive duration_minutes.")
-        if movie["description"] is not None and not isinstance(movie["description"], str):
-            raise ValueError(f"Movie at index {index} description must be a string or null.")
+        validated_movies.append(validated.model_dump())
 
-    return data
+    return validated_movies
 
 
 

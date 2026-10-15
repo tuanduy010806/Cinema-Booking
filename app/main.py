@@ -1,15 +1,42 @@
+from pathlib import Path
+
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.auth import router as auth_router
 from app.api.booking import router as booking_router
 from app.api.movie import router as movie_router
 from app.api.showtime import router as showtime_router
 from app.core.auth_middleware import AuthMiddleware
-from app.core.exceptions import ForbiddenException, NotFoundException, UnauthorizedException
+from app.core.exceptions import (
+    AuthenticationError,
+    BookingStateError,
+    CinemaException,
+    DuplicateSeatError,
+    EmailAlreadyExistsError,
+    ForbiddenException,
+    InvalidCredentialsError,
+    InvalidTokenError,
+    NotFoundException,
+    OwnershipError,
+    PasswordMismatchError,
+    UnauthorizedException,
+)
 
 app = FastAPI(title="Cinema Booking System")
 app.add_middleware(AuthMiddleware)
+app.mount(
+    "/frontend",
+    StaticFiles(directory=Path(__file__).resolve().parent.parent / "frontend", html=True),
+    name="frontend",
+)
+
+
+@app.get("/", include_in_schema=False)
+async def root() -> RedirectResponse:
+    """Send the root URL to the cinema booking interface."""
+    return RedirectResponse(url="/frontend/")
 
 
 # ---------------------------------------------------------------------------
@@ -18,19 +45,30 @@ app.add_middleware(AuthMiddleware)
 # ---------------------------------------------------------------------------
 
 
-@app.exception_handler(NotFoundException)
-async def not_found_handler(request: Request, exc: NotFoundException) -> JSONResponse:
-    return JSONResponse(status_code=404, content={"detail": str(exc)})
+EXCEPTION_STATUS_MAP = {
+    NotFoundException: 404,
+    DuplicateSeatError: 400,
+    BookingStateError: 400,
+    PasswordMismatchError: 400,
+    InvalidCredentialsError: 401,
+    AuthenticationError: 401,
+    InvalidTokenError: 401,
+    UnauthorizedException: 401,
+    OwnershipError: 403,
+    ForbiddenException: 403,
+    EmailAlreadyExistsError: 409,
+}
 
 
-@app.exception_handler(UnauthorizedException)
-async def unauthorized_handler(request: Request, exc: UnauthorizedException) -> JSONResponse:
-    return JSONResponse(status_code=401, content={"detail": str(exc)})
-
-
-@app.exception_handler(ForbiddenException)
-async def forbidden_handler(request: Request, exc: ForbiddenException) -> JSONResponse:
-    return JSONResponse(status_code=403, content={"detail": str(exc)})
+@app.exception_handler(CinemaException)
+async def domain_exception_handler(request: Request, exc: CinemaException) -> JSONResponse:
+    status_code = EXCEPTION_STATUS_MAP.get(type(exc), 500)
+    headers = {"WWW-Authenticate": "Bearer"} if status_code == 401 else None
+    return JSONResponse(
+        status_code=status_code,
+        content={"detail": str(exc)},
+        headers=headers,
+    )
 
 
 # ---------------------------------------------------------------------------

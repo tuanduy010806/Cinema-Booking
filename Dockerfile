@@ -11,6 +11,7 @@ RUN python -m pip install --upgrade pip \
     && python -m pip install -r requirements.txt
 
 COPY app ./app
+COPY frontend ./frontend
 COPY scripts ./scripts
 
 EXPOSE 8000

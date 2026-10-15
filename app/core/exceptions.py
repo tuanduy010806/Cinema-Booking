@@ -16,6 +16,22 @@ class CinemaException(Exception):
     """Base exception for cinema booking system."""
 
 
+class AuthenticationError(CinemaException):
+    """Base exception for authentication failures."""
+
+
+class PasswordMismatchError(AuthenticationError):
+    """Raised when password and confirmation do not match."""
+
+
+class EmailAlreadyExistsError(CinemaException):
+    """Raised when registering an email that already exists."""
+
+
+class InvalidCredentialsError(AuthenticationError):
+    """Raised when an email or password is incorrect."""
+
+
 # ---------------------------------------------------------------------------
 # Generic resource exceptions
 # ---------------------------------------------------------------------------
