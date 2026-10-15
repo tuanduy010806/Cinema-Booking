@@ -2,7 +2,7 @@
 
 ## 1. Tổng quan bài toán
 
-Cinema Booking là REST API hỗ trợ quy trình đặt vé cơ bản cho rạp chiếu phim. Hệ thống quản lý bốn nhóm dữ liệu cốt lõi: tài khoản, phim, suất chiếu và lượt đặt chỗ. Khách truy cập có thể tra cứu phim, lịch chiếu và tình trạng ghế; người dùng đã đăng nhập có thể đặt vé, xem lịch sử đặt vé và hủy lượt đặt của chính mình. Quản trị viên quản lý danh mục phim và tạo suất chiếu.
+Cinema Booking là REST API phục vụ việc tra cứu lịch chiếu và đặt vé xem phim. Hệ thống lưu thông tin tài khoản, phim, suất chiếu và booking. User có thể xem phim, lịch chiếu và tình trạng ghế; sau khi đăng nhập, User có thể đặt vé, xem các booking của mình và hủy booking. Admin phụ trách cập nhật danh sách phim và tạo suất chiếu.
 
 Mục tiêu nghiệp vụ là tập trung thông tin đặt chỗ về một nguồn dữ liệu, kiểm tra các điều kiện trước khi ghi nhận booking, giới hạn quyền thao tác theo vai trò và lưu trạng thái hủy để lịch sử vẫn được tra cứu.
 
@@ -20,10 +20,8 @@ Mục tiêu nghiệp vụ là tập trung thông tin đặt chỗ về một ngu
 
 | Tác nhân | Nghiệp vụ được phép |
 |---|---|
-| Khách chưa đăng nhập | Đăng ký, đăng nhập, xem phim, xem lịch chiếu, xem tình trạng ghế |
-| USER | Các quyền công khai; đặt vé; xem và hủy booking của chính mình |
-| ADMIN | Các quyền USER; thêm/sửa/xóa phim; tạo suất chiếu |
-| Người vận hành hệ thống | Cấp vai trò ADMIN nội bộ, ví dụ cập nhật role trong database |
+| User | Đăng ký, đăng nhập, xem phim, xem lịch chiếu và tình trạng ghế. Sau khi đăng nhập: đặt vé, xem booking của mình và hủy booking của mình. |
+| Admin | Thực hiện các thao tác của User; thêm, sửa hoặc xóa phim; tạo suất chiếu. |
 
 Đăng ký công khai luôn gán role `USER`; request không có trường để người dùng tự cấp quyền ADMIN. Các API yêu cầu đăng nhập nhận danh tính từ JWT trong header `Authorization: Bearer <access_token>`. ID chủ booking được lấy từ tài khoản đã xác thực, không lấy từ body client gửi lên.
 
@@ -31,11 +29,10 @@ Mục tiêu nghiệp vụ là tập trung thông tin đặt chỗ về một ngu
 
 ### 3.1. Khám phá phim và suất chiếu
 
-1. Khách gọi danh sách phim.
-2. Khách chọn phim và xem chi tiết.
-3. Khách tra cứu các suất chiếu, có thể lọc theo `movie_id`.
-4. Khách xem tình trạng ghế của suất chiếu đã chọn.
-5. Ghế có booking `active` được đánh dấu không khả dụng; ghế chỉ có booking `cancelled` trở lại khả dụng.
+1. User mở danh sách phim và chọn phim muốn xem.
+2. User xem chi tiết phim, rồi tra cứu lịch chiếu (có thể lọc theo `movie_id`).
+3. User xem tình trạng ghế của suất chiếu đã chọn.
+4. Ghế có booking `active` được đánh dấu không khả dụng; ghế đã hủy được tính là còn trống.
 
 ### 3.2. Đặt vé
 
@@ -213,7 +210,7 @@ Các quy tắc độ dài/giới hạn giống tạo phim. Hệ thống kiểm t
 
 **Endpoint:** `GET /api/v1/showtimes`  
 **Quyền:** Công khai  
-**Nhiệm vụ:** Hiển thị lịch chiếu để khách chọn giờ xem.  
+**Nhiệm vụ:** Hiển thị lịch chiếu để User chọn giờ xem.
 **Đầu vào tùy chọn:** `movie_id` query parameter.
 
 Ví dụ: `GET /api/v1/showtimes?movie_id=1`
@@ -246,7 +243,7 @@ Xử lý nghiệp vụ: kiểm tra movie_id dương, sức chứa từ 1 đến 
 
 **Endpoint:** `GET /api/v1/showtimes/{showtime_id}/seats`  
 **Quyền:** Công khai  
-**Nhiệm vụ:** Trả sơ đồ ghế dạng danh sách số và trạng thái khả dụng để khách chọn trước khi đặt.
+**Nhiệm vụ:** Trả danh sách ghế cùng trạng thái khả dụng để User tham khảo trước khi đặt.
 
 **Xử lý nghiệp vụ:**
 1. Kiểm tra Showtime tồn tại.
