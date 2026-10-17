@@ -5,7 +5,6 @@
 - Python 3.12, FastAPI và Uvicorn.
 - SQLAlchemy async với PostgreSQL và driver asyncpg.
 - Pydantic Settings đọc cấu hình từ `.env`.
-- HTML, CSS và JavaScript tĩnh trong `frontend/`.
 - Docker Compose điều phối API và PostgreSQL.
 
 ## Cấu trúc
@@ -26,11 +25,11 @@
 - Đăng ký công khai chỉ cấp USER.
 - Các thao tác ghi phim và tạo suất chiếu yêu cầu ADMIN.
 - Booking cần JWT và dùng danh tính từ token.
+- `decode_access_token` dùng domain exception `InvalidTokenError`; `AuthMiddleware` đổi lỗi token thành HTTP 401.
 - Nhãn ghế là chuỗi số; trạng thái booking dùng `active` hoặc `cancelled`.
-- ADMIN đăng nhập qua cùng form với USER; `GET /api/v1/auth/me` cung cấp role để frontend hiện khu vực quản trị.
-- Giao diện ADMIN hiện hỗ trợ tạo/sửa/xóa phim và tạo suất chiếu; backend kiểm tra role trên các API ghi.
+- ADMIN dùng cùng API đăng nhập với USER; `GET /api/v1/auth/me` trả role tài khoản.
+- API ADMIN hỗ trợ tạo/sửa/xóa phim và tạo suất chiếu; backend kiểm tra role trên các API ghi.
 
 ## Chạy và tài liệu
 
 Dùng [README.md](../README.md) để thiết lập Docker, cấu hình môi trường, chạy seed và truy cập API. Dùng [phantichnghiepvu.md](../phantichnghiepvu.md) để xem quy trình nghiệp vụ.
-

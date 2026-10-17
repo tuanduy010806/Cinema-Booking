@@ -1,8 +1,5 @@
-from pathlib import Path
-
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 
 from app.api.auth import router as auth_router
 from app.api.booking import router as booking_router
@@ -26,19 +23,6 @@ from app.core.exceptions import (
 
 app = FastAPI(title="Cinema Booking System")
 app.add_middleware(AuthMiddleware)
-app.mount(
-    "/frontend",
-    StaticFiles(directory=Path(__file__).resolve().parent.parent / "frontend", html=True),
-    name="frontend",
-)
-
-
-@app.get("/", include_in_schema=False)
-async def root() -> RedirectResponse:
-    """Send the root URL to the cinema booking interface."""
-    return RedirectResponse(url="/frontend/")
-
-
 # ---------------------------------------------------------------------------
 # Global domain exception handlers
 # Map service-layer exceptions → correct HTTP status codes

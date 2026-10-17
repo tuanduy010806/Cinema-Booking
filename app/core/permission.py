@@ -25,7 +25,3 @@ class RoleChecker:
             )
 
         return user
-
-
-# Backwards-compatible alias for integrations that still import the old name.
-RollChecker = RoleChecker

@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và phạm vi
 
-Cinema Booking là ứng dụng đặt vé xem phim gồm giao diện web, REST API FastAPI và cơ sở dữ liệu PostgreSQL. Khách có thể duyệt phim, xem lịch chiếu và tình trạng ghế. Người dùng đã đăng nhập có thể đặt ghế, xem các booking của mình và hủy booking. ADMIN quản lý danh mục phim và tạo suất chiếu.
+Cinema Booking là hệ thống đặt vé xem phim với REST API FastAPI và cơ sở dữ liệu PostgreSQL. Khách có thể duyệt phim, xem lịch chiếu và tình trạng ghế. Người dùng đã đăng nhập có thể đặt ghế, xem các booking của mình và hủy booking. ADMIN quản lý danh mục phim và tạo suất chiếu.
 
 Tài liệu này mô tả hành vi đang có trong mã nguồn; các chức năng chưa triển khai được ghi rõ ở phần giới hạn.
 
@@ -13,7 +13,6 @@ Tài liệu này mô tả hành vi đang có trong mã nguồn; các chức năn
 - Xem suất chiếu, lọc theo phim; ADMIN tạo suất chiếu.
 - Xem danh sách ghế và trạng thái còn trống/đã đặt.
 - USER và ADMIN đã đăng nhập đặt ghế, xem lịch sử booking cá nhân và hủy booking của mình.
-- Giao diện web cho phép duyệt phim, chọn suất/ghế, đăng ký/đăng nhập, đặt vé, xem/hủy vé và cung cấp khu vực ADMIN để quản lý phim, tạo suất chiếu.
 
 Chưa có thanh toán, hoàn tiền, thông báo, giữ ghế tạm thời, sơ đồ ghế theo hàng/khu vực, phân trang/tìm kiếm nâng cao hoặc báo cáo doanh thu.
 
@@ -31,9 +30,9 @@ Chưa có thanh toán, hoàn tiền, thông báo, giữ ghế tạm thời, sơ 
 
 ### 3.1. Tra cứu và chọn chỗ
 
-1. Giao diện tải danh sách phim từ API; người xem chọn phim.
-2. Giao diện lấy các suất chiếu của phim và hiển thị thời gian, sức chứa.
-3. Khi chọn suất, giao diện lấy danh sách ghế. Ghế có booking `active` không khả dụng; booking `cancelled` không chiếm ghế.
+1. Client tải danh sách phim từ API; người xem chọn phim.
+2. Client lấy các suất chiếu của phim và hiển thị thời gian, sức chứa.
+3. Client gọi API danh sách ghế cho suất chiếu đã chọn. Ghế có booking `active` không khả dụng; booking `cancelled` không chiếm ghế.
 4. Trạng thái ghế là dữ liệu tại thời điểm truy vấn. Một người khác có thể đặt ghế trước khi request đặt của khách được xử lý.
 
 ### 3.2. Đăng ký và đăng nhập
@@ -55,7 +54,7 @@ Chủ booking có thể hủy booking đang `active`. Hệ thống đổi trạn
 
 ### 3.5. Quản lý phim và lịch chiếu
 
-ADMIN đăng nhập bằng cùng form/API như USER; tài khoản phải được cấp role `ADMIN` trước. Sau khi gọi `GET /api/v1/auth/me`, giao diện hiện khu vực quản trị nếu role là ADMIN. Khu vực này hỗ trợ tạo/sửa/xóa phim và tạo suất chiếu; backend vẫn kiểm tra role trên các API ghi. Khi sửa phim, chỉ các trường được gửi mới thay đổi; body rỗng không làm thay đổi dữ liệu. Hệ thống chưa kiểm tra giờ chiếu phải nằm trong tương lai hoặc tránh các suất chiếu trùng nhau.
+ADMIN dùng cùng endpoint đăng nhập với USER; tài khoản phải được cấp role `ADMIN` trước. Client có thể gọi `GET /api/v1/auth/me` để nhận role; API kiểm tra quyền ADMIN khi tạo/sửa/xóa phim và tạo suất chiếu. Khi sửa phim, chỉ các trường được gửi mới thay đổi; body rỗng không làm thay đổi dữ liệu. Hệ thống chưa kiểm tra giờ chiếu phải nằm trong tương lai hoặc tránh các suất chiếu trùng nhau.
 
 ## 4. Dữ liệu nghiệp vụ
 
@@ -72,10 +71,9 @@ Ghế hiện được đánh số bằng chuỗi liên tiếp từ `"1"` đến 
 
 - Base URL local mặc định: `http://127.0.0.1:8000`; API prefix: `/api/v1`.
 - Request/response API dùng JSON. Swagger UI ở `/docs`, OpenAPI JSON ở `/openapi.json`.
-- Trang web được phục vụ ở `/` và tài nguyên tĩnh ở `/frontend`.
 - Thời gian suất chiếu nhận giá trị parse được thành datetime. Model Showtime hiện dùng DateTime không kèm timezone; client và server cần thống nhất quy ước thời gian.
 - Lỗi nghiệp vụ thường có dạng `{"detail":"..."}`; lỗi dữ liệu không đạt schema FastAPI thường trả 422.
-- Token không hợp lệ hoặc user trong token không còn tồn tại bị từ chối với 401. Nếu gửi một Bearer token sai, middleware cũng từ chối request kể cả endpoint vốn công khai.
+- `decode_access_token` ném domain exception `InvalidTokenError` khi JWT không hợp lệ; `AuthMiddleware` bắt lỗi này và trả 401. User trong token không còn tồn tại cũng bị từ chối với 401. Nếu gửi Bearer token sai, middleware từ chối request kể cả endpoint vốn công khai.
 
 ## 6. Danh mục API theo nghiệp vụ
 
@@ -138,7 +136,7 @@ Khi đặt, `seat_number` phải khớp `^[1-9][0-9]*$`; suất chiếu hoặc g
 ## 8. Kiến trúc xử lý
 
 ```text
-Browser / API client
+API client
   -> FastAPI router và schema validation
   -> AuthMiddleware / role guard (khi cần)
   -> Service (quy tắc nghiệp vụ)
@@ -147,7 +145,7 @@ Browser / API client
   -> JSON response
 ```
 
-`AuthMiddleware` kiểm tra Bearer token và nạp User vào request state. Router gọi service; service áp dụng quy tắc nghiệp vụ; repository thực hiện đọc/ghi dữ liệu. Giao diện web gọi API cùng origin và lưu access token trong localStorage của trình duyệt.
+`AuthMiddleware` kiểm tra Bearer token và nạp User vào request state; token lỗi được biểu diễn bằng `InvalidTokenError` thuần Python rồi middleware trả HTTP 401. Router gọi service; service áp dụng quy tắc nghiệp vụ; repository thực hiện đọc/ghi dữ liệu. Client gửi access token trong Bearer authorization header khi gọi các API cần xác thực. Domain exception của service được ánh xạ sang HTTP response ở application exception handler.
 
 ## 9. Giới hạn và điểm cần cân nhắc
 
@@ -155,5 +153,5 @@ Browser / API client
 - Chưa có thanh toán, hoàn tiền, hóa đơn, thông báo hoặc cơ chế giữ ghế có thời hạn.
 - Chưa có phân trang/tìm kiếm phim nâng cao, chính sách timezone thống nhất, kiểm tra giờ chiếu tương lai hay ngăn suất chiếu chồng lấn.
 - Xóa phim đang được suất chiếu tham chiếu có thể bị ràng buộc khóa ngoại từ chối.
-- Giao diện quản trị hiện hỗ trợ thao tác phim và tạo suất chiếu; các chức năng quản trị khác chưa có.
+- API quản trị hiện hỗ trợ thao tác phim và tạo suất chiếu; các chức năng quản trị khác chưa có.
 - Khởi tạo bảng và nạp dữ liệu mẫu là các thao tác riêng; xem README để biết cấu hình/chạy hệ thống.

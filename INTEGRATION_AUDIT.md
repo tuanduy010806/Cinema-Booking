@@ -2,11 +2,12 @@
 
 ## Luồng request
 
-1. Trình duyệt tải giao diện từ FastAPI tại `/` và `/frontend/`.
-2. JavaScript gọi API cùng origin với tiền tố `/api/v1`.
-3. Sau đăng nhập, frontend gọi `GET /api/v1/auth/me` để lấy role. Tài khoản ADMIN được hiện khu vực quản trị phim và suất chiếu.
-4. Router kiểm tra schema và quyền, service xử lý nghiệp vụ, repository dùng SQLAlchemy bất đồng bộ để đọc/ghi PostgreSQL.
-5. API trả JSON cho giao diện hoặc Swagger UI. API quản trị vẫn tự kiểm tra role ADMIN, kể cả khi gọi ngoài giao diện.
+1. HTTP client gọi các endpoint REST của FastAPI với tiền tố `/api/v1`; tài liệu API có tại `/docs`.
+2. Sau đăng nhập, client có thể gọi `GET /api/v1/auth/me` để lấy role. ADMIN được phép quản lý phim và suất chiếu qua API.
+3. `AuthMiddleware` xử lý Bearer token; JWT sai được biểu diễn bằng
+   `InvalidTokenError` và trả HTTP 401. Router kiểm tra schema và quyền, service
+   xử lý nghiệp vụ, repository dùng SQLAlchemy bất đồng bộ để đọc/ghi PostgreSQL.
+4. API trả JSON cho client. API quản trị tự kiểm tra role ADMIN trên mỗi request.
 
 ## Kết nối database
 

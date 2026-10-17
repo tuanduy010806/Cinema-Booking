@@ -471,7 +471,7 @@ The real Booking dependency adapts the authenticated User into a plain `dict` wi
 | Key | Type | Description |
 |---|---|---|
 | `id` | `int` | User ID consumed by all endpoints |
-| `role` | `str` | `"USER"` or `"ADMIN"` (role not currently enforced) |
+| `role` | `str` | `"USER"` or `"ADMIN"`; ADMIN is required for movie and showtime write endpoints |
 
 **Test database setup:**
 

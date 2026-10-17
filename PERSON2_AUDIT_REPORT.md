@@ -4,7 +4,7 @@
 
 - `GET /api/v1/movies` liệt kê phim theo ID giảm dần; `GET /api/v1/movies/{movie_id}` trả chi tiết phim. Cả hai endpoint công khai.
 - ADMIN dùng `POST /api/v1/movies`, `PUT /api/v1/movies/{movie_id}` và `DELETE /api/v1/movies/{movie_id}` để quản lý danh mục.
-- Giao diện ADMIN sau đăng nhập hỗ trợ tạo/sửa/xóa phim và tạo suất chiếu; quyền ghi vẫn được kiểm tra ở backend.
+- ADMIN có thể tạo/sửa/xóa phim và tạo suất chiếu qua API; backend kiểm tra quyền trước các thao tác ghi.
 - Phim có `title` (1–255 ký tự), `description` tùy chọn và `duration_minutes` (1–600).
 - Cập nhật chỉ thay đổi trường được gửi. Xóa thành công trả 204. Nếu suất chiếu đang tham chiếu phim, khóa ngoại có thể ngăn xóa.
 - Danh sách rỗng là kết quả hợp lệ khi chưa có dữ liệu phim.

@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from fastapi import HTTPException, status
 from pwdlib import PasswordHash
 
 from app.core.config import settings
+from app.core.exceptions import InvalidTokenError
 
 password_hasher = PasswordHash.recommended()
 
@@ -31,12 +31,8 @@ def create_access_token(data: dict, exprie_delta: timedelta | None = None) -> st
 
 
 def decode_access_token(token: str) -> dict:
-    credentials_exception = HTTPException(
-          status_code=status.HTTP_401_UNAUTHORIZED,
-          detail="could not validate"
-    )
-    try :
-        payload = jwt.decode(token,key=SECRET_KEY,algorithms=[ALGORITHM])
+    try:
+        payload = jwt.decode(token, key=SECRET_KEY, algorithms=[ALGORITHM])
     except jwt.InvalidTokenError:
-        raise credentials_exception
+        raise InvalidTokenError("could not validate") from None
     return payload

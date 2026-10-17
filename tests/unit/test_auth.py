@@ -9,6 +9,7 @@ from app.core.permission import RoleChecker
 from app.core.exceptions import (
     EmailAlreadyExistsError,
     InvalidCredentialsError,
+    InvalidTokenError,
     PasswordMismatchError,
 )
 from app.core.security import decode_access_token, verify_password
@@ -138,11 +139,10 @@ def test_login_rejects_unknown_email_or_wrong_password():
     assert str(missing_email_error.value) == "Invalid email or password"
 
 
-def test_decode_access_token_rejects_invalid_jwt_with_http_exception():
-    with pytest.raises(HTTPException) as error:
+def test_decode_access_token_rejects_invalid_jwt_with_domain_exception():
+    with pytest.raises(InvalidTokenError) as error:
         decode_access_token("not-a-valid-jwt")
-    assert error.value.status_code == status.HTTP_401_UNAUTHORIZED
-    assert error.value.detail == "could not validate"
+    assert str(error.value) == "could not validate"
 
 
 def _request_with_user(user: User | None) -> Request:

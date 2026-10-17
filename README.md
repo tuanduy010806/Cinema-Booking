@@ -1,6 +1,6 @@
 # Cinema Booking API
 
-Ứng dụng đặt vé xem phim gồm giao diện web, REST API FastAPI và PostgreSQL.
+Cinema Booking cung cấp REST API bằng FastAPI và PostgreSQL.
 README này hướng dẫn thiết lập, chạy ứng dụng và sử dụng các API hiện có.
 
 ## Mục lục
@@ -39,8 +39,8 @@ README này hướng dẫn thiết lập, chạy ứng dụng và sử dụng c�
 ## 1. Phạm vi và kiến trúc
 
 Người dùng có thể đăng ký/đăng nhập, xem phim và lịch chiếu, xem ghế, tạo
-booking, xem booking của mình và hủy booking của mình. ADMIN đăng nhập bằng cùng
-form với USER; giao diện quản trị cho phép tạo/sửa/xóa phim và tạo lịch chiếu.
+booking, xem booking của mình và hủy booking của mình. ADMIN có thể tạo/sửa/xóa
+phim và tạo lịch chiếu thông qua API.
 Nhãn ghế là chuỗi số từ `"1"` đến
 `str(total_seats)`. Hủy booking là chuyển trạng thái `active` sang `cancelled`,
 không xóa row; ghế cancelled được mở lại.
@@ -49,19 +49,21 @@ Thanh toán, thông báo, sơ đồ ghế nhiều hàng, hết hạn giữ chỗ
 race-condition ở tầng database chưa được triển khai.
 
 ```text
-Browser / HTTP client / Swagger UI
+HTTP client / Swagger UI
           -> FastAPI routers (app/api)
           -> Services (business rules)
           -> Repositories (SQLAlchemy async)
           -> PostgreSQL
 ```
 
-JWT được kiểm tra bởi `AuthMiddleware`. Các bảng chính là `users`, `movies`,
-`showtimes`, `bookings`. Khóa ngoại: `showtimes.movie_id -> movies.id`,
+JWT được `AuthMiddleware` kiểm tra bằng `decode_access_token`; token sai tạo
+`InvalidTokenError` và middleware trả HTTP 401. Domain exceptions từ service
+được exception handler ở ứng dụng ánh xạ sang status code HTTP. Các bảng chính
+gồm `users`, `movies`, `showtimes`, `bookings`. Khóa ngoại:
+`showtimes.movie_id -> movies.id`,
 `bookings.user_id -> users.user_id`, `bookings.showtime_id -> showtimes.id`.
-Availability chỉ tính booking `active`. Giao diện gọi `GET /api/v1/auth/me` sau
-đăng nhập để nhận role và chỉ hiện khu vực quản trị cho tài khoản ADMIN. Các API
-ghi vẫn tự kiểm tra role ở backend.
+Availability chỉ tính booking `active`. API `GET /api/v1/auth/me` trả role của tài
+khoản hiện tại; các API ghi tự kiểm tra quyền ADMIN ở backend.
 
 ## 2. Clone, thiết lập và chạy bằng Docker
 
@@ -97,6 +99,8 @@ Copy-Item .env.example .env
 Mở `.env` và đặt `SECRET_KEY` thành một chuỗi ngẫu nhiên riêng. Với cấu hình
 mặc định trong `.env.example`, PostgreSQL dùng database `cinema_booking`, user
 `cinema`, mật khẩu `123456`; API trong Docker tự kết nối tới service `db`.
+`app/core/config.py` dùng Pydantic Settings để đọc `DATABASE_URL`, `SECRET_KEY`,
+`ALGORITHM` và `ACCESS_TOKEN_EXPIRE_MINUTES` từ biến môi trường hoặc `.env`.
 Nếu thay `POSTGRES_PASSWORD`, cập nhật mật khẩu tương ứng trong `DATABASE_URL`
 để lệnh seed chạy từ máy host kết nối được database. Không commit `.env` lên
 GitHub.
@@ -152,7 +156,6 @@ lượng theo file JSON.
 
 ### 2.6 Mở hệ thống
 
-- Giao diện: <http://localhost:8000/>
 - Swagger UI: <http://localhost:8000/docs>
 - OpenAPI JSON: <http://localhost:8000/openapi.json>
 
@@ -175,8 +178,8 @@ docker compose up -d
 docker compose ps
 ```
 
-Chờ `db` ở trạng thái `healthy` và `api` đang chạy, sau đó mở giao diện tại
-<http://localhost:8000/> hoặc Swagger tại <http://localhost:8000/docs>. Nếu
+Chờ `db` ở trạng thái `healthy` và `api` đang chạy, sau đó mở Swagger tại
+<http://localhost:8000/docs>. Nếu
 cần xem lỗi khởi động, dùng `docker compose logs --tail 100 db api`.
 
 Nếu đã thay đổi mã nguồn hoặc `Dockerfile` kể từ lần build trước, build lại
@@ -251,8 +254,8 @@ Swagger UI: <http://127.0.0.1:8000/docs>. OpenAPI JSON:
 
 ### Cấp tài khoản ADMIN
 
-ADMIN đăng nhập qua cùng form đăng nhập như USER. Đăng ký công khai luôn tạo
-role `USER`, vì vậy cần cấp role quản trị riêng trong database.
+ADMIN dùng cùng endpoint đăng nhập như USER (`POST /api/v1/auth/login`). Đăng ký
+công khai luôn tạo role `USER`, vì vậy cần cấp role quản trị riêng trong database.
 
 Tài khoản ADMIN local hiện tại:
 
@@ -263,9 +266,9 @@ Tài khoản ADMIN local hiện tại:
 trường triển khai và không chia sẻ repository chứa thông tin này. Hãy đổi mật
 khẩu hoặc xóa tài khoản trước khi đưa hệ thống ra ngoài máy cá nhân.
 
-Để thiết lập một tài khoản ADMIN khác, đăng ký email và mật khẩu mong muốn trên
-giao diện tại <http://localhost:8000/>. Sau đó mở PowerShell ở thư mục gốc dự án
-và kết nối database Compose:
+Để thiết lập một tài khoản ADMIN khác, đăng ký email và mật khẩu mong muốn qua
+`POST /api/v1/auth/register` trong Swagger UI tại <http://localhost:8000/docs>.
+Sau đó mở PowerShell ở thư mục gốc dự án và kết nối database Compose:
 
 ```powershell
 docker compose exec db psql -U cinema -d cinema_booking
@@ -279,10 +282,9 @@ UPDATE users SET role = 'ADMIN' WHERE email = 'your-admin@example.com';
 SELECT email, role FROM users WHERE email = 'your-admin@example.com';
 ```
 
-Xác nhận câu `UPDATE` chỉ tác động đúng một row, rồi thoát bằng `\q`. Đăng xuất
-và đăng nhập lại bằng email/mật khẩu vừa đăng ký; giao diện sẽ hiện khu vực
-quản trị khi `/api/v1/auth/me` trả role `ADMIN`. Chỉ operator đáng tin cậy có
-quyền database mới được cấp hoặc thay đổi role.
+Xác nhận câu `UPDATE` chỉ tác động đúng một row, rồi thoát bằng `\q`. Đăng nhập
+bằng tài khoản đó và gọi `GET /api/v1/auth/me` để xác nhận role là `ADMIN`. Chỉ
+operator đáng tin cậy có quyền database mới được cấp hoặc thay đổi role.
 
 ## 4. Mô hình dữ liệu và quy tắc
 
@@ -341,8 +343,8 @@ Response token cùng cấu trúc register (`200`); sai email/password trả `401
 #### `GET /api/v1/auth/me`
 
 Yêu cầu `Authorization: Bearer <access_token>`. Trả `user_id`, `email` và `role`
-của tài khoản hiện tại. Frontend dùng thông tin này để hiện trạng thái tài khoản
-và khu vực ADMIN; đây không thay thế kiểm tra quyền trên các API quản trị.
+của tài khoản hiện tại. API client có thể dùng thông tin này; quyền trên các API
+quản trị luôn được kiểm tra ở backend.
 
 ### Movies
 
