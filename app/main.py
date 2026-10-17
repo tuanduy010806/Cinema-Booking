@@ -6,31 +6,53 @@ from app.api.booking import router as booking_router
 from app.api.movie import router as movie_router
 from app.api.showtime import router as showtime_router
 from app.core.auth_middleware import AuthMiddleware
-from app.core.exceptions import ForbiddenException, NotFoundException, UnauthorizedException
+from app.core.exceptions import (
+    AuthenticationError,
+    BookingStateError,
+    CinemaException,
+    DuplicateSeatError,
+    EmailAlreadyExistsError,
+    ForbiddenException,
+    InvalidCredentialsError,
+    InvalidTokenError,
+    NotFoundException,
+    OwnershipError,
+    PasswordMismatchError,
+    UnauthorizedException,
+)
 
 app = FastAPI(title="Cinema Booking System")
 app.add_middleware(AuthMiddleware)
-
-
 # ---------------------------------------------------------------------------
 # Global domain exception handlers
 # Map service-layer exceptions → correct HTTP status codes
 # ---------------------------------------------------------------------------
 
 
-@app.exception_handler(NotFoundException)
-async def not_found_handler(request: Request, exc: NotFoundException) -> JSONResponse:
-    return JSONResponse(status_code=404, content={"detail": str(exc)})
+EXCEPTION_STATUS_MAP = {
+    NotFoundException: 404,
+    DuplicateSeatError: 400,
+    BookingStateError: 400,
+    PasswordMismatchError: 400,
+    InvalidCredentialsError: 401,
+    AuthenticationError: 401,
+    InvalidTokenError: 401,
+    UnauthorizedException: 401,
+    OwnershipError: 403,
+    ForbiddenException: 403,
+    EmailAlreadyExistsError: 409,
+}
 
 
-@app.exception_handler(UnauthorizedException)
-async def unauthorized_handler(request: Request, exc: UnauthorizedException) -> JSONResponse:
-    return JSONResponse(status_code=401, content={"detail": str(exc)})
-
-
-@app.exception_handler(ForbiddenException)
-async def forbidden_handler(request: Request, exc: ForbiddenException) -> JSONResponse:
-    return JSONResponse(status_code=403, content={"detail": str(exc)})
+@app.exception_handler(CinemaException)
+async def domain_exception_handler(request: Request, exc: CinemaException) -> JSONResponse:
+    status_code = EXCEPTION_STATUS_MAP.get(type(exc), 500)
+    headers = {"WWW-Authenticate": "Bearer"} if status_code == 401 else None
+    return JSONResponse(
+        status_code=status_code,
+        content={"detail": str(exc)},
+        headers=headers,
+    )
 
 
 # ---------------------------------------------------------------------------

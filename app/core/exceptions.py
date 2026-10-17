@@ -2,8 +2,8 @@
 Domain exceptions for the Cinema Booking system.
 
 All exceptions are plain Python classes — no FastAPI / SQLAlchemy dependency.
-They are raised by the Service layer and caught by the API layer, which maps
-them to the appropriate HTTP responses.
+Services and security utilities may raise them; the application boundary maps
+them to HTTP responses through exception handlers or middleware.
 """
 
 
@@ -14,6 +14,22 @@ them to the appropriate HTTP responses.
 
 class CinemaException(Exception):
     """Base exception for cinema booking system."""
+
+
+class AuthenticationError(CinemaException):
+    """Base exception for authentication failures."""
+
+
+class PasswordMismatchError(AuthenticationError):
+    """Raised when password and confirmation do not match."""
+
+
+class EmailAlreadyExistsError(CinemaException):
+    """Raised when registering an email that already exists."""
+
+
+class InvalidCredentialsError(AuthenticationError):
+    """Raised when an email or password is incorrect."""
 
 
 # ---------------------------------------------------------------------------

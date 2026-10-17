@@ -5,9 +5,10 @@ from app.schemas.showtime import ShowtimeCreate
 class ShowtimeService:
     """Business logic for showtimes."""
 
-    def __init__(self, showtime_repository, movie_repository):
+    def __init__(self, showtime_repository, movie_repository, booking_repository):
         self.showtime_repository = showtime_repository
         self.movie_repository = movie_repository
+        self.booking_repository = booking_repository
 
     async def list_showtimes(self, movie_id: int | None = None):
         return await self.showtime_repository.get_all(movie_id=movie_id)
@@ -23,7 +24,7 @@ class ShowtimeService:
         if showtime is None:
             raise NotFoundException("Showtime not found")
 
-        booked_seats = await self.showtime_repository.get_booked_seats(showtime_id)
+        booked_seats = await self.booking_repository.get_active_seat_numbers(showtime_id)
         seats = []
         for seat_index in range(1, showtime.total_seats + 1):
             seat_number = str(seat_index)

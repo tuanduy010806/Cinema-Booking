@@ -90,3 +90,12 @@ class BookingRepository:
         )
         result = await self.db.execute(statement)
         return result.scalar_one_or_none() is not None
+
+    async def get_active_seat_numbers(self, showtime_id: int) -> set[str]:
+        """Return seat labels with an active booking for a showtime."""
+        statement = select(Booking.seat_number).where(
+            Booking.showtime_id == showtime_id,
+            Booking.status == "active",
+        )
+        result = await self.db.scalars(statement)
+        return set(result.all())
