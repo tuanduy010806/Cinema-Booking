@@ -410,6 +410,8 @@ tài khoản và không kiểm tra race-condition.
   thực hiện thủ công sau khi có API public/reachable cùng ghế test riêng.
 - Chưa có Alembic/migration; `scripts/init_db.py` chỉ tạo bảng thiếu, không
   migrate schema đã tồn tại.
-- Không có pagination, payment, reservation expiry hoặc route
+- Không có pagination hoặc reservation expiry; hold và payment hiện chưa được
+  tích hợp với quy trình đặt ghế/booking. Xem [PAYMENT_API.md](PAYMENT_API.md)
+  để biết giới hạn của payment demo độc lập. Không có route
   `/api/v1/showtimes/{id}` riêng.
 - Swagger/OpenAPI được FastAPI cung cấp ở `/docs` và `/openapi.json`.

@@ -16,6 +16,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from app.db.database import Base, engine
 from app.models.booking import Booking  # noqa: F401
 from app.models.movie import Movie  # noqa: F401
+from app.models.payment import Payment  # noqa: F401
 from app.models.showtime import Showtime  # noqa: F401
 from app.models.user import User  # noqa: F401
 
