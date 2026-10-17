@@ -8,6 +8,7 @@ from app.core.exceptions import (
     DuplicateSeatError,
     NotFoundException,
 )
+from app.domain.unit_of_work import UnitOfWork
 
 
 class SeatHoldService:
@@ -17,14 +18,15 @@ class SeatHoldService:
         showtime_repository,
         booking_repository,
         payment_repository,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self.hold_repository = hold_repository
         self.showtime_repository = showtime_repository
         self.booking_repository = booking_repository
         self.payment_repository = payment_repository
+        self.unit_of_work = unit_of_work
 
     async def create_hold(self, user_id: int, payload):
-        session = self.hold_repository.session
         try:
             showtime = await self.showtime_repository.get_by_id(payload.showtime_id)
             if showtime is None:
@@ -57,10 +59,10 @@ class SeatHoldService:
                 created_at=now,
                 expires_at=now + timedelta(seconds=settings.SEAT_HOLD_TTL_SECONDS),
             )
-            await session.commit()
+            await self.unit_of_work.commit()
             return self._response(hold, payload.seat_numbers)
         except Exception:
-            await session.rollback()
+            await self.unit_of_work.rollback()
             raise
 
     async def get_hold(self, user_id: int, hold_id: int):
@@ -79,7 +81,6 @@ class SeatHoldService:
         return self._response(hold, [seat.seat_number for seat in seats], status=state)
 
     async def release_hold(self, user_id: int, hold_id: int):
-        session = self.hold_repository.session
         try:
             hold = await self.hold_repository.get_by_id(hold_id)
             if hold is None:
@@ -94,10 +95,10 @@ class SeatHoldService:
             else:
                 await self.hold_repository.mark_status(hold, "released")
             seats = await self.hold_repository.get_seats(hold_id)
-            await session.commit()
+            await self.unit_of_work.commit()
             return self._response(hold, [seat.seat_number for seat in seats])
         except Exception:
-            await session.rollback()
+            await self.unit_of_work.rollback()
             raise
 
     async def _new_hold_id(self) -> int:

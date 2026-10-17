@@ -6,6 +6,7 @@ from app.db.database import get_db
 from app.repositories.payment_repository import PaymentRepository
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.seat_hold_repository import SeatHoldRepository
+from app.repositories.unit_of_work import SqlAlchemyUnitOfWork
 from app.schemas.payment import PaymentCreate, PaymentResponse, PaymentResultResponse
 from app.services.payment_service import PaymentService
 
@@ -17,6 +18,7 @@ def get_payment_service(db: AsyncSession = Depends(get_db)) -> PaymentService:
         PaymentRepository(db),
         SeatHoldRepository(db),
         BookingRepository(db),
+        SqlAlchemyUnitOfWork(db),
     )
 
 

@@ -9,20 +9,25 @@ from app.core.exceptions import (
     NotFoundException,
     PaymentOwnershipError,
 )
+from app.domain.unit_of_work import UnitOfWork
 
 
 class PaymentService:
     """Validate a seat hold and settle its payment and bookings atomically."""
 
     def __init__(
-        self, payment_repository, hold_repository, booking_repository
+        self,
+        payment_repository,
+        hold_repository,
+        booking_repository,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self.payment_repository = payment_repository
         self.hold_repository = hold_repository
         self.booking_repository = booking_repository
+        self.unit_of_work = unit_of_work
 
     async def pay_for_hold(self, user_id: int, hold_id: int):
-        session = self.payment_repository.session
         try:
             hold = await self.hold_repository.get_by_id(hold_id)
             if hold is None:
@@ -42,7 +47,8 @@ class PaymentService:
                 raise HoldStateError(hold_id, hold.status)
             if hold.expires_at <= now:
                 await self.hold_repository.mark_status(hold, "expired")
-                await session.commit()
+                # Persist expiry even though this request returns an error.
+                await self.unit_of_work.commit()
                 raise HoldExpiredError(hold_id)
             if existing is not None:
                 # Prevent a pre-hold standalone demo payment from being mistaken
@@ -73,10 +79,13 @@ class PaymentService:
             )
             await self.hold_repository.attach_bookings(seats, bookings)
             await self.hold_repository.mark_status(hold, "paid")
-            await session.commit()
+            await self.unit_of_work.commit()
             return {"payment": payment, "bookings": bookings}, True
+        except HoldExpiredError:
+            # The expired status was committed above; do not roll it back.
+            raise
         except Exception:
-            await session.rollback()
+            await self.unit_of_work.rollback()
             raise
 
     async def _bookings_for_seats(self, seats):

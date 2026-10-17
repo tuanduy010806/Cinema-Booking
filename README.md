@@ -59,7 +59,7 @@ Payment gateway thật, thông báo, sơ đồ ghế nhiều hàng và bảo v�
 HTTP client / Swagger UI
           -> FastAPI routers (app/api)
           -> Services (business rules)
-          -> Repositories (SQLAlchemy async)
+          -> Repositories + Unit of Work (SQLAlchemy async)
           -> PostgreSQL
 ```
 
@@ -67,7 +67,11 @@ HTTP client / Swagger UI
 (ví dụ: vai trò `USER`/`ADMIN`). `app/services` chỉ phối hợp quy tắc nghiệp vụ
 thông qua repository được truyền vào; SQLAlchemy và các ORM model nằm ở tầng
 `app/repositories` và `app/models`. Các router chịu trách nhiệm ghép dependency
-và chuyển đổi request/response HTTP. Service không import framework web hay DB.
+và chuyển đổi request/response HTTP. `UnitOfWork` là giao diện commit/rollback
+thuần nghiệp vụ; `SqlAlchemyUnitOfWork` thực hiện transaction trong tầng
+repository để service không truy cập session DB. Với thanh toán hold nhiều ghế,
+Unit of Work dùng chung session với các repository để lưu payment, bookings và
+trạng thái hold trong cùng transaction.
 
 JWT được `AuthMiddleware` kiểm tra bằng `decode_access_token`; token sai tạo
 `InvalidTokenError` và middleware trả HTTP 401. Domain exceptions từ service
@@ -150,7 +154,8 @@ Kiểm tra trạng thái:
 docker compose ps
 ```
 
-Chờ `db` báo `healthy` và `api` đang chạy. Nếu dịch vụ chưa lên, xem log:
+Chờ cả `db` và `api` báo `healthy`. API healthcheck gọi `/docs`; nếu dịch vụ
+chưa lên hoặc trạng thái không healthy, xem log:
 
 ```powershell
 docker compose logs --tail 100 db api

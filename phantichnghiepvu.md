@@ -158,12 +158,12 @@ API client
   -> FastAPI router và schema validation
   -> AuthMiddleware / role guard (khi cần)
   -> Service (quy tắc nghiệp vụ; không phụ thuộc FastAPI/SQLAlchemy)
-  -> Repository (truy vấn bất đồng bộ qua SQLAlchemy)
+  -> Repository / UnitOfWork (truy vấn và transaction qua SQLAlchemy)
   -> PostgreSQL
   -> JSON response
 ```
 
-`AuthMiddleware` kiểm tra Bearer token và nạp User vào request state; token lỗi được biểu diễn bằng `InvalidTokenError` thuần Python rồi middleware trả HTTP 401. Router gọi service; service áp dụng quy tắc nghiệp vụ; repository thực hiện đọc/ghi dữ liệu. Client gửi access token trong Bearer authorization header khi gọi các API cần xác thực. Domain exception của service được ánh xạ sang HTTP response ở application exception handler.
+`AuthMiddleware` kiểm tra Bearer token và nạp User vào request state; token lỗi được biểu diễn bằng `InvalidTokenError` thuần Python rồi middleware trả HTTP 401. Router lắp repository và Unit of Work; service áp dụng quy tắc nghiệp vụ; repository đọc/ghi dữ liệu. Unit of Work quản lý commit/rollback cho thao tác nhiều bảng. Client gửi access token trong Bearer authorization header khi gọi các API cần xác thực. Domain exception của service được ánh xạ sang HTTP response ở application exception handler.
 
 ## 9. Giới hạn và điểm cần cân nhắc
 

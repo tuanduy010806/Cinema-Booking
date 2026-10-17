@@ -11,9 +11,11 @@
 5. Với nhiều ghế, client tạo hold 1–5 ghế qua `/api/v1/holds`; hold hết hạn sau
    5 phút theo mặc định. `/api/v1/payments` tạo payment demo và booking cho hold.
 
-`app/domain` chứa khái niệm nghiệp vụ độc lập như `Role`. Service nhận
-repository qua constructor và không import FastAPI, SQLAlchemy, ORM model hoặc
-DB session.
+`app/domain` chứa khái niệm nghiệp vụ độc lập như `Role` và giao diện
+`UnitOfWork`. Service nhận repository và Unit of Work qua constructor, không
+import FastAPI/SQLAlchemy/ORM model và không truy cập DB session. Triển khai
+`SqlAlchemyUnitOfWork` ở tầng repository dùng cùng session với các repository;
+payment, các booking và trạng thái hold vì thế được commit/rollback cùng nhau.
 
 ## Kết nối database
 
@@ -30,7 +32,7 @@ Schema và dữ liệu mẫu là hai thao tác riêng. Seeder trên máy host đ
 
 ## Điểm kiểm tra khi debug
 
-- `docker compose ps`: trạng thái dịch vụ và healthcheck.
+- `docker compose ps`: trạng thái dịch vụ và healthcheck (API kiểm tra `/docs`).
 - `docker compose logs --tail 100 db api`: lỗi PostgreSQL hoặc khởi động API.
 - `GET /api/v1/movies`: `200` với mảng rỗng nghĩa là API truy vấn được nhưng database chưa có phim; lỗi HTTP/JSON khác cần kiểm tra log.
 - Swagger UI: `/docs`.

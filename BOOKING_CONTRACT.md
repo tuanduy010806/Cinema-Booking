@@ -158,6 +158,10 @@ repositories. It uses `ShowtimeRepository.get_by_id()` to validate that the
 requested showtime exists and that the numeric-string seat label is within its
 capacity.
 
+The service has no direct session access. The hold and payment flows receive a
+domain `UnitOfWork` interface; `SqlAlchemyUnitOfWork` owns transaction
+commit/rollback in the repository layer.
+
 ---
 
 ### `create_booking(user_id: int, payload: BookingCreate)`

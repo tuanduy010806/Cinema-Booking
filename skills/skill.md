@@ -11,8 +11,10 @@
 
 - `app/api`: routers và endpoint.
 - `app/domain`: khái niệm nghiệp vụ thuần Python, ví dụ role.
+- `app/domain/unit_of_work.py`: giao diện transaction mà service sử dụng.
 - `app/services`: nghiệp vụ.
 - `app/repositories`: truy cập dữ liệu.
+- `app/repositories/unit_of_work.py`: triển khai Unit of Work bằng SQLAlchemy.
 - `app/models`: ORM models.
 - `app/schemas`: request/response schemas.
 - `app/core`: cấu hình, xác thực, quyền và ngoại lệ.

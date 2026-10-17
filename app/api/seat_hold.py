@@ -7,6 +7,7 @@ from app.repositories.booking_repository import BookingRepository
 from app.repositories.payment_repository import PaymentRepository
 from app.repositories.seat_hold_repository import SeatHoldRepository
 from app.repositories.showtime_repository import ShowtimeRepository
+from app.repositories.unit_of_work import SqlAlchemyUnitOfWork
 from app.schemas.seat_hold import SeatHoldCreate, SeatHoldResponse
 from app.services.seat_hold_service import SeatHoldService
 
@@ -19,6 +20,7 @@ def get_seat_hold_service(db: AsyncSession = Depends(get_db)) -> SeatHoldService
         ShowtimeRepository(db),
         BookingRepository(db),
         PaymentRepository(db),
+        SqlAlchemyUnitOfWork(db),
     )
 
 
