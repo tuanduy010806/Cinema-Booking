@@ -20,14 +20,13 @@ from app.core.exceptions import (
     NotFoundError,
     OwnershipError,
 )
-from app.models.booking import Booking
 from app.schemas.booking import BookingCreate
 
 
 class BookingService:
     """Business logic for bookings."""
 
-    def __init__(self, repo, showtime_repo) -> None:
+    def __init__(self, repo, showtime_repo, hold_repo=None) -> None:
         """
         Parameters
         ----------
@@ -40,12 +39,13 @@ class BookingService:
         """
         self.repo = repo
         self.showtime_repo = showtime_repo
+        self.hold_repo = hold_repo
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    async def create_booking(self, user_id: int, payload: BookingCreate) -> Booking:
+    async def create_booking(self, user_id: int, payload: BookingCreate):
         """Create a new booking for *user_id*.
 
         Flow
@@ -91,11 +91,23 @@ class BookingService:
                 seat_number=payload.seat_number,
             )
 
+        if self.hold_repo is not None:
+            from datetime import datetime, timezone
+
+            held_seats = await self.hold_repo.get_active_seat_numbers(
+                payload.showtime_id, datetime.now(timezone.utc)
+            )
+            if payload.seat_number in held_seats:
+                raise DuplicateSeatError(
+                    showtime_id=payload.showtime_id,
+                    seat_number=payload.seat_number,
+                )
+
         # --- Step 2: persist after the sequential duplicate check ---
         booking_data = payload.model_dump()
         return await self.repo.create(booking_data, user_id=user_id)
 
-    async def get_my_bookings(self, user_id: int) -> list[Booking]:
+    async def get_my_bookings(self, user_id: int):
         """Return all bookings that belong to *user_id*.
 
         Parameters
@@ -105,12 +117,12 @@ class BookingService:
 
         Returns
         -------
-        list[Booking]:
-            Possibly empty list of the user's bookings.
+        A possibly empty collection of the user's bookings, supplied by the
+        repository.
         """
         return await self.repo.get_by_user_id(user_id)
 
-    async def cancel_booking(self, user_id: int, booking_id: int) -> Booking:
+    async def cancel_booking(self, user_id: int, booking_id: int):
         """Cancel a booking.
 
         Flow

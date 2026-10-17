@@ -27,9 +27,14 @@ Authorization: Bearer <access_token>
 | Tạo, sửa, xóa phim | ADMIN |
 | Tạo suất chiếu | ADMIN |
 | Đặt, xem và hủy booking của mình | USER hoặc ADMIN đã đăng nhập; hủy chỉ dành cho chủ booking |
+| Tạo/xem/giải phóng hold ghế của mình | USER hoặc ADMIN đã đăng nhập |
+| Thanh toán demo và xem payment của mình | USER hoặc ADMIN đã đăng nhập |
 
 Role được đọc từ bản ghi User trong database. Không có API công khai cấp quyền ADMIN; quy trình tạo/cấp tài khoản quản trị được hướng dẫn trong mục “Cấp tài khoản ADMIN” của [README.md](README.md).
 
 ## Cấu hình bảo mật
 
 `SECRET_KEY`, thuật toán JWT và thời hạn token được đọc qua cấu hình ứng dụng. Đặt secret riêng trong `.env` và không lưu secret hoặc token thật trong mã nguồn/tài liệu. Cấu hình Compose mặc định phục vụ phát triển local.
+
+Role nghiệp vụ được khai báo trong `app/domain/roles.py`, độc lập với ORM model;
+lớp bảo vệ quyền sử dụng thông tin user do middleware nạp.

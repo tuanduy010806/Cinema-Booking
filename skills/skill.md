@@ -10,6 +10,7 @@
 ## Cấu trúc
 
 - `app/api`: routers và endpoint.
+- `app/domain`: khái niệm nghiệp vụ thuần Python, ví dụ role.
 - `app/services`: nghiệp vụ.
 - `app/repositories`: truy cập dữ liệu.
 - `app/models`: ORM models.
@@ -27,6 +28,9 @@
 - Booking cần JWT và dùng danh tính từ token.
 - `decode_access_token` dùng domain exception `InvalidTokenError`; `AuthMiddleware` đổi lỗi token thành HTTP 401.
 - Nhãn ghế là chuỗi số; trạng thái booking dùng `active` hoặc `cancelled`.
+- Hold hỗ trợ chọn 1–5 ghế và mặc định hết hạn sau 300 giây.
+- Thanh toán demo tính tiền theo ghế và tạo một booking cho mỗi ghế trong hold.
+- `DEMO_PAYMENT_AMOUNT_VND`, `SEAT_HOLD_TTL_SECONDS` và `SQL_ECHO` cấu hình qua môi trường.
 - ADMIN dùng cùng API đăng nhập với USER; `GET /api/v1/auth/me` trả role tài khoản.
 - API ADMIN hỗ trợ tạo/sửa/xóa phim và tạo suất chiếu; backend kiểm tra role trên các API ghi.
 

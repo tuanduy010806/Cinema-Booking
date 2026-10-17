@@ -13,16 +13,17 @@ Tài liệu này mô tả hành vi đang có trong mã nguồn; các chức năn
 - Xem suất chiếu, lọc theo phim; ADMIN tạo suất chiếu.
 - Xem danh sách ghế và trạng thái còn trống/đã đặt.
 - USER và ADMIN đã đăng nhập đặt ghế, xem lịch sử booking cá nhân và hủy booking của mình.
+- USER và ADMIN đã đăng nhập giữ 1–5 ghế trong 5 phút mặc định; thanh toán demo cho hold sẽ tạo các booking tương ứng.
 
-Chưa có thanh toán, hoàn tiền, thông báo, giữ ghế tạm thời, sơ đồ ghế theo hàng/khu vực, phân trang/tìm kiếm nâng cao hoặc báo cáo doanh thu.
+Đã có giữ ghế tối đa 5 ghế trong 5 phút và thanh toán demo tạo booking. Chưa có payment gateway thật, hoàn tiền, thông báo, sơ đồ ghế theo hàng/khu vực, phân trang/tìm kiếm nâng cao hoặc báo cáo doanh thu.
 
 ## 2. Tác nhân và quyền
 
 | Tác nhân | Quyền nghiệp vụ |
 |---|---|
 | Khách chưa đăng nhập | Xem danh sách/chi tiết phim, lịch chiếu và tình trạng ghế; đăng ký hoặc đăng nhập. |
-| USER | Tất cả quyền khách; đặt ghế, xem booking của tài khoản hiện tại và hủy booking do chính mình sở hữu. |
-| ADMIN | Quyền của người dùng đã đăng nhập; tạo/sửa/xóa phim và tạo suất chiếu. ADMIN chỉ hủy booking của chính mình, giống quy tắc sở hữu áp dụng cho mọi tài khoản. |
+| USER | Tất cả quyền khách; đặt/giữ ghế, thanh toán demo, xem payment và booking của tài khoản hiện tại, hủy booking do chính mình sở hữu. |
+| ADMIN | Quyền của người dùng đã đăng nhập; tạo/sửa/xóa phim và tạo suất chiếu. ADMIN chỉ thao tác trên booking/hold/payment của chính mình. |
 
 Đăng ký công khai luôn tạo role `USER`; request đăng ký không nhận role nên người dùng không thể tự cấp quyền ADMIN. API lấy danh tính từ JWT trong `Authorization: Bearer <access_token>`. Với booking, `user_id` không được nhận từ request body.
 
@@ -33,7 +34,8 @@ Chưa có thanh toán, hoàn tiền, thông báo, giữ ghế tạm thời, sơ 
 1. Client tải danh sách phim từ API; người xem chọn phim.
 2. Client lấy các suất chiếu của phim và hiển thị thời gian, sức chứa.
 3. Client gọi API danh sách ghế cho suất chiếu đã chọn. Ghế có booking `active` không khả dụng; booking `cancelled` không chiếm ghế.
-4. Trạng thái ghế là dữ liệu tại thời điểm truy vấn. Một người khác có thể đặt ghế trước khi request đặt của khách được xử lý.
+4. Người dùng đã đăng nhập có thể tạo hold cho nhóm 1–5 ghế. Hold có thời hạn 5 phút; ghế thuộc hold còn hạn được báo không khả dụng.
+5. Trạng thái ghế là dữ liệu tại thời điểm truy vấn. Kiểm tra tuần tự ở tầng ứng dụng chưa bảo vệ nhiều request đồng thời cùng chọn một ghế.
 
 ### 3.2. Đăng ký và đăng nhập
 
@@ -41,10 +43,11 @@ Chưa có thanh toán, hoàn tiền, thông báo, giữ ghế tạm thời, sơ 
 
 ### 3.3. Đặt ghế
 
-1. Client gửi `showtime_id` và `seat_number` cùng access token.
-2. Hệ thống xác nhận suất chiếu tồn tại, nhãn ghế là chuỗi số nguyên dương và không vượt `total_seats`.
-3. Hệ thống kiểm tra booking active đã tồn tại cho cặp suất chiếu/ghế chưa.
-4. Nếu hợp lệ, tạo booking `active`, gắn với user trong token và ghi thời điểm tạo.
+1. Client gửi `showtime_id` và danh sách `seat_numbers` cùng access token tới `POST /api/v1/holds`.
+2. Hệ thống kiểm tra suất chiếu, giới hạn 1–5 ghế, nhãn ghế và sức chứa; ghế đã đặt hoặc thuộc hold còn hạn bị từ chối.
+3. Nếu hợp lệ, hệ thống tạo hold cho toàn bộ nhóm ghế với thời hạn mặc định 300 giây.
+4. Client thanh toán demo qua `POST /api/v1/payments`, gửi `hold_id`. Backend tính tổng tiền từ cấu hình số tiền mỗi ghế, rồi tạo payment và booking cho từng ghế.
+5. `POST /api/v1/bookings/` vẫn hỗ trợ đặt một ghế trực tiếp mà không qua thanh toán.
 
 Booking đã hủy không chặn đặt lại ghế. Kiểm tra ghế trùng là truy vấn ở tầng ứng dụng; cơ sở dữ liệu hiện không có constraint hoặc cơ chế khóa để bảo đảm duy nhất khi nhiều request đặt cùng ghế đồng thời.
 
@@ -63,9 +66,12 @@ ADMIN dùng cùng endpoint đăng nhập với USER; tài khoản phải đượ
 | User | `user_id`, `email`, `username`, `password_hash`, `role` | Tài khoản; email duy nhất; mật khẩu lưu dạng hash; role USER hoặc ADMIN. |
 | Movie | `id`, `title`, `description`, `duration_minutes` | Phim trong danh mục. Một phim có thể có nhiều suất chiếu. |
 | Showtime | `id`, `movie_id`, `start_time`, `total_seats` | Một lần chiếu của một phim; tham chiếu Movie. |
-| Booking | `id`, `user_id`, `showtime_id`, `seat_number`, `status`, `created_at` | Một người dùng giữ một ghế trong một suất chiếu; các trạng thái sử dụng là `active` và `cancelled`. |
+| Booking | `id`, `user_id`, `showtime_id`, `seat_number`, `status`, `created_at` | Một booking tương ứng một ghế; tạo từ đặt trực tiếp hoặc thanh toán hold. |
+| SeatHold | `id`, `user_id`, `showtime_id`, `status`, `created_at`, `expires_at` | Nhóm ghế được giữ tạm; các trạng thái gồm `active`, `expired`, `released`, `paid`. |
+| SeatHoldSeat | `id`, `hold_id`, `seat_number`, `booking_id` | Một dòng cho mỗi ghế thuộc hold; sau thanh toán liên kết tới booking tương ứng. |
+| Payment | `id`, `hold_id`, `user_id`, `amount`, `currency`, `status`, `created_at`, `paid_at` | Ghi nhận thanh toán demo; mỗi hold chỉ có một payment. |
 
-Ghế hiện được đánh số bằng chuỗi liên tiếp từ `"1"` đến `str(total_seats)`, không có ký hiệu hàng ghế như A1. Mô hình dữ liệu không định nghĩa giá vé hoặc trạng thái thanh toán.
+Ghế hiện được đánh số bằng chuỗi liên tiếp từ `"1"` đến `str(total_seats)`, không có ký hiệu hàng ghế như A1. Giá demo là một mức cố định cấu hình qua `DEMO_PAYMENT_AMOUNT_VND` cho mỗi ghế; không có định giá theo phim, suất chiếu hoặc loại ghế.
 
 ## 5. Quy ước tích hợp
 
@@ -107,6 +113,8 @@ Tạo/cập nhật phim thành công hiện trả 200. Nếu phim đang được
 | POST | `/` | ADMIN | Tạo suất chiếu cho phim tồn tại. `movie_id` > 0; `total_seats` từ 1 đến 500. Trả 201. |
 | GET | `/{showtime_id}/seats` | Công khai | Sinh các ghế từ 1 đến sức chứa và đánh dấu `is_available`. |
 
+Ghế thuộc hold còn hạn được tính là không khả dụng; hold hết hạn không cần tác vụ nền để ngừng chặn ghế.
+
 Tạo suất chiếu kiểm tra phim tồn tại và định dạng datetime, nhưng chưa xác thực giờ tương lai. Không có endpoint lấy riêng chi tiết một suất chiếu.
 
 ### Booking — `/api/v1/bookings`
@@ -117,20 +125,30 @@ Tạo suất chiếu kiểm tra phim tồn tại và định dạng datetime, nh
 | GET | `/me` | USER/ADMIN đăng nhập | Trả các booking của user hiện tại, gồm cả active và cancelled. |
 | DELETE | `/{booking_id}` | Chủ booking | Chuyển booking active thành cancelled; trả booking đã cập nhật. |
 
-Khi đặt, `seat_number` phải khớp `^[1-9][0-9]*$`; suất chiếu hoặc ghế ngoài sức chứa trả 404; ghế đã có booking active trả 400. Khi hủy, booking không tồn tại trả 404, không thuộc người gọi trả 403, trạng thái không còn active trả 400.
+### Seat hold và thanh toán — `/api/v1/holds`, `/api/v1/payments`
+
+| Method | Endpoint | Quyền | Hành vi |
+|---|---|---|---|
+| POST | `/api/v1/holds` | USER/ADMIN đăng nhập | Tạo hold cho 1–5 ghế trong tối đa 5 phút. |
+| GET | `/api/v1/holds/{hold_id}` | Chủ hold | Xem trạng thái hold; trạng thái quá hạn được trả là `expired`. |
+| DELETE | `/api/v1/holds/{hold_id}` | Chủ hold | Giải phóng hold còn active. |
+| POST | `/api/v1/payments` | USER/ADMIN đăng nhập | Thanh toán demo cho hold; tạo payment và booking theo số ghế. |
+| GET | `/api/v1/payments/me` | USER/ADMIN đăng nhập | Xem các payment của tài khoản hiện tại. |
+
+Khi đặt trực tiếp, `seat_number` phải khớp `^[1-9][0-9]*$`; suất chiếu hoặc ghế ngoài sức chứa trả 404; ghế đã có booking active hoặc hold còn hạn trả 400. Khi hủy, booking không tồn tại trả 404, không thuộc người gọi trả 403, trạng thái không còn active trả 400.
 
 ## 7. Mã HTTP nghiệp vụ thường gặp
 
 | Mã | Ý nghĩa |
 |---|---|
-| 200 | Đọc dữ liệu, đăng ký/đăng nhập, tạo hoặc cập nhật phim, hủy booking. |
-| 201 | Tạo suất chiếu hoặc booking. |
+| 200 | Đọc dữ liệu, đăng ký/đăng nhập, tạo/cập nhật phim, hủy booking hoặc trả lại payment đã tạo. |
+| 201 | Tạo suất chiếu, booking, hold hoặc payment mới. |
 | 204 | Xóa phim thành công, không có response body. |
-| 400 | Xác nhận mật khẩu không khớp; ghế đã được đặt; booking không thể chuyển sang cancelled. |
+| 400 | Xác nhận mật khẩu không khớp; ghế đã đặt/đang hold; booking không thể chuyển sang cancelled. |
 | 401 | Thiếu/sai thông tin đăng nhập, token thiếu ở endpoint được bảo vệ hoặc token không hợp lệ. |
-| 403 | Không đủ quyền ADMIN hoặc người gọi không sở hữu booking. |
+| 403 | Không đủ quyền ADMIN hoặc người gọi không sở hữu booking/hold/payment. |
 | 404 | Không tìm thấy phim/suất chiếu/booking hoặc ghế ngoài sức chứa. |
-| 409 | Email đã được đăng ký. |
+| 409 | Email đã được đăng ký; hold hết hạn hoặc không ở trạng thái cho phép thao tác. |
 | 422 | Request không đáp ứng kiểu dữ liệu/ràng buộc schema. |
 
 ## 8. Kiến trúc xử lý
@@ -139,7 +157,7 @@ Khi đặt, `seat_number` phải khớp `^[1-9][0-9]*$`; suất chiếu hoặc g
 API client
   -> FastAPI router và schema validation
   -> AuthMiddleware / role guard (khi cần)
-  -> Service (quy tắc nghiệp vụ)
+  -> Service (quy tắc nghiệp vụ; không phụ thuộc FastAPI/SQLAlchemy)
   -> Repository (truy vấn bất đồng bộ qua SQLAlchemy)
   -> PostgreSQL
   -> JSON response
@@ -150,7 +168,8 @@ API client
 ## 9. Giới hạn và điểm cần cân nhắc
 
 - Đặt ghế đồng thời chưa được bảo vệ bằng constraint/transaction chống tranh chấp; kết quả xem ghế chỉ mang tính tham khảo tại thời điểm đọc.
-- Chưa có thanh toán, hoàn tiền, hóa đơn, thông báo hoặc cơ chế giữ ghế có thời hạn.
+- Thanh toán hiện là demo tức thời, chưa gọi cổng thanh toán thật và chưa hỗ trợ hoàn tiền/hóa đơn/thông báo.
+- Cơ chế hold và kiểm tra ghế xử lý theo từng request; chưa bảo vệ tranh chấp đồng thời bằng khóa hoặc constraint ở database.
 - Chưa có phân trang/tìm kiếm phim nâng cao, chính sách timezone thống nhất, kiểm tra giờ chiếu tương lai hay ngăn suất chiếu chồng lấn.
 - Xóa phim đang được suất chiếu tham chiếu có thể bị ràng buộc khóa ngoại từ chối.
 - API quản trị hiện hỗ trợ thao tác phim và tạo suất chiếu; các chức năng quản trị khác chưa có.

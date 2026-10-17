@@ -4,6 +4,8 @@ from fastapi.responses import JSONResponse
 from app.api.auth import router as auth_router
 from app.api.booking import router as booking_router
 from app.api.movie import router as movie_router
+from app.api.payment import router as payment_router
+from app.api.seat_hold import router as seat_hold_router
 from app.api.showtime import router as showtime_router
 from app.core.auth_middleware import AuthMiddleware
 from app.core.exceptions import (
@@ -13,10 +15,14 @@ from app.core.exceptions import (
     DuplicateSeatError,
     EmailAlreadyExistsError,
     ForbiddenException,
+    HoldExpiredError,
+    HoldOwnershipError,
+    HoldStateError,
     InvalidCredentialsError,
     InvalidTokenError,
     NotFoundException,
     OwnershipError,
+    PaymentOwnershipError,
     PasswordMismatchError,
     UnauthorizedException,
 )
@@ -39,6 +45,10 @@ EXCEPTION_STATUS_MAP = {
     InvalidTokenError: 401,
     UnauthorizedException: 401,
     OwnershipError: 403,
+    PaymentOwnershipError: 403,
+    HoldOwnershipError: 403,
+    HoldExpiredError: 409,
+    HoldStateError: 409,
     ForbiddenException: 403,
     EmailAlreadyExistsError: 409,
 }
@@ -63,6 +73,8 @@ app.include_router(auth_router)
 app.include_router(movie_router)
 app.include_router(showtime_router)
 app.include_router(booking_router)
+app.include_router(payment_router)
+app.include_router(seat_hold_router)
 
 if __name__ == "__main__":
     import uvicorn

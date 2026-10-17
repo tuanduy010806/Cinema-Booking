@@ -26,6 +26,12 @@ README này hướng dẫn thiết lập, chạy ứng dụng và sử dụng c�
     - [`GET /api/v1/showtimes?movie_id={movie_id}`](#get-apiv1showtimesmovie_idmovie_id)
     - [`POST /api/v1/showtimes`](#post-apiv1showtimes)
     - [`GET /api/v1/showtimes/{showtime_id}/seats`](#get-apiv1showtimesshowtime_idseats)
+  - [Seat holds và payments](#seat-holds-và-payments)
+    - [`POST /api/v1/holds`](#post-apiv1holds)
+    - [`GET /api/v1/holds/{hold_id}`](#get-apiv1holdshold_id)
+    - [`DELETE /api/v1/holds/{hold_id}`](#delete-apiv1holdshold_id)
+    - [`POST /api/v1/payments`](#post-apiv1payments)
+    - [`GET /api/v1/payments/me`](#get-apiv1paymentsme)
   - [Bookings](#bookings)
     - [`POST /api/v1/bookings/`](#post-apiv1bookings)
     - [`GET /api/v1/bookings/me`](#get-apiv1bookingsme)
@@ -41,12 +47,13 @@ README này hướng dẫn thiết lập, chạy ứng dụng và sử dụng c�
 Người dùng có thể đăng ký/đăng nhập, xem phim và lịch chiếu, xem ghế, tạo
 booking, xem booking của mình và hủy booking của mình. ADMIN có thể tạo/sửa/xóa
 phim và tạo lịch chiếu thông qua API.
+Người dùng đã đăng nhập cũng có thể giữ nhóm 1–5 ghế trong 5 phút và thanh toán
+demo để tạo booking cho từng ghế trong nhóm.
 Nhãn ghế là chuỗi số từ `"1"` đến
 `str(total_seats)`. Hủy booking là chuyển trạng thái `active` sang `cancelled`,
 không xóa row; ghế cancelled được mở lại.
 
-Thanh toán, thông báo, sơ đồ ghế nhiều hàng, hết hạn giữ chỗ và bảo vệ
-race-condition ở tầng database chưa được triển khai.
+Payment gateway thật, thông báo, sơ đồ ghế nhiều hàng và bảo vệ race-condition ở tầng database chưa được triển khai. Hệ thống đã có hold ghế 5 phút và thanh toán demo tích hợp tạo booking.
 
 ```text
 HTTP client / Swagger UI
@@ -56,14 +63,22 @@ HTTP client / Swagger UI
           -> PostgreSQL
 ```
 
+`app/domain` chứa các khái niệm nghiệp vụ độc lập với framework và cơ sở dữ liệu
+(ví dụ: vai trò `USER`/`ADMIN`). `app/services` chỉ phối hợp quy tắc nghiệp vụ
+thông qua repository được truyền vào; SQLAlchemy và các ORM model nằm ở tầng
+`app/repositories` và `app/models`. Các router chịu trách nhiệm ghép dependency
+và chuyển đổi request/response HTTP. Service không import framework web hay DB.
+
 JWT được `AuthMiddleware` kiểm tra bằng `decode_access_token`; token sai tạo
 `InvalidTokenError` và middleware trả HTTP 401. Domain exceptions từ service
 được exception handler ở ứng dụng ánh xạ sang status code HTTP. Các bảng chính
-gồm `users`, `movies`, `showtimes`, `bookings`. Khóa ngoại:
+gồm `users`, `movies`, `showtimes`, `bookings`, `seat_holds`, `seat_hold_seats`
+và `payments`. Khóa ngoại:
 `showtimes.movie_id -> movies.id`,
 `bookings.user_id -> users.user_id`, `bookings.showtime_id -> showtimes.id`.
-Availability chỉ tính booking `active`. API `GET /api/v1/auth/me` trả role của tài
-khoản hiện tại; các API ghi tự kiểm tra quyền ADMIN ở backend.
+Availability tính booking `active` và hold chưa hết hạn. API
+`GET /api/v1/auth/me` trả role của tài khoản hiện tại; các API ghi tự kiểm tra
+quyền ADMIN ở backend.
 
 ## 2. Clone, thiết lập và chạy bằng Docker
 
@@ -100,7 +115,9 @@ Mở `.env` và đặt `SECRET_KEY` thành một chuỗi ngẫu nhiên riêng. V
 mặc định trong `.env.example`, PostgreSQL dùng database `cinema_booking`, user
 `cinema`, mật khẩu `123456`; API trong Docker tự kết nối tới service `db`.
 `app/core/config.py` dùng Pydantic Settings để đọc `DATABASE_URL`, `SECRET_KEY`,
-`ALGORITHM` và `ACCESS_TOKEN_EXPIRE_MINUTES` từ biến môi trường hoặc `.env`.
+`ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`, `SQL_ECHO`,
+`DEMO_PAYMENT_AMOUNT_VND` và `SEAT_HOLD_TTL_SECONDS` từ biến môi trường hoặc
+`.env`. Compose chuyển các giá trị cấu hình cần thiết vào container API.
 Nếu thay `POSTGRES_PASSWORD`, cập nhật mật khẩu tương ứng trong `DATABASE_URL`
 để lệnh seed chạy từ máy host kết nối được database. Không commit `.env` lên
 GitHub.
@@ -294,6 +311,9 @@ operator đáng tin cậy có quyền database mới được cấp hoặc thay 
 | `movies` | `id`, `title`, `description`, `duration_minutes` | Title 1–255 ký tự; duration 1–600 phút |
 | `showtimes` | `id`, `movie_id`, `start_time`, `total_seats` | Movie phải tồn tại; sức chứa 1–500 |
 | `bookings` | `id`, `user_id`, `showtime_id`, `seat_number`, `status`, `created_at` | Chủ booking lấy từ JWT; seat thuộc sức chứa; mặc định active |
+| `seat_holds` | `id`, `user_id`, `showtime_id`, `status`, `created_at`, `expires_at` | Hold thuộc user; hết hạn mặc định sau 300 giây |
+| `seat_hold_seats` | `id`, `hold_id`, `seat_number`, `booking_id` | Mỗi hold giữ từ 1 đến 5 ghế; booking được gắn khi thanh toán |
+| `payments` | `id`, `hold_id`, `user_id`, `amount`, `currency`, `status`, `paid_at` | Thanh toán demo; mặc định 100.000 VND/ghế |
 
 Seat label hợp lệ là chuỗi số dương chuẩn như `"1"`, `"2"`; `"0"`, `"01"`,
 `"-1"`, `"A1"` không hợp lệ. Duplicate check hiện là kiểm tra tuần tự ở
@@ -310,14 +330,15 @@ service; không có cam kết chống hai request đồng thời cùng đặt m�
 | Actor | Quyền |
 |---|---|
 | Anonymous | Đăng ký/đăng nhập; đọc Movie, Showtime, availability |
-| USER | Các quyền public và tạo/xem/hủy booking của mình |
+| USER | Các quyền public và tạo/xem/hủy booking, giữ ghế, thanh toán demo của mình |
 | ADMIN | Quyền USER và ghi Movie, tạo Showtime |
 
-Các status code: `200` đọc/cập nhật/đăng ký/đăng nhập và tạo Movie; `201` tạo
-Showtime/Booking; `204` xóa Movie; `400` password confirmation sai, ghế active
-đã được đặt hoặc booking đã hủy; `401` thiếu/sai token hoặc sai credentials;
-`403` sai role/không sở hữu booking; `404` không có tài nguyên hoặc ghế vượt
-sức chứa; `409` email đã tồn tại; `422` dữ liệu không hợp lệ.
+Các status code: `200` đọc/cập nhật/đăng ký/đăng nhập, tạo Movie và thanh toán
+lặp lại hold đã thanh toán; `201` tạo Showtime/Booking/Hold hoặc thanh toán mới;
+`204` xóa Movie; `400` dữ liệu nghiệp vụ không hợp lệ; `401` thiếu/sai token
+hoặc sai credentials; `403` sai role/không sở hữu tài nguyên; `404` không có tài
+nguyên hoặc ghế vượt sức chứa; `409` email đã tồn tại hoặc hold hết hạn/sai
+trạng thái; `422` dữ liệu không hợp lệ.
 
 ## 6. Đặc tả API
 
@@ -408,6 +429,49 @@ ghế unavailable; booking cancelled không giữ ghế. Showtime không tồn t
 ]
 ```
 
+### Seat holds và payments
+
+Các endpoint trong phần này yêu cầu đăng nhập. Một hold giữ nhóm từ 1 đến 5 ghế
+trong `SEAT_HOLD_TTL_SECONDS` (mặc định 300 giây). Nếu có ghế đã đặt hoặc đang
+được hold còn hạn, toàn bộ yêu cầu hold bị từ chối.
+
+#### `POST /api/v1/holds`
+
+Tạo hold cho nhóm ghế thuộc một suất chiếu. Ví dụ body:
+
+```json
+{"showtime_id":1,"seat_numbers":["3","4"]}
+```
+
+#### `GET /api/v1/holds/{hold_id}`
+
+Xem hold của tài khoản hiện tại. Hold đã quá hạn được trả về với trạng thái
+`expired`.
+
+#### `DELETE /api/v1/holds/{hold_id}`
+
+Giải phóng hold đang hoạt động trước khi hết hạn. Hold đã thanh toán không thể
+giải phóng.
+
+#### `POST /api/v1/payments`
+
+Thanh toán demo cho hold còn hoạt động và chưa hết hạn. Body chỉ nhận `hold_id`;
+backend tính tiền theo `DEMO_PAYMENT_AMOUNT_VND` (mặc định 100.000 VND/ghế), tạo
+payment và booking cho mỗi ghế. Các ghi dữ liệu dùng chung một transaction
+database. Gọi lại với hold đã thanh toán trả về kết quả cũ.
+
+```json
+{"hold_id":123456}
+```
+
+#### `GET /api/v1/payments/me`
+
+Liệt kê thanh toán của tài khoản hiện tại.
+
+`GET /api/v1/showtimes/{showtime_id}/seats` tính ghế đang hold còn hạn là không
+khả dụng. Endpoint đặt đơn ghế `POST /api/v1/bookings/` vẫn được hỗ trợ và từ
+chối ghế đang hold.
+
 ### Bookings
 
 #### `POST /api/v1/bookings/`
@@ -459,6 +523,22 @@ curl -X POST http://127.0.0.1:8000/api/v1/bookings/ \
   -d '{"showtime_id":1,"seat_number":"3"}'
 ```
 
+Giữ nhiều ghế rồi thanh toán demo (thay JWT, showtime và ghế bằng dữ liệu hợp lệ):
+
+```sh
+curl -X POST http://127.0.0.1:8000/api/v1/holds \
+  -H "Authorization: Bearer <JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{"showtime_id":1,"seat_numbers":["3","4"]}'
+
+curl -X POST http://127.0.0.1:8000/api/v1/payments \
+  -H "Authorization: Bearer <JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{"hold_id":123456}'
+```
+
+Thay `123456` bằng `id` trong response tạo hold.
+
 ## 8. Test và load test
 
 ### Chạy kiểm thử
@@ -500,7 +580,8 @@ Kịch bản không kiểm tra việc nhiều request đồng thời đặt cùn
   mặc định yếu nếu không đặt `POSTGRES_PASSWORD` trong `.env`.
 - Chưa có Alembic/migration; `scripts/init_db.py` chỉ tạo bảng thiếu, không
   migrate schema đã tồn tại.
-- Chưa có pagination, thanh toán, giữ ghế có thời hạn hoặc endpoint lấy chi tiết
-  riêng `GET /api/v1/showtimes/{showtime_id}`.
+- Chưa có pagination, payment gateway thật hoặc endpoint lấy chi tiết riêng
+  GET /api/v1/showtimes/{showtime_id}. Payment demo và hold ghế được
+  mô tả trong [PAYMENT_API.md](PAYMENT_API.md).
 - ADMIN được cấp role ngoài luồng đăng ký công khai; đăng ký mới chỉ tạo USER.
 - Swagger/OpenAPI được FastAPI cung cấp ở `/docs` và `/openapi.json`.

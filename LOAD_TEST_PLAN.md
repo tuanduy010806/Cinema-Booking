@@ -4,6 +4,10 @@
 
 Kịch bản Locust nằm trong `load_test/load_test.py`. Mỗi virtual user dùng JWT được cấu hình, đặt một ghế riêng còn trống và đọc danh sách booking của tài khoản. Kịch bản này tạo tải cho luồng booking, không xác minh khả năng xử lý cạnh tranh trên cùng một ghế.
 
+Kịch bản hiện chỉ kiểm tra luồng đặt booking trực tiếp; không tạo seat hold hoặc
+payment demo. Không dùng kịch bản này để kết luận về xử lý đồng thời của luồng
+hold/thanh toán.
+
 ## Điều kiện chạy
 
 - API phải truy cập được từ máy hoặc notebook chạy Locust.

@@ -76,6 +76,37 @@ class OwnershipError(ForbiddenException):
         )
 
 
+class PaymentOwnershipError(ForbiddenException):
+    """The payment reference is already associated with another user."""
+
+    def __init__(self) -> None:
+        super().__init__("This payment reference belongs to another user.")
+
+
+class HoldOwnershipError(ForbiddenException):
+    """The hold belongs to a different user."""
+
+    def __init__(self) -> None:
+        super().__init__("This seat hold belongs to another user.")
+
+
+class HoldStateError(CinemaException):
+    """The requested operation is invalid for the hold's current state."""
+
+    def __init__(self, hold_id: int, state: str) -> None:
+        self.hold_id = hold_id
+        self.state = state
+        super().__init__(f"Hold {hold_id} cannot be used while in state '{state}'.")
+
+
+class HoldExpiredError(CinemaException):
+    """The seat hold expired before payment or release could complete."""
+
+    def __init__(self, hold_id: int) -> None:
+        self.hold_id = hold_id
+        super().__init__(f"Hold {hold_id} has expired.")
+
+
 # ---------------------------------------------------------------------------
 # Booking-specific exceptions
 # ---------------------------------------------------------------------------

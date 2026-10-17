@@ -6,6 +6,11 @@ are numeric strings from `"1"` through `str(total_seats)`. Duplicate-seat
 checks run in the service before insertion; concurrent requests
 are not guaranteed to be serialized.
 
+The direct booking endpoint still creates one seat per request. For the
+multi-seat flow, users can create a 1–5 seat hold and pay for it through the
+endpoints documented in [PAYMENT_API.md](PAYMENT_API.md). A successful payment
+creates one booking per held seat.
+
 ---
 
 ## Table of Contents
@@ -146,7 +151,7 @@ Returns `True` if an **active** booking already exists for `(showtime_id, seat_n
 ## 4. Service Methods
 
 **Class:** `app.services.booking_service.BookingService`
-**Constructor:** `BookingService(booking_repo, showtime_repo)`
+**Constructor:** `BookingService(booking_repo, showtime_repo, hold_repo=None)`
 
 The service contains the booking business rules and delegates persistence to
 repositories. It uses `ShowtimeRepository.get_by_id()` to validate that the
@@ -155,7 +160,7 @@ capacity.
 
 ---
 
-### `create_booking(user_id: int, payload: BookingCreate) -> Booking`
+### `create_booking(user_id: int, payload: BookingCreate)`
 
 Before writing, the service uses `ShowtimeRepository` to confirm the
 showtime exists and that the numeric value in `seat_number` is within `1..total_seats` (for example, `"12"` is valid when capacity is at least 12).
@@ -167,7 +172,10 @@ showtime exists and that the numeric value in `seat_number` is within `1..total_
         │
         ├─ True  → raise DuplicateSeatError  (fast path, no INSERT wasted)
         │
-        └─ False → repo.create(booking_data, user_id)
+        └─ False → hold_repo.get_active_seat_numbers(...) if configured
+                        │
+                        ├─ seat held → raise DuplicateSeatError
+                        └─ otherwise → repo.create(booking_data, user_id)
                         │
                         └─ success → return Booking
 ```
@@ -383,8 +391,9 @@ The API layer maps them to JSON HTTP responses with the configured status code.
 
 ### Duplicate-Seat Rule
 
-The service checks for an existing active booking before inserting. The check
-and insert are not protected by a database constraint or transaction lock, so
+The service checks for an existing active booking and (when a hold repository is
+provided) an active, unexpired hold before inserting. The check and insert are
+not protected by a database constraint or transaction lock, so
 two concurrent requests may both pass the check and create a booking for the
 same seat. The legacy tests in `tests/test_booking_constraints.py` are skipped
 because database-level race protection is not implemented.

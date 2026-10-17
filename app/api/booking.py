@@ -30,6 +30,7 @@ from app.api.dependencies import get_current_user
 from app.db.database import get_db
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.showtime_repository import ShowtimeRepository
+from app.repositories.seat_hold_repository import SeatHoldRepository
 from app.schemas.booking import BookingCreate, BookingResponse
 from app.services.booking_service import BookingService
 
@@ -48,7 +49,7 @@ async def get_booking_service(db: AsyncSession = Depends(get_db)) -> BookingServ
     """Wire the Booking and Showtime repositories into the service."""
     booking_repo = BookingRepository(db)
     showtime_repo = ShowtimeRepository(db)
-    return BookingService(booking_repo, showtime_repo)
+    return BookingService(booking_repo, showtime_repo, SeatHoldRepository(db))
 
 
 # ---------------------------------------------------------------------------

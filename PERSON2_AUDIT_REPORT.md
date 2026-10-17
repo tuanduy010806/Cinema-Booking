@@ -18,6 +18,10 @@
 
 ## Tình trạng ghế
 
-`GET /api/v1/showtimes/{showtime_id}/seats` trả danh sách ghế dạng chuỗi số từ `"1"` đến sức chứa. Ghế có booking `active` trả `is_available: false`; ghế không có booking active, kể cả ghế chỉ có booking đã hủy, trả `true`. Suất chiếu không tồn tại trả 404.
+`GET /api/v1/showtimes/{showtime_id}/seats` trả danh sách ghế dạng chuỗi số từ `"1"` đến sức chứa. Ghế có booking `active` hoặc thuộc hold còn hạn trả `is_available: false`; ghế không có booking active/hold còn hạn, kể cả ghế chỉ có booking đã hủy, trả `true`. Suất chiếu không tồn tại trả 404.
+
+Người dùng đã đăng nhập có thể giữ từ 1 đến 5 ghế trong 5 phút mặc định bằng
+`POST /api/v1/holds`. Hold hết hạn tự ngừng chiếm ghế khi kiểm tra availability,
+không cần worker nền.
 
 Tài khoản ADMIN và dữ liệu mẫu được cấu hình/nạp theo hướng dẫn trong [README.md](README.md). Nguồn phim mẫu là `data/movie.json`; seeder là `seed.py`.

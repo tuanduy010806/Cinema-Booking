@@ -4,7 +4,7 @@ from app.core.exceptions import (
     PasswordMismatchError,
 )
 from app.core.security import create_access_token, hash_password, verify_password
-from app.models.user import Role
+from app.domain.roles import Role
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 
 

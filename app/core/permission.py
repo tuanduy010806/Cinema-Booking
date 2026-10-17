@@ -1,6 +1,7 @@
 from fastapi import HTTPException, Request, status
 
-from app.models.user import Role, User
+from app.domain.roles import Role
+from app.models.user import User
 
 
 class RoleChecker:

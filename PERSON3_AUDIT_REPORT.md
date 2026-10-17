@@ -7,9 +7,14 @@
 - `DELETE /api/v1/bookings/{booking_id}` chỉ cho chủ booking hủy booking đang active. Hệ thống đổi trạng thái thành `cancelled`, giữ nguyên bản ghi; booking đã hủy không chiếm ghế.
 - Booking lưu `id`, `user_id`, `showtime_id`, `seat_number`, `status`, `created_at`.
 
+Ngoài luồng đặt đơn ghế, người dùng đã đăng nhập có thể hold 1–5 ghế trong 5
+phút rồi gọi `POST /api/v1/payments` với `hold_id`. Thanh toán demo tạo một
+payment và một booking cho mỗi ghế; `GET /api/v1/payments/me` trả lịch sử của
+tài khoản. Chi tiết request/response nằm trong [PAYMENT_API.md](PAYMENT_API.md).
+
 ## Quy tắc đặt ghế
 
-Trước khi tạo booking, service kiểm tra suất chiếu tồn tại, nhãn ghế khớp `^[1-9][0-9]*$`, nằm trong sức chứa và chưa có booking active trên cùng ghế. Ghế bị trùng trả 400; suất chiếu hoặc ghế không tồn tại trả 404. Kiểm tra trùng chạy ở tầng ứng dụng, không có constraint/khóa database bảo vệ hai request đồng thời cùng đặt ghế.
+Trước khi tạo booking, service kiểm tra suất chiếu tồn tại, nhãn ghế khớp `^[1-9][0-9]*$`, nằm trong sức chứa và chưa có booking active hoặc hold còn hạn trên cùng ghế. Ghế bị trùng trả 400; suất chiếu hoặc ghế không tồn tại trả 404. Kiểm tra trùng chạy ở tầng ứng dụng, không có constraint/khóa database bảo vệ hai request đồng thời cùng đặt ghế.
 
 Khi hủy booking, hệ thống trả 404 nếu không tìm thấy, 403 nếu không phải chủ booking và 400 nếu booking không còn active.
 

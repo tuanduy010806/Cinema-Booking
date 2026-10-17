@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permission import RoleChecker
 from app.db.database import get_db
-from app.models.user import Role
+from app.domain.roles import Role
 from app.repositories.movie_repository import MovieRepository
 from app.schemas.movie import MovieCreate, MovieResponse, MovieUpdate
 from app.services.movie_service import MovieService
