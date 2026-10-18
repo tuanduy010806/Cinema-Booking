@@ -1,13 +1,4 @@
-"""
-BookingRepository — async data-access layer.
-
-Audit changes applied (PROMPT 11):
-- Converted from synchronous Session to AsyncSession (Audit items #7, #8).
-- Replaced session.query() ORM-style with select() / scalars() compatible
-  with SQLAlchemy async engine.
-- All methods are now async def; callers must await them.
-- Business logic (ownership, state transitions) remains in BookingService.
-"""
+"""Async data access for bookings."""
 
 from __future__ import annotations
 
@@ -37,7 +28,7 @@ class BookingRepository:
         safe_data = {k: v for k, v in booking_data.items() if k != "user_id"}
         booking = Booking(**safe_data, user_id=user_id)
         self.db.add(booking)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(booking)
         return booking
 
@@ -52,7 +43,7 @@ class BookingRepository:
             return None
 
         booking.status = status
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(booking)
         return booking
 

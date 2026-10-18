@@ -113,13 +113,7 @@ class HoldExpiredError(CinemaException):
 
 
 class DuplicateSeatError(CinemaException):
-    """
-    A booking for the same (showtime_id, seat_number) pair already exists
-    with status 'active'.
-
-    Raised by the Repository when a DB-level unique-constraint violation is
-    detected, *and* by the Service on the pre-check (optimistic path).
-    """
+    """Raised when an active booking or hold already exists for the seat."""
 
     def __init__(self, showtime_id: int, seat_number: str) -> None:
         self.showtime_id = showtime_id

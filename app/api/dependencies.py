@@ -1,4 +1,10 @@
 from fastapi import HTTPException, Request, status
+from pydantic import BaseModel
+
+
+class UserIdentity(BaseModel):
+    id: int
+    role: str
 
 
 def _authenticated_user(request: Request):
@@ -12,10 +18,10 @@ def _authenticated_user(request: Request):
     return user
 
 
-def get_current_user(request: Request) -> dict:
+def get_current_user(request: Request) -> UserIdentity:
     """Return the authenticated identity in the shape expected by bookings."""
     user = _authenticated_user(request)
-    return {"id": user.user_id, "role": user.role}
+    return UserIdentity(id=user.user_id, role=user.role)
 
 
 def get_current_user_account(request: Request) -> dict:

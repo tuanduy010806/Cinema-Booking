@@ -5,14 +5,16 @@ from app.core.exceptions import (
 )
 from app.core.security import create_access_token, hash_password, verify_password
 from app.domain.roles import Role
+from app.domain.unit_of_work import UnitOfWork
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 
 
 class AuthService:
     """Business logic for authentication."""
 
-    def __init__(self, user_repository):
+    def __init__(self, user_repository, unit_of_work: UnitOfWork):
         self.user_repository = user_repository
+        self.unit_of_work = unit_of_work
 
     async def register(self, payload: RegisterRequest) -> TokenResponse:
         if payload.password != payload.repassword:
@@ -21,14 +23,19 @@ class AuthService:
         if await self.user_repository.get_by_email(payload.email) is not None:
             raise EmailAlreadyExistsError("Email is already registered")
 
-        user = await self.user_repository.create(
-            {
-                "email": payload.email,
-                "username": payload.email.partition("@")[0],
-                "password_hash": hash_password(payload.password),
-                "role": Role.USER.value,
-            }
-        )
+        try:
+            user = await self.user_repository.create(
+                {
+                    "email": payload.email,
+                    "username": payload.email.partition("@")[0],
+                    "password_hash": hash_password(payload.password),
+                    "role": Role.USER.value,
+                }
+            )
+            await self.unit_of_work.commit()
+        except Exception:
+            await self.unit_of_work.rollback()
+            raise
         access_token = create_access_token({"sub": str(user.user_id)})
         return TokenResponse(access_token=access_token)
 
