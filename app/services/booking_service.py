@@ -19,7 +19,8 @@ class BookingService:
     """Business logic for bookings."""
 
     def __init__(
-        self, repo, showtime_repo, hold_repo, unit_of_work: UnitOfWork
+        self, repo, showtime_repo, hold_repo=None,
+        unit_of_work: UnitOfWork | None = None,
     ) -> None:
         """
         Parameters
@@ -100,10 +101,12 @@ class BookingService:
         booking_data = payload.model_dump()
         try:
             booking = await self.repo.create(booking_data, user_id=user_id)
-            await self.unit_of_work.commit()
+            if self.unit_of_work is not None:
+                await self.unit_of_work.commit()
             return booking
         except Exception:
-            await self.unit_of_work.rollback()
+            if self.unit_of_work is not None:
+                await self.unit_of_work.rollback()
             raise
 
     async def get_my_bookings(self, user_id: int):
@@ -170,8 +173,10 @@ class BookingService:
         # --- Step 4: persist cancellation (no hard-delete) ---
         try:
             updated = await self.repo.update_status(booking_id, "cancelled")
-            await self.unit_of_work.commit()
+            if self.unit_of_work is not None:
+                await self.unit_of_work.commit()
             return updated
         except Exception:
-            await self.unit_of_work.rollback()
+            if self.unit_of_work is not None:
+                await self.unit_of_work.rollback()
             raise

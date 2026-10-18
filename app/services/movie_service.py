@@ -7,7 +7,9 @@ from app.models.movie import Movie
 class MovieService:
     """Business logic for movies."""
 
-    def __init__(self, movie_repository, unit_of_work: UnitOfWork):
+    def __init__(
+        self, movie_repository, unit_of_work: UnitOfWork | None = None
+    ):
         self.movie_repository = movie_repository
         self.unit_of_work = unit_of_work
 
@@ -23,10 +25,12 @@ class MovieService:
     async def create_movie(self, payload: MovieCreate) -> Movie:
         try:
             movie = await self.movie_repository.create(payload.model_dump())
-            await self.unit_of_work.commit()
+            if self.unit_of_work is not None:
+                await self.unit_of_work.commit()
             return movie
         except Exception:
-            await self.unit_of_work.rollback()
+            if self.unit_of_work is not None:
+                await self.unit_of_work.rollback()
             raise
 
     async def update_movie(self, movie_id: int, payload: MovieUpdate):
@@ -36,17 +40,21 @@ class MovieService:
             return await self.get_movie(movie_id)
         try:
             movie = await self.movie_repository.update(movie_id, updates)
-            await self.unit_of_work.commit()
+            if self.unit_of_work is not None:
+                await self.unit_of_work.commit()
             return movie
         except Exception:
-            await self.unit_of_work.rollback()
+            if self.unit_of_work is not None:
+                await self.unit_of_work.rollback()
             raise
 
     async def delete_movie(self, movie_id: int):
         await self.get_movie(movie_id)
         try:
             await self.movie_repository.delete(movie_id)
-            await self.unit_of_work.commit()
+            if self.unit_of_work is not None:
+                await self.unit_of_work.commit()
         except Exception:
-            await self.unit_of_work.rollback()
+            if self.unit_of_work is not None:
+                await self.unit_of_work.rollback()
             raise

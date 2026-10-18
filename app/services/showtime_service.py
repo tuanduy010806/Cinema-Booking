@@ -11,7 +11,7 @@ class ShowtimeService:
 
     def __init__(
         self, showtime_repository, movie_repository, booking_repository,
-        hold_repository, unit_of_work: UnitOfWork,
+        hold_repository=None, unit_of_work: UnitOfWork | None = None,
     ):
         self.showtime_repository = showtime_repository
         self.movie_repository = movie_repository
@@ -28,10 +28,12 @@ class ShowtimeService:
             raise NotFoundException("Movie not found")
         try:
             showtime = await self.showtime_repository.create(payload.model_dump())
-            await self.unit_of_work.commit()
+            if self.unit_of_work is not None:
+                await self.unit_of_work.commit()
             return showtime
         except Exception:
-            await self.unit_of_work.rollback()
+            if self.unit_of_work is not None:
+                await self.unit_of_work.rollback()
             raise
 
     async def get_seats(self, showtime_id: int):

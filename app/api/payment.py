@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import UserIdentity, get_current_user
 from app.db.database import get_db
 from app.repositories.payment_repository import PaymentRepository
 from app.repositories.booking_repository import BookingRepository
@@ -31,11 +31,11 @@ def get_payment_service(db: AsyncSession = Depends(get_db)) -> PaymentService:
 async def create_payment(
     payload: PaymentCreate,
     response: Response,
-    current_user: dict = Depends(get_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: PaymentService = Depends(get_payment_service),
 ) -> PaymentResultResponse:
     result, created = await service.pay_for_hold(
-        user_id=current_user["id"], hold_id=payload.hold_id
+        user_id=current_user.id, hold_id=payload.hold_id
     )
     if not created:
         response.status_code = status.HTTP_200_OK
@@ -44,7 +44,7 @@ async def create_payment(
 
 @router.get("/me", response_model=list[PaymentResponse])
 async def get_my_payments(
-    current_user: dict = Depends(get_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: PaymentService = Depends(get_payment_service),
 ) -> list[PaymentResponse]:
-    return await service.get_my_payments(current_user["id"])
+    return await service.get_my_payments(current_user.id)

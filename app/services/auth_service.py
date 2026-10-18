@@ -12,7 +12,9 @@ from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 class AuthService:
     """Business logic for authentication."""
 
-    def __init__(self, user_repository, unit_of_work: UnitOfWork):
+    def __init__(
+        self, user_repository, unit_of_work: UnitOfWork | None = None
+    ):
         self.user_repository = user_repository
         self.unit_of_work = unit_of_work
 
@@ -32,9 +34,11 @@ class AuthService:
                     "role": Role.USER.value,
                 }
             )
-            await self.unit_of_work.commit()
+            if self.unit_of_work is not None:
+                await self.unit_of_work.commit()
         except Exception:
-            await self.unit_of_work.rollback()
+            if self.unit_of_work is not None:
+                await self.unit_of_work.rollback()
             raise
         access_token = create_access_token({"sub": str(user.user_id)})
         return TokenResponse(access_token=access_token)
