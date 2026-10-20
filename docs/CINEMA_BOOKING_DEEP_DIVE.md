@@ -1,4 +1,4 @@
-# Cinema Booking: hướng dẫn đọc code và bảo vệ đồ án
+﻿# Cinema Booking: hướng dẫn đọc code và bảo vệ đồ án
 
 > Tài liệu được lập bằng cách đọc source hiện có trong repository. **IMPLEMENTED** là hành vi có trong code; **TESTED** chỉ dùng khi test tương ứng thực sự đã chạy và xác nhận; **INFERRED** là suy luận tĩnh; **MISSING/RISK** nêu điều chưa có hoặc nguy cơ. Source và OpenAPI runtime mới là chuẩn nếu tài liệu này lệch code.
 
@@ -9,6 +9,14 @@
 Các đường dẫn/dòng dạng `path/to/module.py:10-20` là vị trí trong source hiện tại tại thời điểm soạn tài liệu. Mở file trực tiếp và đối chiếu trước khi dùng làm trích dẫn khi vấn đáp.
 
 ## Chương 1 — Bản đồ hệ thống
+
+### Cách đọc sơ đồ theo code hiện tại
+
+Ứng dụng là REST API FastAPI, không phải website có giao diện đặt vé hoàn chỉnh. Client gửi JSON qua HTTP; `app/main.py` khởi tạo app, middleware xử lý bearer token, rồi router nhận request và ghép schema/dependency. Service thực thi quy tắc nghiệp vụ; repository truy vấn ORM; `AsyncSession` kết nối PostgreSQL. `UnitOfWork` hiện chỉ bọc `commit` và `rollback`, không phải lớp điều phối repository độc lập.
+
+Luồng không hoàn toàn “clean architecture”: service còn phụ thuộc ORM model và schema Pydantic; router còn chịu trách nhiệm dựng dependency. Sáu router được include là auth, movie, showtime, booking, payment và seat hold. Không có router/adapter cho cổng thanh toán thật, chọn ghế theo sơ đồ phòng, gửi email hay worker nền hết hạn hold.
+
+Request không có bearer có thể đến endpoint public. Nếu client gửi bearer sai hoặc hết hạn, middleware chặn request trước route, kể cả route public. Endpoint cần đăng nhập yêu cầu identity; quyền ADMIN và quyền sở hữu được kiểm tra riêng ở tầng route/service.
 
 ### Bài toán và vai trò
 
@@ -160,7 +168,17 @@ Không thấy migration tool trong inventory file; `scripts/init_db.py:16-33` g�
 | Password hashing | Hash một chiều chậm dùng để lưu/verify; code không lưu password thuần trong model. |
 | Fixture/mock | Fixture chuẩn bị môi trường/dữ liệu; mock/fake thay dependency để unit test không cần DB thật. |
 
+### Ba phân biệt dễ nhầm khi trình bày
+
+- **Validate khác quy tắc nghiệp vụ:** Pydantic có thể từ chối seat label sai định dạng với 422; ghế có đang bị booking/hold chiếm hay không do service truy vấn dữ liệu.
+- **Flush khác commit:** `flush()` gửi SQL trong transaction và thường cấp ID, nhưng dữ liệu chưa được chốt. Commit thành công mới kết thúc transaction; rollback không thể đảo ngược commit đã hoàn tất.
+- **Async khác chạy song song:** `async/await` giúp event loop xử lý việc khác khi chờ I/O. Nó không tự serialize hai yêu cầu đặt cùng ghế và không bảo đảm invariant dữ liệu.
+
+Response schema cũng không phải bản sao của ORM model: endpoint khai báo `response_model` để định hình payload công khai. Không nên suy luận mọi cột DB đều được trả cho client.
+
 ## Chương 4 — Tính năng và trạng thái bằng chứng
+
+Các nhãn ở chương này nói về mức bằng chứng: **IMPLEMENTED** nghĩa là có đường code tương ứng; **TEST SOURCE EXISTS** nghĩa là repository có test source; chỉ **TESTED** mới có nghĩa test đã chạy thành công trong môi trường cụ thể. Trong lượt rà soát này chưa có test nào được xác nhận TESTED. Tên file test hoặc assertion trong file không chứng minh runtime hiện tại đã hoạt động.
 
 | Tính năng | Code | Test trong repo | Giới hạn |
 |---|---|---|---|
@@ -293,6 +311,12 @@ ERD phản ánh FK/unique khai báo trong ORM, không phải toàn bộ quy tắ
 
 Giá trị status là string, không phải database enum/check constraint. Quy tắc chuyển trạng thái hiện ở service, không được DB cưỡng chế đầy đủ.
 
+### Khóa và ranh giới toàn vẹn
+
+`users.email` là unique; showtime tham chiếu movie; booking tham chiếu user/showtime; hold tham chiếu user/showtime; mỗi hold seat tham chiếu hold và `booking_id` nullable có unique constraint; payment tham chiếu user và có `hold_id` unique nhưng không có FK tới hold. Các khóa này bảo vệ một số quan hệ, nhưng không bảo đảm một ghế trong một suất chỉ có một booking/hold khi có request đồng thời.
+
+`total_seats` chỉ cho phép biểu diễn ghế bằng số `1..N`, chưa có thực thể phòng/ghế hoặc hàng-cột. Availability là kết quả tổng hợp từ booking active và hold active chưa hết hạn, không phải bảng inventory riêng. Hold hết hạn có thể được tính khi đọc; chỉ một số nhánh như payment/release mới ghi trạng thái expired vào DB.
+
 ## Chương 7 — Catalog API đã đăng ký
 
 Tất cả endpoint bên dưới có prefix thật từ router; sáu router include tại `app/main.py:72-77`. Public nghĩa là không cần JWT khi không gửi Authorization; middleware vẫn từ chối token sai nếu client tự gửi token.
@@ -321,7 +345,20 @@ Tất cả endpoint bên dưới có prefix thật từ router; sáu router incl
 
 Response/schema: auth `app/schemas/auth.py`; movie `movie.py`; showtime `showtime.py`; booking `booking.py`; hold `seat_hold.py`; payment `payment.py`. HTTP payload validation errors are FastAPI/Pydantic concerns; domain exceptions mapped centrally. Do not infer endpoints absent from these routers.
 
+### Hợp đồng theo nhóm chức năng
+
+- **Auth:** register nhận thông tin tài khoản và trả token; login trả access token; `/auth/me` yêu cầu JWT. Không có API refresh token trong catalog.
+- **Catalog:** movie list/detail và showtime list/seats là public read. Movie write dành cho ADMIN; showtime create dành cho ADMIN. Movie list sắp theo ID giảm dần; showtime list theo start time tăng dần, có filter `movie_id`.
+- **Booking:** tạo một booking cho một seat label bằng số; `/bookings/me` liệt kê booking của identity hiện tại; DELETE là hủy mềm qua status, không xóa row.
+- **Hold/payment:** hold hỗ trợ nhóm 1–5 ghế theo schema; get/release yêu cầu chủ hold. Payment tạo payment demo cho hold, có retry response 200 khi hold đã paid và payment hiện hữu.
+
+Các thành công trong bảng là status code khai báo ở route; lỗi có thể kết thúc bằng 401/403/404/409/422 hoặc 500 tùy exception và mapping. Không coi mã status thành công là bằng chứng rằng request đã chạy trong DB thật.
+
 ## Chương 8 — Authentication và authorization
+
+Đăng ký kiểm tra confirmation, tra email trùng, băm mật khẩu, tạo user role `USER`, flush/refresh rồi commit; access token chỉ được tạo sau commit. Login dùng thông báo lỗi chung cho email không tồn tại và mật khẩu sai. Không thấy policy độ mạnh mật khẩu, refresh token, logout/revocation store hoặc giới hạn tốc độ trong luồng auth đã rà.
+
+JWT chứa `sub` là ID user dạng chuỗi và thời điểm hết hạn; chữ ký HS256 được kiểm tra khi decode. Middleware không tin role trong token: nó tìm user hiện tại theo ID, nên đổi role hoặc xóa user có thể ảnh hưởng request kế tiếp dù token chưa hết hạn. Middleware tạo session riêng trước khi dependency mở session cho route; User trong request state có thể detached sau khi session middleware đóng, hiện dependencies chỉ đọc scalar fields.
 
 ### JWT flow
 
@@ -344,6 +381,10 @@ RoleChecker protects ADMIN movie writes and showtime create. Booking routes requ
 
 ## Chương 9 — Async, session, transaction
 
+Engine async lấy cấu hình từ environment; session maker đặt `expire_on_commit=False`, `autoflush=False`, `autocommit=False`, pool `pool_size=10` và `max_overflow=20`. Dependency `get_db` yield session, rollback nếu lỗi thoát qua dependency, rồi đóng session. Service thường gọi repository `flush`, sau đó UoW commit; luồng thanh toán ghi payment, bookings, liên kết hold seats và đổi trạng thái hold trong cùng transaction.
+
+Transaction bảo vệ tính nguyên tử trong một session/DB transaction; nó không thay cho khóa hoặc constraint chống hai transaction cạnh tranh. Các bước “đọc ghế trống rồi ghi booking/hold” có khoảng thời gian cạnh tranh. Fixture tích hợp dùng adapter sync và override dependency, do đó không mặc định test đi qua cùng middleware/session lifecycle như ứng dụng chạy thật.
+
 `create_async_engine` binds asyncpg URL from settings; pool configured at 10 connections + 20 overflow. `async_sessionmaker` uses `expire_on_commit=False`, `autoflush=False`; `get_db` yields a session and rolls back if an exception escapes, then closes (`app/db/database.py:10-37`).
 
 Repositories call `flush`, often `refresh`, and generally do not commit (`booking_repository.py:21-33`; `movie_repository.py:22-53`). This lets services compose multiple writes before commit. `SqlAlchemyUnitOfWork` holds the same session object and delegates commit/rollback (`app/repositories/unit_of_work.py:4-14`). Payment uses one session to create payment, bookings, attach booking IDs, update hold then commit once (`app/services/payment_service.py:62-83`).
@@ -361,6 +402,10 @@ Design benefit: transaction ownership is more explicit than committing in every 
 
 ## Chương 10 — Configuration and local operations
 
+Ứng dụng đọc cấu hình từ environment qua `app/core/config.py`; biến quan trọng gồm URL database, JWT secret/algorithm/TTL, TTL hold và giá demo mỗi ghế. `.env.example` là mẫu, không ghi secret thật vào tài liệu. `main.py` chạy Uvicorn ở `127.0.0.1:8000` với reload mặc định khi gọi trực tiếp. Docker khởi tạo DB bằng `scripts/init_db.py` rồi chạy Uvicorn; `metadata.create_all` không thay thế migration có version. Seed dữ liệu là bước riêng.
+
+Compose wiring mô tả app và PostgreSQL nhưng tài liệu này không xác nhận container đã chạy. Tên environment giữa local, test và container phải được đối chiếu trước khi chạy integration test; chỉ dùng DB test/local có thể tạo bảng hoặc thay đổi dữ liệu.
+
 | Setting | Required/default | Meaning |
 |---|---|---|
 | `DATABASE_URL` | required | SQLAlchemy async DB URL; Compose uses hostname `db`, host Python uses localhost by sample. |
@@ -376,6 +421,20 @@ Design benefit: transaction ownership is more explicit than committing in every 
 `load_test/` provides a separate Locust workload. Its plan says unique seat ranges and valid JWT/showtime are prerequisites; that workload creates direct bookings and lists bookings, not a test of same-seat contention or hold/payment.
 
 ## Chương 11 — Findings, limitations, and improvements to defend honestly
+
+### Bằng chứng, tác động và hướng xử lý
+
+| Mức | Quan sát trong code | Tác động có thể xảy ra | Hướng xử lý phù hợp |
+|---|---|---|---|
+| Cao | Booking/hold kiểm tra availability rồi mới insert; không thấy constraint thống nhất cho seat reservation | Hai request cạnh tranh có thể cùng chiếm ghế | Thiết kế invariant ở DB, xử lý conflict thành lỗi nghiệp vụ, kiểm thử đa connection |
+| Cao | Payment kiểm tra hold rồi ghi nhiều bảng; không có row lock/CAS | Payment/release hoặc hai payment có thể cạnh tranh | Claim trạng thái nguyên tử/row lock, idempotency key, kiểm thử cạnh tranh |
+| Trung bình | Registration precheck email rồi insert; unique DB là chốt cuối | Race có thể tạo IntegrityError thay vì response 409 dự kiến | Bắt unique constraint và ánh xạ ổn định |
+| Trung bình | Schema tạo bằng `create_all`; không thấy migration có version trong luồng triển khai đã rà | Khó tiến hóa schema có kiểm soát giữa môi trường | Dùng migration và quy trình upgrade/rollback |
+| Trung bình | Datetime showtime không thể hiện chính sách timezone rõ trong model/schema | Diễn giải giờ chiếu lệch giữa client/server | Chuẩn hóa UTC, lưu timezone-aware, kiểm thử offset/boundary |
+| Trung bình | Test fixture tạo schema trước khi import toàn bộ model hold/payment | Test integration có thể thiếu bảng mới hoặc không phủ đúng luồng | Import model registry đầy đủ trước create_all và thêm test hold/payment |
+| Thấp | Payment luôn mô phỏng `succeeded` | Không có xác nhận/đối soát từ nhà cung cấp | Khi cần, thêm gateway adapter, webhook, idempotency và reconciliation |
+
+Mức độ trên là đánh giá tĩnh về khả năng tác động, không phải sự cố quan sát ở production. Hướng xử lý là đề xuất, không mô tả behavior hiện hành.
 
 Severity here is relative to the current demo scope, not a penetration-test result. Every finding is based on static code inspection.
 
@@ -418,6 +477,8 @@ Some services import ORM models/Pydantic schemas; this makes “domain independe
 Movie list/showtime list have no pagination. No cinema/room entity or visual row-column seat map exists; seats are numeric labels generated from capacity. Payment amount is fixed per seat. These are scope limits, not necessarily defects for a class project.
 
 ## Chương 12 — Đọc code theo đoạn quan trọng
+
+Khi bảo vệ, trình bày theo thứ tự **HTTP contract → dependency/auth → service decision → repository query/write → transaction → response/error mapping**. Cách này phân biệt 422 do schema, 401/403 do auth/authorization, lỗi nghiệp vụ do service và constraint DB. Với mỗi nhận định, mở symbol/file cụ thể; sơ đồ không thay cho bằng chứng source.
 
 ### 12.1 Endpoint khai báo dependency và schema
 
@@ -462,11 +523,13 @@ Decorator gắn method/path/response/status vào FastAPI. `payload` được par
 
 ### Coverage có thể xác định từ inventory
 
+Khi đọc test, cần ghi nhận **đối tượng được kiểm tra**, **dependency được thay thế**, **database/schema được dùng**, và **lệnh đã chạy**. Unit test với fake xác minh logic service trong phạm vi fixture; nó không tự chứng minh SQL, middleware thật, FK hay hành vi đồng thời của PostgreSQL. Integration test có source nhưng setup model registry chưa đầy đủ cho hold/payment, nên không suy ra các luồng đó đã được tích hợp kiểm chứng.
+
 - Auth: registration, password mismatch, duplicate email, login, token invalid, RoleChecker (`tests/unit/test_auth.py`); HTTP auth/permissions (`tests/test_auth.py`).
 - Booking: input validation/capacity/duplicate, owner, cancel/state, list isolation (`tests/unit/test_booking.py`, `tests/test_booking.py`).
 - Movie/showtime: unit + HTTP tests, gồm role/write/validation paths.
 - Booking constraints: file legacy skipped; không chứng minh hiện model constraint có hiệu lực.
-- Hold/payment: không ditemukan file test chuyên biệt trong `tests` inventory đã đọc; coi là khoảng trống cần xác minh, không kết luận không có coverage ở nơi ngoài inventory.
+- Hold/payment: không tìm thấy file test chuyên biệt trong `tests` inventory đã đọc; coi là khoảng trống cần xác minh, không kết luận không có coverage ở nơi ngoài inventory.
 
 **Kết quả chạy:** đã thử `.\.venv\Scripts\python.exe -m pytest tests/unit`, nhưng launcher không tìm thấy Python 3.12 theo đường dẫn đã lưu trong virtual environment. `python -m pytest tests/unit` với Python hệ thống cũng thất bại vì không cài `pytest`. Vì vậy chưa có test nào được xác nhận TESTED ở lượt này. Integration chỉ chạy sau khi xác nhận `.env.test`/`TEST_DATABASE_URL` trỏ tới DB test được phép tạo bảng. Không đưa credential vào tài liệu.
 
@@ -500,9 +563,22 @@ Khi reviewer xem code, nên kiểm tra:
 9. Test nào thực sự chạy, test nào module-level skip, test nào chỉ mock service?
 10. Có log/exception response nào thể hiện secret hoặc dữ liệu nhạy cảm không?
 
+Kết quả rà soát nên ghi kèm file/hàm cụ thể và phân loại: **đã thấy trong source**, **đã chạy xác nhận**, hoặc **cần kiểm tra thêm**. Ví dụ, source có transaction payment nhưng chưa có test chạy chứng minh rollback trên PostgreSQL; source có unique email nhưng chưa có xử lý lỗi cạnh tranh rõ ràng ở service.
+
 Không có bằng chứng từ lượt này về runtime metrics, production deployment, external provider, static analysis hoặc schema DB đang chạy. Các kết luận đó cần kiểm chứng độc lập.
 
+### Quy trình rà soát một endpoint
+
+1. Tìm route và ghi lại method/path, schema, response model, status code, dependency.
+2. Lần theo service để xác định ownership, trạng thái và capacity.
+3. Lần theo repository để xác nhận filter/sort và điều kiện trạng thái trong SQL.
+4. Xem model/migration để phân biệt constraint DB thật với kiểm tra chỉ ở Python.
+5. Tìm test tương ứng; xác định fixture dùng dependency thật hay override/mock.
+6. Ghi kết luận thành ba phần: behavior trong source, behavior đã chạy xác nhận, giới hạn/chưa kiểm chứng.
+
 ## Chương 15 — 60 câu hỏi vấn đáp và đáp án ngắn
+
+Các câu trả lời dưới đây mô tả implementation hiện tại. Khi được hỏi “đã kiểm chứng chưa”, cần tách biệt test source có sẵn với kết quả chạy test; ở lượt rà tài liệu này chưa có test thành công được ghi nhận.
 
 ### Mức 1: hiểu cơ bản
 
@@ -580,57 +656,6 @@ Không có bằng chứng từ lượt này về runtime metrics, production dep
 60. **Trade-off lớn nhất của project demo?** — Cấu trúc layer và transaction khá rõ cho chức năng cơ bản, nhưng invariant ghế đồng thời chưa được DB bảo đảm và payment chỉ là mô phỏng.
 
 Khi trả lời, mở file và nêu symbol/dòng. Không khẳng định “test pass” nếu chưa chạy; nếu được hỏi về đề xuất, nói rõ đó là thiết kế tương lai, không phải code đã có.
-
-## Chương 16 — Bài tập tự viết lại
-
-| Bài tập | Mục tiêu | Tiêu chí tự chấm |
-|---|---|---|
-| Vẽ kiến trúc và ERD từ trí nhớ | Nắm component và dữ liệu | Có đủ 6 bảng, FK/unique đúng; không vẽ gateway thật. |
-| Trace POST booking | Hiểu call chain | Nói đúng middleware → schema → route → service → repo → UoW → response. |
-| Viết `GET /movies/{id}` | Tách HTTP/service/query | 404 domain mapping và response schema rõ. |
-| Viết create movie | Validation + quyền | USER bị 403, ADMIN có thể tạo, payload sai bị 422. |
-| Tự tạo repository method | Async persistence | Dùng session được inject; không commit ngoài transaction convention. |
-| Thực hiện cancel booking | Ownership/state machine | Không xóa row; non-owner không sửa được; duplicate cancel trả lỗi. |
-| Test payment rollback | Transaction | Sau fail giữa các bước không còn partial payment/booking/paid hold. |
-| Thiết kế chống race | Concurrency | Nêu invariant DB, conflict handling, migration và multi-connection test. |
-| Review một file không mở tài liệu | Hiểu code | Tóm tắt input, output, dependencies, side effects và error path có evidence. |
-
-Làm từng bài trên nhánh/local test database, không thử nghiệm trên dữ liệu thật.
-
-## Chương 17 — Checklist và thi thử vấn đáp
-
-### Checklist đạt trước ngày bảo vệ
-
-- [ ] Tự vẽ được kiến trúc và ERD, giải thích từng mũi tên.
-- [ ] Nêu được cả 19 endpoint đã đăng ký, quyền và status code.
-- [ ] Truy vết được auth, booking, cancellation, hold và payment bằng file/symbol.
-- [ ] Giải thích JWT, hash password, distinction auth vs authorization.
-- [ ] Phân biệt flush, commit, rollback và xác định transaction boundary.
-- [ ] Nói rõ check-then-insert hiện không ngăn race; không viện dẫn skipped test như bằng chứng.
-- [ ] Nêu được test nào chỉ có source, test nào đã thực sự chạy trong môi trường của mình.
-- [ ] Thừa nhận payment demo, numeric seat labels, thiếu migrations/timezone policy.
-- [ ] Không tiết lộ secrets/token và không tuyên bố runtime behavior chưa quan sát.
-- [ ] Với mỗi đề xuất, tách nó khỏi hành vi đang implement.
-
-### Kịch bản thi thử 35 phút
-
-1. **0–4 phút — Tổng quan:** bài toán, actor, stack, giới hạn chính.
-2. **4–9 phút — Kiến trúc:** chỉ node trong Mermaid; giải thích dependencies và điểm service còn dính ORM/schema.
-3. **9–15 phút — Trace API:** giảng viên chọn POST booking hoặc payment; lần theo code theo thứ tự thực thi.
-4. **15–20 phút — Database/transaction:** giải thích FK, flush/commit/rollback và tính atomic payment.
-5. **20–25 phút — Auth:** token claims, middleware, role guard, ownership, user bị xóa.
-6. **25–30 phút — Tình huống:** cùng ghế đồng thời, payment timeout/retry, hold hết hạn.
-7. **30–35 phút — Phản biện:** đề xuất cải tiến, trade-offs, migration/test plan và điều chưa kiểm chứng.
-
-### Rubric gợi ý (20 điểm)
-
-| Hạng mục | Điểm | Đạt khi |
-|---|---:|---|
-| Kiến trúc + data model | 4 | Vẽ đúng thành phần, quan hệ, không thêm gateway/constraint không tồn tại. |
-| Trace code/API | 5 | Gọi đúng file/hàm theo thứ tự; phân biệt validation, service, repo. |
-| Auth + transaction | 4 | Giải thích sub/user lookup, role/owner, flush/commit/rollback. |
-| Rủi ro + tình huống | 4 | Nhận diện race, stale docs/tests, expiry và giới hạn. |
-| Trung thực kỹ thuật | 3 | Không biến suy luận/test source thành runtime evidence; nêu rõ đề xuất vs code hiện tại. |
 
 ## Kết luận phạm vi
 
