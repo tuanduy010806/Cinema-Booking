@@ -1,4 +1,4 @@
-# Booking API contract
+# Đặc tả API booking
 
 Tài liệu này chỉ mô tả API đặt trực tiếp một ghế, xem booking cá nhân và hủy booking. Tổng quan nghiệp vụ xem [phantichnghiepvu.md](phantichnghiepvu.md); giữ ghế và thanh toán demo xem [PAYMENT_API.md](PAYMENT_API.md). Mã nguồn và `/openapi.json` là nguồn chuẩn nếu hành vi thay đổi.
 
@@ -25,7 +25,7 @@ Thành công trả đối tượng booking:
 
 `seat_number` phải khớp `^[1-9][0-9]*$` và nằm trong sức chứa. Suất chiếu/ghế không hợp lệ trả `404`; ghế đã có booking `active` hoặc đang thuộc hold còn hạn trả `400`. Việc kiểm tra và ghi chưa được bảo vệ bằng unique constraint hoặc khóa, nên hai request cạnh tranh có thể cùng đặt một ghế.
 
-## Liệt kê booking của tôi
+## Xem booking của tôi
 
 `GET /api/v1/bookings/me` trả `200 OK` cùng mảng booking `active` và `cancelled` của người gọi. Nếu chưa có booking, trả `[]`.
 

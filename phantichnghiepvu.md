@@ -8,9 +8,9 @@
 | Loại tài liệu | Software Requirements Specification (SRS) — đặc tả theo hệ thống hiện có |
 | Phiên bản | 1.0 |
 | Ngôn ngữ | Tiếng Việt |
-| Cơ sở lập tài liệu | Đối chiếu source code, schema, router và cấu hình hiện tại |
+| Cơ sở đặc tả | Chức năng và quy tắc nghiệp vụ của Cinema Booking API |
 
-Tài liệu này đặc tả hành vi đang được triển khai trong repository. Đây không phải bản xác nhận yêu cầu stakeholder độc lập. Mỗi yêu cầu được đánh dấu **Đã triển khai**, **Giới hạn**, hoặc **Chưa triển khai** để phân biệt chức năng thực có với phần còn thiếu. Nếu nội dung SRS khác hành vi code, cần xác minh quyết định sản phẩm trước khi sửa code hoặc dùng SRS làm cam kết nghiệm thu.
+Tài liệu mô tả các yêu cầu chức năng và phi chức năng của hệ thống, đồng thời ghi rõ mức đáp ứng trong mã nguồn: **Đã triển khai**, **Giới hạn** hoặc **Chưa triển khai**. Các yêu cầu chưa được thống nhất với bên liên quan cần được chốt trước khi dùng làm tiêu chí nghiệm thu.
 
 ## 2. Mục đích và phạm vi sản phẩm
 
@@ -51,7 +51,7 @@ Thanh toán qua nhà cung cấp thật; hoàn tiền/hóa đơn; sơ đồ phòn
 
 - **Đã triển khai:** có hành vi tương ứng trong source hiện tại.
 - **Giới hạn:** có một phần chức năng nhưng chưa đáp ứng đầy đủ yêu cầu sản phẩm an toàn/hoàn chỉnh.
-- **Chưa triển khai:** không tìm thấy chức năng tương ứng trong source đã khảo sát.
+- **Chưa triển khai:** hệ thống chưa cung cấp chức năng tương ứng.
 
 ## 4. Người dùng và quyền truy cập
 
@@ -253,14 +253,14 @@ Không có SLA, latency target, throughput target, mức sẵn sàng hay retenti
 
 ## 11. Tiêu chí nghiệm thu mức chức năng hiện tại
 
-Các tiêu chí dưới đây mô tả cách kiểm tra SRS với API; chúng không khẳng định đã chạy thành công trong môi trường hiện tại.
+Các tiêu chí sau dùng để nghiệm thu hành vi API; kết quả cần được xác nhận bằng kiểm thử.
 
 1. Đăng ký hợp lệ trả token role USER; password confirmation sai và email đã dùng trả lỗi tương ứng.
 2. Login hợp lệ trả token; token sai/hết hạn không truy cập route bảo vệ được.
 3. Khách đọc được phim/showtime/availability; USER không ghi phim/showtime; ADMIN ghi được theo validation schema.
 4. Booking thành công tạo đúng owner từ token; client gửi `user_id` khác không thể đổi chủ booking.
 5. Ghế sai định dạng bị validation từ chối; ghế ngoài capacity và showtime thiếu trả not found; ghế đã active/held bị từ chối.
-6. Chỉ owner hủy booking active; sau hủy row còn trong danh sách lịch sử và ghế được tính khả dụng.
+6. Chỉ owner hủy booking active; sau hủy bản ghi vẫn còn trong danh sách booking và ghế được tính khả dụng.
 7. Hold hợp lệ tạo đúng số ghế và expiry; hold hết hạn ngừng chặn availability; owner khác không xem/giải phóng được.
 8. Payment hold hợp lệ tạo một payment, booking theo từng ghế và hold paid; retry cùng hold trả kết quả đã tạo.
 9. Test concurrency chứng minh ghế không bị bán trùng trước khi hệ thống được xem là đáp ứng yêu cầu đặt ghế đồng thời. Hiện tiêu chí này chưa đạt do thiếu cơ chế bảo đảm ở database.

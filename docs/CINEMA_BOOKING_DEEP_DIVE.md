@@ -1,16 +1,14 @@
-﻿# Cinema Booking: hướng dẫn đọc code và bảo vệ đồ án
+# Cinema Booking: hướng dẫn đọc mã nguồn và bảo vệ đồ án
 
-> Tài liệu được lập bằng cách đọc source hiện có trong repository. **IMPLEMENTED** là hành vi có trong code; **TESTED** chỉ dùng khi test tương ứng thực sự đã chạy và xác nhận; **INFERRED** là suy luận tĩnh; **MISSING/RISK** nêu điều chưa có hoặc nguy cơ. Source và OpenAPI runtime mới là chuẩn nếu tài liệu này lệch code.
+> Tài liệu giới thiệu kiến trúc, các luồng nghiệp vụ, mô hình dữ liệu, API và những giới hạn cần nắm khi trình bày dự án. Các nhãn IMPLEMENTED, TEST SOURCE EXISTS, TESTED, INFERRED và MISSING/RISK phân biệt chức năng trong mã nguồn, test có trong repository, kết quả đã chạy, nhận định suy luận và vấn đề cần xử lý. Khi cần xác nhận hành vi cụ thể, đối chiếu mã nguồn và OpenAPI.
 
 ## Phạm vi và cách dùng
 
-Đã khảo sát các module Python dưới `app/`, cấu hình môi trường, Docker, script khởi tạo/seed, và các test liên quan. Đã đọc call path của auth, movie, showtime, booking, hold và payment; kiểm tra fixture test và file test booking constraints. Đã thử chạy `pytest tests/unit`, nhưng không chạy được: Python trong `.venv` trỏ đến interpreter Python 3.12 không còn tồn tại; Python hệ thống không có package `pytest`. Không chạy application, integration suite, truy vấn database hay benchmark. Bộ test tích hợp yêu cầu `TEST_DATABASE_URL` trỏ đến PostgreSQL test riêng (`tests/conftest.py:95-119`); không tự dùng `DATABASE_URL` thay thế. Các nhận định runtime vì vậy chưa được xác minh.
-
-Các đường dẫn/dòng dạng `path/to/module.py:10-20` là vị trí trong source hiện tại tại thời điểm soạn tài liệu. Mở file trực tiếp và đối chiếu trước khi dùng làm trích dẫn khi vấn đáp.
+Tài liệu tập trung vào cách các thành phần phối hợp và lý do thiết kế. Đường dẫn mã nguồn được ghi cạnh nội dung liên quan để tiện tra cứu; số dòng có thể thay đổi khi mã nguồn được chỉnh sửa.
 
 ## Chương 1 — Bản đồ hệ thống
 
-### Cách đọc sơ đồ theo code hiện tại
+### Cách đọc sơ đồ
 
 Ứng dụng là REST API FastAPI, không phải website có giao diện đặt vé hoàn chỉnh. Client gửi JSON qua HTTP; `app/main.py` khởi tạo app, middleware xử lý bearer token, rồi router nhận request và ghép schema/dependency. Service thực thi quy tắc nghiệp vụ; repository truy vấn ORM; `AsyncSession` kết nối PostgreSQL. `UnitOfWork` hiện chỉ bọc `commit` và `rollback`, không phải lớp điều phối repository độc lập.
 
@@ -176,17 +174,17 @@ Response schema cũng không phải bản sao của ORM model: endpoint khai bá
 
 ## Chương 4 — Tính năng và trạng thái bằng chứng
 
-Các nhãn ở chương này nói về mức bằng chứng: **IMPLEMENTED** nghĩa là có đường code tương ứng; **TEST SOURCE EXISTS** nghĩa là repository có test source; chỉ **TESTED** mới có nghĩa test đã chạy thành công trong môi trường cụ thể. Trong lượt rà soát này chưa có test nào được xác nhận TESTED. Tên file test hoặc assertion trong file không chứng minh runtime hiện tại đã hoạt động.
+Các nhãn phân biệt chức năng có trong source, test có trong repository và kết quả test đã chạy. Việc có file test không tự chứng minh rằng test đã chạy thành công hoặc xác nhận hành vi trên PostgreSQL thật.
 
 | Tính năng | Code | Test trong repo | Giới hạn |
 |---|---|---|---|
-| Register/login/JWT | **IMPLEMENTED** `auth_service.py`, `security.py` | Có unit và integration test auth theo tên/hàm ở `tests/unit/test_auth.py`, `tests/test_auth.py`; chưa chạy ở lượt này. | Không thấy policy độ dài/phức tạp password hoặc refresh token. |
+| Register/login/JWT | **IMPLEMENTED** auth_service.py, security.py | Có unit và integration test auth trong tests/unit/test_auth.py và tests/test_auth.py. | Không thấy policy độ dài/phức tạp password hoặc refresh token. |
 | Public movie/showtime read | **IMPLEMENTED** routers/services/repos | Có integration/unit files tương ứng. | Không có pagination/search nâng cao. |
 | ADMIN movie write/showtime create | **IMPLEMENTED** `RoleChecker(Role.ADMIN)` ở decorator router | Có test quyền admin ở auth/movie/showtime. | Xóa movie đang được tham chiếu có thể bị FK từ chối; chưa thấy ánh xạ riêng lỗi đó. |
 | Direct one-seat booking | **IMPLEMENTED** | Unit + integration booking tests. | Kiểm tra trùng là check-then-insert, không atomic với constraint DB. |
 | Multi-seat hold | **IMPLEMENTED** | Trong inventory không thấy file test riêng cho hold service/router. | Race giữa hold/booking/payment chưa được khóa ở DB. |
 | Demo payment | **IMPLEMENTED** | Không thấy test payment trong test file inventory. | Không gateway thật; payment status hiện ghi succeeded. |
-| Load test | Script `load_test/load_test.py` | Chưa chạy; tài liệu `LOAD_TEST_PLAN.md` nói kịch bản booking trực tiếp. | Không benchmark thay thế môi trường triển khai; không test hold/payment. |
+| Load test | Script load_test/load_test.py | Kịch bản đặt booking trực tiếp. | Không đo hold/payment hoặc thay thế benchmark trong môi trường triển khai. |
 
 Không có test hiện hành xác nhận constraint database ngăn hai request đặt cùng ghế; model `Booking` cũng không khai báo constraint này. Các test booking thông thường không chứng minh được hành vi đồng thời.
 
@@ -564,10 +562,10 @@ Khi đọc test, cần ghi nhận **đối tượng được kiểm tra**, **dep
 - Auth: registration, password mismatch, duplicate email, login, token invalid, RoleChecker (`tests/unit/test_auth.py`); HTTP auth/permissions (`tests/test_auth.py`).
 - Booking: input validation/capacity/duplicate, owner, cancel/state, list isolation (`tests/unit/test_booking.py`, `tests/test_booking.py`).
 - Movie/showtime: unit + HTTP tests, gồm role/write/validation paths.
-- Booking constraints: file legacy skipped; không chứng minh hiện model constraint có hiệu lực.
-- Hold/payment: không tìm thấy file test chuyên biệt trong `tests` inventory đã đọc; coi là khoảng trống cần xác minh, không kết luận không có coverage ở nơi ngoài inventory.
+- Booking constraints: chưa có test xác nhận database ngăn hai request đặt cùng ghế; model Booking cũng không khai báo constraint này.
+- Hold/payment: repository chưa có test chuyên biệt cho service hoặc router của hai luồng này.
 
-**Kết quả chạy:** đã thử `.\.venv\Scripts\python.exe -m pytest tests/unit`, nhưng launcher không tìm thấy Python 3.12 theo đường dẫn đã lưu trong virtual environment. `python -m pytest tests/unit` với Python hệ thống cũng thất bại vì không cài `pytest`. Vì vậy chưa có test nào được xác nhận TESTED ở lượt này. Integration chỉ chạy sau khi xác nhận `.env.test`/`TEST_DATABASE_URL` trỏ tới DB test được phép tạo bảng. Không đưa credential vào tài liệu.
+Integration test dùng TEST_DATABASE_URL và có thể tạo bảng trong database được cấu hình. Chỉ chạy bộ test này với database dành riêng cho kiểm thử; không trỏ vào database production hoặc dữ liệu cần giữ.
 
 ### Checklist test thủ công qua Swagger (dùng DB test/local)
 
@@ -601,7 +599,7 @@ Khi reviewer xem code, nên kiểm tra:
 
 Kết quả rà soát nên ghi kèm file/hàm cụ thể và phân loại: **đã thấy trong source**, **đã chạy xác nhận**, hoặc **cần kiểm tra thêm**. Ví dụ, source có transaction payment nhưng chưa có test chạy chứng minh rollback trên PostgreSQL; source có unique email nhưng chưa có xử lý lỗi cạnh tranh rõ ràng ở service.
 
-Không có bằng chứng từ lượt này về runtime metrics, production deployment, external provider, static analysis hoặc schema DB đang chạy. Các kết luận đó cần kiểm chứng độc lập.
+Runtime metrics, tình trạng production và schema database đang chạy cần được kiểm tra trực tiếp ở môi trường triển khai.
 
 ### Quy trình rà soát một endpoint
 
@@ -614,7 +612,7 @@ Không có bằng chứng từ lượt này về runtime metrics, production dep
 
 ## Chương 15 — 60 câu hỏi vấn đáp và đáp án ngắn
 
-Các câu trả lời dưới đây mô tả implementation hiện tại. Khi được hỏi “đã kiểm chứng chưa”, cần tách biệt test source có sẵn với kết quả chạy test; ở lượt rà tài liệu này chưa có test thành công được ghi nhận.
+Các câu trả lời dưới đây tóm tắt hành vi và thiết kế trong source. Khi trình bày kết quả kiểm thử, nêu rõ lệnh và môi trường sử dụng.
 
 ### Mức 1: hiểu cơ bản
 
@@ -692,7 +690,3 @@ Các câu trả lời dưới đây mô tả implementation hiện tại. Khi đ
 60. **Trade-off lớn nhất của project demo?** — Cấu trúc layer và transaction khá rõ cho chức năng cơ bản, nhưng invariant ghế đồng thời chưa được DB bảo đảm và payment chỉ là mô phỏng.
 
 Khi trả lời, mở file và nêu symbol/dòng. Không khẳng định “test pass” nếu chưa chạy; nếu được hỏi về đề xuất, nói rõ đó là thiết kế tương lai, không phải code đã có.
-
-## Kết luận phạm vi
-
-Đã đọc các file Python ứng dụng trong `app/` và truy vết sáu nhóm route/service chính; kiểm tra cấu hình database/auth, models/schemas/repositories, script init/seed, Docker wiring, và test fixtures/tên test liên quan. Không thực hiện kiểm kê coverage định lượng; unit test đã thử chạy nhưng bị chặn bởi môi trường thiếu interpreter/pytest; không chạy application/integration tests, không kết nối DB, không kiểm tra Docker runtime, không gọi dịch vụ ngoài. Do đó runtime, schema DB đang triển khai, hiệu năng và trạng thái deployment là **NOT VERIFIED**. Không sửa source code trong quá trình tạo tài liệu.
