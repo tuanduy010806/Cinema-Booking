@@ -9,7 +9,7 @@ from app.db.database import AsyncSessionLocal
 from app.models.booking import Booking
 from app.models.movie import Movie
 from app.models.showtime import Showtime
-from app.models.user import Role, User
+from app.schemas.movie import MovieCreate
 
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -37,26 +37,16 @@ def load_json_array(path: Path, label: str) -> list[dict[str, object]]:
             raise ValueError(f"Record at index {index} in {path} must be a JSON object.")
     return data
 
-
-def load_movie_data() -> list[dict[str, object]]:
-    """Load and validate movie records from the project's JSON data file."""
-    data = load_json_array(MOVIES_FILE, "Movie")
-    required_fields = {"title", "description", "duration_minutes"}
+    validated_movies: list[dict[str, object]] = []
     for index, movie in enumerate(data):
         if not isinstance(movie, dict):
             raise ValueError(f"Movie at index {index} must be a JSON object.")
-        missing_fields = required_fields - movie.keys()
-        if missing_fields:
-            fields = ", ".join(sorted(missing_fields))
-            raise ValueError(f"Movie at index {index} is missing required fields: {fields}.")
-        if not isinstance(movie["title"], str) or not movie["title"].strip():
+        validated = MovieCreate.model_validate(movie)
+        if not validated.title.strip():
             raise ValueError(f"Movie at index {index} must have a non-empty title.")
-        if not isinstance(movie["duration_minutes"], int) or movie["duration_minutes"] <= 0:
-            raise ValueError(f"Movie at index {index} must have a positive duration_minutes.")
-        if movie["description"] is not None and not isinstance(movie["description"], str):
-            raise ValueError(f"Movie at index {index} description must be a string or null.")
+        validated_movies.append(validated.model_dump())
 
-    return data
+    return validated_movies
 
 
 def load_user_data() -> list[dict[str, object]]:

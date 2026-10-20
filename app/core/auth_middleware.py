@@ -1,7 +1,8 @@
-from fastapi import HTTPException, Request, status
+from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.core.exceptions import InvalidTokenError
 from app.core.security import decode_access_token
 from app.db.database import AsyncSessionLocal
 from app.repositories.user_repository import UserRepository
@@ -24,7 +25,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         try:
             payload = decode_access_token(token.strip())
             user_id = int(payload["sub"])
-        except (HTTPException, KeyError, TypeError, ValueError):
+        except (InvalidTokenError, KeyError, TypeError, ValueError):
             return self._unauthorized()
 
         async with AsyncSessionLocal() as session:

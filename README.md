@@ -1,12 +1,12 @@
 # Cinema Booking API
 
-REST API quản lý phim, lịch chiếu, ghế và đặt vé. README này hướng dẫn cài đặt,
-khởi chạy, kiểm thử và mô tả hợp đồng API của Phase 1.
+API đặt vé xem phim, viết bằng FastAPI và PostgreSQL. README hướng dẫn cách
+chạy ứng dụng và gọi các API.
 
 ## Mục lục
 
 - [1. Phạm vi và kiến trúc](#1-phạm-vi-và-kiến-trúc)
-- [2. Chạy toàn hệ thống bằng Docker](#2-chạy-toàn-hệ-thống-bằng-docker)
+- [2. Clone, thiết lập và chạy bằng Docker](#2-clone-thiết-lập-và-chạy-bằng-docker)
 - [3. Chạy Python trực tiếp](#3-chạy-python-trực-tiếp)
   - [Cấp tài khoản ADMIN](#cấp-tài-khoản-admin)
 - [4. Mô hình dữ liệu và quy tắc](#4-mô-hình-dữ-liệu-và-quy-tắc)
@@ -15,6 +15,7 @@ khởi chạy, kiểm thử và mô tả hợp đồng API của Phase 1.
   - [Authentication](#authentication)
     - [`POST /api/v1/auth/register`](#post-apiv1authregister)
     - [`POST /api/v1/auth/login`](#post-apiv1authlogin)
+    - [`GET /api/v1/auth/me`](#get-apiv1authme)
   - [Movies](#movies)
     - [`GET /api/v1/movies`](#get-apiv1movies)
     - [`GET /api/v1/movies/{movie_id}`](#get-apiv1moviesmovie_id)
@@ -25,71 +26,168 @@ khởi chạy, kiểm thử và mô tả hợp đồng API của Phase 1.
     - [`GET /api/v1/showtimes?movie_id={movie_id}`](#get-apiv1showtimesmovie_idmovie_id)
     - [`POST /api/v1/showtimes`](#post-apiv1showtimes)
     - [`GET /api/v1/showtimes/{showtime_id}/seats`](#get-apiv1showtimesshowtime_idseats)
+  - [Seat holds và payments](#seat-holds-và-payments)
+    - [`POST /api/v1/holds`](#post-apiv1holds)
+    - [`GET /api/v1/holds/{hold_id}`](#get-apiv1holdshold_id)
+    - [`DELETE /api/v1/holds/{hold_id}`](#delete-apiv1holdshold_id)
+    - [`POST /api/v1/payments`](#post-apiv1payments)
+    - [`GET /api/v1/payments/me`](#get-apiv1paymentsme)
   - [Bookings](#bookings)
     - [`POST /api/v1/bookings/`](#post-apiv1bookings)
     - [`GET /api/v1/bookings/me`](#get-apiv1bookingsme)
     - [`DELETE /api/v1/bookings/{booking_id}`](#delete-apiv1bookingsbooking_id)
 - [7. Ví dụ gọi API](#7-ví-dụ-gọi-api)
 - [8. Test và load test](#8-test-và-load-test)
-  - [Kết quả kiểm tra](#kết-quả-kiểm-tra)
+  - [Chạy kiểm thử](#chạy-kiểm-thử)
+  - [Kiểm thử tải](#kiểm-thử-tải)
 - [9. Giới hạn hiện tại](#9-giới-hạn-hiện-tại)
 
 ## 1. Phạm vi và kiến trúc
 
-Người dùng có thể đăng ký/đăng nhập, xem phim và lịch chiếu, xem ghế, tạo
-booking, xem booking của mình và hủy booking của mình. ADMIN có thể tạo/sửa/xóa
-phim và tạo lịch chiếu. Nhãn ghế là chuỗi số từ `"1"` đến
-`str(total_seats)`. Hủy booking là chuyển trạng thái `active` sang `cancelled`,
-không xóa row; ghế cancelled được mở lại.
+Người dùng có thể xem phim, lịch chiếu và ghế; đăng ký, đăng nhập, đặt hoặc hủy
+vé. Người dùng đăng nhập cũng có thể giữ 1–5 ghế trong 5 phút và thanh toán
+demo. ADMIN có thể quản lý phim và tạo lịch chiếu.
 
-Thanh toán, thông báo, sơ đồ ghế nhiều hàng, hết hạn giữ chỗ và bảo vệ
-race-condition ở tầng database không thuộc Phase 1.
+Ghế được đánh số từ `1` đến `total_seats`. Hủy vé đổi trạng thái từ `active`
+sang `cancelled`, nhờ đó ghế được mở lại. Chưa có cổng thanh toán thật, sơ đồ
+ghế nhiều hàng hay bảo vệ đầy đủ cho hai yêu cầu đặt cùng một ghế đồng thời.
 
 ```text
 HTTP client / Swagger UI
           -> FastAPI routers (app/api)
           -> Services (business rules)
-          -> Repositories (SQLAlchemy async)
+          -> Repositories + Unit of Work (SQLAlchemy async)
           -> PostgreSQL
 ```
 
-JWT được kiểm tra bởi `AuthMiddleware`. Các bảng chính là `users`, `movies`,
-`showtimes`, `bookings`. Khóa ngoại: `showtimes.movie_id -> movies.id`,
-`bookings.user_id -> users.user_id`, `bookings.showtime_id -> showtimes.id`.
-Availability chỉ tính booking `active`.
+Code được chia thành router (`app/api`), service (`app/services`) và repository
+(`app/repositories`). Router nhận request, service xử lý quy tắc, repository
+đọc và ghi database. Repository dùng `flush()`; service commit hoặc rollback
+qua `UnitOfWork`. Các thao tác ghi dùng chung session trong một transaction.
 
-## 2. Chạy toàn hệ thống bằng Docker
+JWT được kiểm tra bởi `AuthMiddleware`. API trả lỗi theo status code HTTP.
+Trạng thái ghế được tính từ booking `active` và hold chưa hết hạn. Các API quản
+trị tự kiểm tra role `ADMIN` ở backend.
 
-Yêu cầu Docker Desktop đang chạy. Từ thư mục gốc repository:
+## 2. Clone, thiết lập và chạy bằng Docker
+
+Cần Git, Docker Desktop và PowerShell. Hướng dẫn bên dưới dùng Windows.
+
+### 2.1 Clone repository
+
+Thay `<GITHUB_REPOSITORY_URL>` bằng URL HTTPS của repository:
+
+```powershell
+git clone <GITHUB_REPOSITORY_URL>
+cd Cinema-Booking
+```
+
+Nếu thư mục có tên khác, đổi lệnh `cd` cho phù hợp. Kiểm tra Docker:
+
+```powershell
+docker version
+docker compose version
+```
+
+### 2.2 Tạo file cấu hình local
+
+Tạo file cấu hình local từ mẫu:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Mở `.env`, đặt `SECRET_KEY` thành chuỗi ngẫu nhiên riêng tư. Sau đó build image
-API và khởi chạy cả API lẫn PostgreSQL:
+Đổi `SECRET_KEY` trong `.env`. Mặc định PostgreSQL dùng database
+`cinema_booking`, user `cinema` và mật khẩu `123456`; API kết nối tới service
+`db`. Các thiết lập khác nằm trong `.env.example` và được đọc trong
+`app/core/config.py`. Nếu đổi `POSTGRES_PASSWORD`, cập nhật cả mật khẩu trong
+`DATABASE_URL`. Không commit file `.env`.
+
+### 2.3 Tạo môi trường Python cho bước nạp dữ liệu mẫu
+
+Seeder chạy trên máy host, nên cần Python và dependencies:
 
 ```powershell
-docker compose up --build -d
-docker compose ps
-docker compose logs -f api
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Container API đợi PostgreSQL healthy, tạo các bảng còn thiếu bằng
-`scripts/init_db.py`, rồi khởi chạy Uvicorn trên cổng `8000`. Mở
-<http://127.0.0.1:8000/docs> để xem API. Dừng các container bằng
-`docker compose down`; dữ liệu PostgreSQL vẫn được giữ trong volume. Dùng
-`docker compose down -v` chỉ khi muốn xóa cả dữ liệu database local.
+Nếu máy đã có Python tương thích nhưng lệnh `py -3.12` không hoạt động, dùng
+`py -m venv .venv` thay thế.
 
-Mật khẩu PostgreSQL mặc định `123456` chỉ dành cho phát triển local; có thể
-đặt `POSTGRES_PASSWORD` trong `.env` trước khi tạo volume lần đầu. Nếu đã có
-volume với database cũ, thay đổi biến này không tự đổi mật khẩu bên trong
-database hiện hữu.
+### 2.4 Build và khởi động hệ thống
+
+Từ thư mục gốc repository, build image API và khởi chạy API cùng PostgreSQL:
+
+```powershell
+docker compose up -d --build
+```
+
+Kiểm tra trạng thái:
+
+```powershell
+docker compose ps
+```
+
+Chờ cả `db` và `api` báo `healthy`. API healthcheck gọi `/docs`; nếu dịch vụ
+chưa lên hoặc trạng thái không healthy, xem log:
+
+```powershell
+docker compose logs --tail 100 db api
+```
+
+API tạo các bảng còn thiếu khi khởi động. Dữ liệu mẫu cần nạp riêng ở bước sau.
+
+### 2.5 Nạp phim và suất chiếu mẫu
+
+Chạy lệnh sau từ thư mục gốc dự án:
+
+```powershell
+.\.venv\Scripts\python.exe seed.py
+```
+
+Seeder đọc `data/movie.json` và thêm dữ liệu mẫu còn thiếu. Chạy lại để đồng bộ
+tên phim, mô tả và thời lượng với file JSON.
+
+### 2.6 Mở hệ thống
+
+- Swagger UI: <http://localhost:8000/docs>
+- OpenAPI JSON: <http://localhost:8000/openapi.json>
+
+### 2.7 Dừng và khởi động lại
+
+Dừng container, giữ lại database:
+
+```powershell
+docker compose down
+```
+
+#### Chạy lại sau khi đã thiết lập trước đó
+
+Khi đã thiết lập xong, mở Docker Desktop rồi chạy:
+
+```powershell
+docker compose up -d
+docker compose ps
+```
+
+Chờ `db` báo `healthy`, rồi mở <http://localhost:8000/docs>. Xem log bằng
+`docker compose logs --tail 100 db api` nếu API không chạy.
+
+Sau khi sửa code hoặc Dockerfile, build và chạy lại image:
+
+```powershell
+docker compose up -d --build
+```
+
+Không dùng `docker compose down -v` nếu cần giữ database; lệnh này xóa volume.
+Mật khẩu mặc định chỉ dùng cho môi trường local. Đổi mật khẩu sau khi tạo
+volume sẽ không tự đổi mật khẩu trong database hiện có.
 
 ## 3. Chạy Python trực tiếp
 
-Yêu cầu Python tương thích với `requirements.txt`, PostgreSQL và Docker Desktop
-(nếu muốn chạy PostgreSQL bằng compose).
+Cần Python, PostgreSQL và Docker Desktop nếu chạy database bằng Compose.
 
 PowerShell, từ thư mục gốc repository:
 
@@ -101,38 +199,29 @@ py -m pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Mở `.env`, kiểm tra `DATABASE_URL` trỏ tới PostgreSQL. Đổi `SECRET_KEY` thành
-chuỗi ngẫu nhiên riêng tư; không commit `.env` hoặc dùng secret ví dụ trong môi
-trường thật. Để chạy PostgreSQL local:
+Kiểm tra `DATABASE_URL` trong `.env` và đổi `SECRET_KEY`. Không dùng secret mẫu
+ở môi trường thật. Khởi động PostgreSQL bằng Compose:
 
 ```powershell
 docker compose up -d db
 ```
 
-Đợi service `db` báo trạng thái healthy trước khi tạo schema. Cách này chỉ chạy
-PostgreSQL; API vẫn chạy bằng Python trên máy host. Nếu dùng PostgreSQL khác, đặt
-`DATABASE_URL` dạng `postgresql+asyncpg://user:password@host:port/database`.
+Chờ `db` sẵn sàng. API sẽ chạy bằng Python trên máy host. Nếu dùng PostgreSQL
+khác, đặt `DATABASE_URL` theo dạng
+`postgresql+asyncpg://user:password@host:port/database`.
 
-Khởi tạo bảng trên database phát triển mới và (tuỳ chọn) thêm dữ liệu mẫu:
+Tạo bảng và nạp dữ liệu mẫu (không bắt buộc):
 
 ```powershell
 py scripts/init_db.py
 py seed.py
 ```
 
-Mock data của `seed.py` nằm trong `data/movie.json`, `data/user.json` và
-`data/booking.json`. File booking dùng đúng các cột `user_id`, `showtime_id`,
-`seat_number`, `status`, `created_at`; các ID trong hai file user/booking phải
-khớp nhau. Các suất chiếu mẫu được cấp ID ổn định theo thứ tự phim và lịch chiếu.
-Thêm hoặc sửa dữ liệu ở các file này rồi chạy lại `py seed.py`. User mới được
-tạo với mật khẩu đã hash; booking trùng sẽ được bỏ qua.
+Danh sách phim mẫu nằm trong `data/movie.json`. Sửa file này rồi chạy lại
+`py seed.py` để cập nhật database.
 
-Các tài khoản trong `data/user.json` chỉ dành cho môi trường phát triển; mật
-khẩu mẫu được lưu dạng văn bản trong file JSON để tạo dữ liệu demo. Không dùng
-hoặc triển khai các tài khoản này trong môi trường thật.
-
-`init_db.py` tạo bảng còn thiếu nhưng không migrate/alter bảng cũ. Khởi động API
-từ thư mục gốc repository bằng một trong hai cách sau:
+`init_db.py` chỉ tạo bảng còn thiếu, không sửa schema cũ. Chạy API từ thư mục
+gốc bằng một trong hai lệnh:
 
 ```powershell
 py main.py
@@ -144,8 +233,8 @@ Hoặc gọi Uvicorn trực tiếp:
 py -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Trong lệnh Uvicorn, `app.main:app` trỏ tới biến FastAPI `app` trong file
-`app/main.py`. `py main.py` dùng file launcher `main.py` ở thư mục gốc.
+Lệnh Uvicorn dùng ứng dụng `app` trong `app/main.py`. `py main.py` chạy launcher
+ở thư mục gốc.
 
 Swagger UI: <http://127.0.0.1:8000/docs>. OpenAPI JSON:
 <http://127.0.0.1:8000/openapi.json>. Base URL local:
@@ -153,23 +242,31 @@ Swagger UI: <http://127.0.0.1:8000/docs>. OpenAPI JSON:
 
 ### Cấp tài khoản ADMIN
 
-Đăng ký account qua API như USER bình thường. Sau đó, với database compose:
+ADMIN đăng nhập qua `POST /api/v1/auth/login` như USER. Đăng ký mới luôn tạo
+tài khoản `USER`; muốn tạo ADMIN thì cập nhật role trong database.
+
+Tài khoản ADMIN local hiện tại:
+
+- Email: `admin@gmail`
+- Mật khẩu: `admin`
+
+Đây là tài khoản demo local. Đổi hoặc xóa tài khoản trước khi triển khai.
+
+Đăng ký tài khoản mới qua Swagger, sau đó mở database:
 
 ```powershell
 docker compose exec db psql -U cinema -d cinema_booking
 ```
 
-Trong psql, cấp role cho đúng email và kiểm tra kết quả:
+Trong `psql`, thay email bằng email vừa đăng ký:
 
 ```sql
-UPDATE users SET role = 'ADMIN' WHERE email = 'admin@example.com';
-SELECT email, role FROM users WHERE email = 'admin@example.com';
+UPDATE users SET role = 'ADMIN' WHERE email = 'your-admin@example.com';
+SELECT email, role FROM users WHERE email = 'your-admin@example.com';
 ```
 
-Xác nhận UPDATE chỉ tác động một row. Public registration luôn đặt role USER;
-không gửi quyền ADMIN qua request body. ADMIN đăng nhập qua endpoint login sau
-khi được cấp quyền. Chỉ operator có quyền database đáng tin cậy mới thực hiện
-thay đổi role.
+Kiểm tra kết quả rồi thoát bằng `\q`. Đăng nhập và gọi
+`GET /api/v1/auth/me` để kiểm tra role.
 
 ## 4. Mô hình dữ liệu và quy tắc
 
@@ -179,30 +276,31 @@ thay đổi role.
 | `movies` | `id`, `title`, `description`, `duration_minutes` | Title 1–255 ký tự; duration 1–600 phút |
 | `showtimes` | `id`, `movie_id`, `start_time`, `total_seats` | Movie phải tồn tại; sức chứa 1–500 |
 | `bookings` | `id`, `user_id`, `showtime_id`, `seat_number`, `status`, `created_at` | Chủ booking lấy từ JWT; seat thuộc sức chứa; mặc định active |
+| `seat_holds` | `id`, `user_id`, `showtime_id`, `status`, `created_at`, `expires_at` | Hold thuộc user; hết hạn mặc định sau 300 giây |
+| `seat_hold_seats` | `id`, `hold_id`, `seat_number`, `booking_id` | Mỗi hold giữ từ 1 đến 5 ghế; booking được gắn khi thanh toán |
+| `payments` | `id`, `hold_id`, `user_id`, `amount`, `currency`, `status`, `paid_at` | Thanh toán demo; mặc định 100.000 VND/ghế |
 
-Seat label hợp lệ là chuỗi số dương chuẩn như `"1"`, `"2"`; `"0"`, `"01"`,
-`"-1"`, `"A1"` không hợp lệ. Duplicate check hiện là kiểm tra tuần tự ở
-service; không có cam kết chống hai request đồng thời cùng đặt một ghế.
+Nhãn ghế phải là số dương dạng chuỗi, ví dụ `"1"`. Các giá trị `"0"`, `"01"`,
+`"-1"` và `"A1"` không hợp lệ. Việc kiểm tra ghế trùng chưa xử lý an toàn các
+yêu cầu đồng thời.
 
 ## 5. Quy ước API và phân quyền
 
-- Base path: `/api/v1`; body và response dùng JSON.
-- Endpoint public không cần token. Endpoint booking yêu cầu
+- API dùng JSON và có base path `/api/v1`.
+- API xem dữ liệu là public. Booking, hold và payment cần token:
   `Authorization: Bearer <access_token>`.
-- Movie write và tạo Showtime yêu cầu role ADMIN.
-- Lỗi nghiệp vụ thường có dạng `{"detail":"..."}`; lỗi schema FastAPI trả 422.
+- Tạo/sửa/xóa phim và tạo lịch chiếu cần role ADMIN.
+- Lỗi trả về trường `detail`; lỗi dữ liệu đầu vào thường là `422`.
 
 | Actor | Quyền |
 |---|---|
 | Anonymous | Đăng ký/đăng nhập; đọc Movie, Showtime, availability |
-| USER | Các quyền public và tạo/xem/hủy booking của mình |
+| USER | Các quyền public và tạo/xem/hủy booking, giữ ghế, thanh toán demo của mình |
 | ADMIN | Quyền USER và ghi Movie, tạo Showtime |
 
-Các status code: `200` đọc/cập nhật/đăng ký/đăng nhập và tạo Movie; `201` tạo
-Showtime/Booking; `204` xóa Movie; `400` password confirmation sai, ghế active
-đã được đặt hoặc booking đã hủy; `401` thiếu/sai token hoặc sai credentials;
-`403` sai role/không sở hữu booking; `404` không có tài nguyên hoặc ghế vượt
-sức chứa; `409` email đã tồn tại; `422` dữ liệu không hợp lệ.
+Các mã thường gặp: `200` đọc/cập nhật; `201` tạo mới; `204` xóa; `400` yêu cầu
+không hợp lệ; `401` chưa đăng nhập; `403` không đủ quyền; `404` không tìm thấy;
+`409` email đã tồn tại hoặc hold sai trạng thái; `422` body sai định dạng.
 
 ## 6. Đặc tả API
 
@@ -210,26 +308,30 @@ sức chứa; `409` email đã tồn tại; `422` dữ liệu không hợp lệ.
 
 #### `POST /api/v1/auth/register`
 
-Tạo USER và trả token (`200`). Schema gồm `email`, `password`, `repassword`;
-role không phải trường người dùng có thể chọn.
+Tạo tài khoản USER và trả token. Gửi `email`, `password` và `repassword`;
+client không thể tự chọn role.
 
 ```json
 {"email":"user@example.com","password":"your-password","repassword":"your-password"}
 ```
 
-Response: `{"access_token":"<jwt>","token_type":"bearer"}`. Trả `400` nếu
-hai password khác nhau, `409` nếu email tồn tại, `422` nếu thiếu trường.
+Trả `{"access_token":"<jwt>","token_type":"bearer"}`. Password không khớp
+trả `400`, email đã dùng trả `409`.
 
 #### `POST /api/v1/auth/login`
 
-Request: `{"email":"user@example.com","password":"your-password"}`.
-Response token cùng cấu trúc register (`200`); sai email/password trả `401`.
+Gửi email và password. Thành công trả token như endpoint register; thông tin sai
+trả `401`.
+
+#### `GET /api/v1/auth/me`
+
+Cần access token. Trả `user_id`, `email` và `role` của tài khoản hiện tại.
 
 ### Movies
 
 #### `GET /api/v1/movies`
 
-Public; trả list phim, thứ tự `id` giảm dần.
+Public; trả danh sách phim theo `id` giảm dần.
 
 #### `GET /api/v1/movies/{movie_id}`
 
@@ -249,7 +351,8 @@ ADMIN; tạo Movie, hiện trả `200`.
 
 ADMIN; cập nhật một phần, chỉ các field được gửi mới thay đổi. Ví dụ:
 `{"duration_minutes":170}`. Trả Movie cập nhật (`200`), `404` nếu không có,
-`422` nếu schema sai.
+`422` nếu schema sai. Field gửi với giá trị `null` được bỏ qua và giữ nguyên giá
+trị hiện tại; API chưa dùng `null` để xóa giá trị một field.
 
 #### `DELETE /api/v1/movies/{movie_id}`
 
@@ -260,7 +363,7 @@ từ chối xóa Movie đang được Showtime tham chiếu.
 
 #### `GET /api/v1/showtimes?movie_id={movie_id}`
 
-Public; `movie_id` optional; trả danh sách theo `start_time` tăng dần.
+Public; `movie_id` không bắt buộc. Kết quả sắp theo `start_time` tăng dần.
 
 #### `POST /api/v1/showtimes`
 
@@ -275,9 +378,8 @@ không tồn tại trả `404`; dữ liệu schema sai trả `422`.
 
 #### `GET /api/v1/showtimes/{showtime_id}/seats`
 
-Public; trả danh sách ghế từ `"1"` đến `str(total_seats)`. Booking active làm
-ghế unavailable; booking cancelled không giữ ghế. Showtime không tồn tại trả
-`404`.
+Public; trả các ghế từ `"1"` đến `str(total_seats)`. Ghế đã đặt hoặc đang được
+giữ sẽ có `is_available: false`. Showtime không tồn tại trả `404`.
 
 ```json
 [
@@ -287,35 +389,74 @@ ghế unavailable; booking cancelled không giữ ghế. Showtime không tồn t
 ]
 ```
 
+### Seat holds và payments
+
+Các endpoint này cần đăng nhập. Mỗi hold giữ 1–5 ghế trong khoảng thời gian
+`SEAT_HOLD_TTL_SECONDS` (mặc định 300 giây). Nếu có ghế không còn trống, hold
+bị từ chối.
+
+#### `POST /api/v1/holds`
+
+Tạo hold cho các ghế của một suất chiếu:
+
+```json
+{"showtime_id":1,"seat_numbers":["3","4"]}
+```
+
+#### `GET /api/v1/holds/{hold_id}`
+
+Xem hold của tài khoản hiện tại. Hold quá hạn có trạng thái `expired`.
+
+#### `DELETE /api/v1/holds/{hold_id}`
+
+Giải phóng hold còn hoạt động. Không thể giải phóng hold đã thanh toán.
+
+#### `POST /api/v1/payments`
+
+Thanh toán demo cho hold còn hiệu lực. Gửi `hold_id`; server tính tiền theo
+`DEMO_PAYMENT_AMOUNT_VND` (mặc định 100.000 VND/ghế), rồi tạo payment và booking
+cho từng ghế trong cùng transaction. Gọi lại sẽ trả kết quả đã có.
+
+```json
+{"hold_id":123456}
+```
+
+#### `GET /api/v1/payments/me`
+
+Liệt kê thanh toán của tài khoản hiện tại.
+
+API xem ghế cũng tính các hold còn hạn là ghế đã có người giữ. Đặt một ghế qua
+`POST /api/v1/bookings/` vẫn được hỗ trợ; ghế đang hold sẽ bị từ chối.
+
 ### Bookings
 
 #### `POST /api/v1/bookings/`
 
-USER/ADMIN đã đăng nhập; chủ booking lấy từ JWT, request không chọn `user_id`.
-Tạo thành công trả `201`.
+USER/ADMIN đã đăng nhập. Server lấy chủ booking từ JWT; request không gửi
+`user_id`. Thành công trả `201`.
 
 ```json
 {"showtime_id":1,"seat_number":"3"}
 ```
 
-Response gồm `id`, `user_id`, `showtime_id`, `seat_number`, `status`,
-`created_at`. Duplicate ghế active trả `400`; chưa đăng nhập `401`; không có
-showtime hoặc seat vượt sức chứa `404`; label sai `422`.
+Response gồm `id`, `user_id`, `showtime_id`, `seat_number`, `status` và
+`created_at`. Ghế đã đặt trả `400`; showtime hoặc ghế không tồn tại trả `404`;
+nhãn ghế sai trả `422`.
 
 #### `GET /api/v1/bookings/me`
 
-USER/ADMIN đã đăng nhập; trả tất cả booking thuộc user hiện tại, gồm active và
-cancelled. Không nhận user id từ query.
+USER/ADMIN đã đăng nhập; trả các booking của tài khoản hiện tại, kể cả booking
+đã hủy.
 
 #### `DELETE /api/v1/bookings/{booking_id}`
 
-Chỉ owner đã đăng nhập có thể hủy booking active. Chuyển status sang
-`cancelled`, giữ row và trả booking đã cập nhật (`200`). Booking đã hủy trả
-`400`; anonymous `401`; không phải owner `403`; không tìm thấy `404`.
+Chủ booking có thể hủy booking đang `active`. Server đổi status thành
+`cancelled` và trả booking đã cập nhật. Booking đã hủy trả `400`; sai chủ sở hữu
+trả `403`; không tìm thấy trả `404`.
 
 ## 7. Ví dụ gọi API
 
-Đăng ký:
+Đăng ký tài khoản:
 
 ```sh
 curl -X POST http://127.0.0.1:8000/api/v1/auth/register \
@@ -329,7 +470,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/auth/register \
 curl http://127.0.0.1:8000/api/v1/movies
 ```
 
-Tạo booking (thay JWT, showtime và seat bằng dữ liệu hợp lệ/còn trống):
+Tạo booking (thay JWT và thông tin ghế bằng dữ liệu hợp lệ):
 
 ```sh
 curl -X POST http://127.0.0.1:8000/api/v1/bookings/ \
@@ -338,78 +479,58 @@ curl -X POST http://127.0.0.1:8000/api/v1/bookings/ \
   -d '{"showtime_id":1,"seat_number":"3"}'
 ```
 
+Giữ ghế rồi thanh toán demo:
+
+```sh
+curl -X POST http://127.0.0.1:8000/api/v1/holds \
+  -H "Authorization: Bearer <JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{"showtime_id":1,"seat_numbers":["3","4"]}'
+
+curl -X POST http://127.0.0.1:8000/api/v1/payments \
+  -H "Authorization: Bearer <JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{"hold_id":123456}'
+```
+
+Thay `123456` bằng `id` trong response tạo hold.
+
 ## 8. Test và load test
 
-Domain unit tests không cần PostgreSQL:
+### Chạy kiểm thử
+
+Chạy unit tests:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/unit/test_booking.py tests/unit/test_movie.py tests/unit/test_showtime.py -q -p no:cacheprovider
 ```
 
-Integration tests cần database riêng. Copy `.env.test.example` thành `.env.test`,
-điền `TEST_DATABASE_URL` dùng driver psycopg và trỏ tới database thử nghiệm (tên
-database chứa `test`):
+Integration tests dùng database riêng. Copy `.env.test.example` thành
+`.env.test` và đặt `TEST_DATABASE_URL` trỏ tới database có tên chứa `test`:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/create_test_db.py
 .\.venv\Scripts\python.exe -m pytest tests/test_auth.py tests/test_movie.py tests/test_showtime.py tests/test_booking.py tests/test_showtime_repository.py -q -p no:cacheprovider
 ```
 
-Với Docker Compose local mặc định, cấu hình `.env.test` trỏ tới database riêng
-`cinema_booking_test`, ví dụ:
+Ví dụ `TEST_DATABASE_URL` khi dùng PostgreSQL trong Docker Compose:
 `postgresql+psycopg://cinema:123456@localhost:5432/cinema_booking_test`.
-Không trỏ test suite tới `cinema_booking`.
+Không dùng database ứng dụng hoặc production để chạy integration tests. Test
+fixtures sẽ xóa dữ liệu trong database test sau khi chạy. Bài
+`test_booking_constraints.py` đang bị skip vì database chưa chống được hai yêu
+cầu đặt cùng ghế đồng thời.
 
-Fixtures rollback dữ liệu sau từng test và xóa các bảng khỏi database test khi
-kết thúc cả session pytest. Chỉ dùng một database thử nghiệm dùng riêng; không
-dùng URL production. Không dùng chung database cần giữ dữ liệu.
-`tests/test_booking_constraints.py` là legacy race/constraint tests, bị skip
-theo scope Phase 1.
+### Kiểm thử tải
 
-### Kết quả kiểm tra
-
-Kết quả dưới đây là lần chạy thành công gần nhất được ghi nhận (2026-10-11):
-
-- API/integration: **53 passed** với năm file test phía trên, chạy trên
-  `cinema_booking_test`.
-- Domain unit tests: **15 passed** với lệnh
-  `.venv\Scripts\python.exe -m pytest tests/unit/test_booking.py tests/unit/test_movie.py tests/unit/test_showtime.py -q -p no:cacheprovider`.
-- Chưa có kết quả Kaggle/Locust.
-- Lỗi import `_map_auth_exception` trong `tests/unit/test_auth.py` đã được sửa
-  để kiểm tra trực tiếp `HTTPException` theo hành vi hiện tại của `AuthService`.
-  Chưa xác nhận được kết quả chạy mới: interpreter trong `.venv` không truy cập
-  được executable đã cấu hình và Python hệ thống chưa cài pytest.
-- Các con số pass trên là kết quả lịch sử của những nhóm test chạy riêng, không
-  phải kết quả chạy lại trên phiên bản hiện tại.
-
-Locust script `load_test/load_test.py` cần API ở một địa chỉ mà Kaggle truy cập
-được; `localhost` trên máy cá nhân không tự truy cập được từ Kaggle. Đặt các
-giá trị sau trong Kaggle Secrets/environment, không lưu token trong script:
-
-- `BOOKING_ACCESS_TOKEN`: JWT hợp lệ.
-- `BOOKING_SHOWTIME_ID`: ID showtime tồn tại.
-- `BOOKING_TOTAL_SEATS`: sức chứa showtime.
-- `BOOKING_SEAT_START`: tùy chọn, ghế đầu dải dành riêng (mặc định 1).
-
-```sh
-locust -f load_test/load_test.py --host https://<api-host> \
-  --headless -u 10 -r 1 -t 60s
-```
-
-Dành ít nhất một ghế chưa đặt cho mỗi user mô phỏng; `-u` không vượt số ghế
-trong dải. Tất cả virtual users dùng cùng JWT nên đây không phải mô phỏng nhiều
-tài khoản và không kiểm tra race-condition.
+Locust cần API đang chạy, JWT thử nghiệm và suất chiếu có ghế trống. Xem cách
+cấu hình trong [hướng dẫn kiểm thử tải](LOAD_TEST_PLAN.md). Kịch bản hiện không
+kiểm tra nhiều request đặt cùng một ghế.
 
 ## 9. Giới hạn hiện tại
 
-- Docker Compose cung cấp cấu hình phát triển local; PostgreSQL dùng mật khẩu
-  mặc định yếu nếu không đặt `POSTGRES_PASSWORD` trong `.env`.
-- Lần chạy thành công gần nhất của API/integration và domain unit là
-  2026-10-11; xem mục 8. Chưa chạy lại sau các cập nhật tài liệu/test gần đây.
-- Kịch bản Locust đã chuẩn bị; lần chạy Kaggle CPU và số liệu kết quả còn chờ
-  thực hiện thủ công sau khi có API public/reachable cùng ghế test riêng.
-- Chưa có Alembic/migration; `scripts/init_db.py` chỉ tạo bảng thiếu, không
-  migrate schema đã tồn tại.
-- Không có pagination, payment, reservation expiry hoặc route
-  `/api/v1/showtimes/{id}` riêng.
-- Swagger/OpenAPI được FastAPI cung cấp ở `/docs` và `/openapi.json`.
+- Compose dùng mật khẩu PostgreSQL mặc định `123456`; chỉ dùng cho local.
+- Chưa có migration. `scripts/init_db.py` chỉ tạo bảng thiếu.
+- Chưa có phân trang, cổng thanh toán thật hoặc API chi tiết showtime. Xem
+  [PAYMENT_API.md](PAYMENT_API.md) để biết thêm về hold và thanh toán demo.
+- Đăng ký mới tạo role USER. Muốn cấp ADMIN, cần cập nhật role trong database.
+- Tài liệu API có tại `/docs`; OpenAPI JSON có tại `/openapi.json`.

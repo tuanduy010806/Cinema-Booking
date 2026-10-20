@@ -1,7 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.booking import Booking
 from app.models.showtime import Showtime
 
 
@@ -25,14 +24,6 @@ class ShowtimeRepository:
     async def create(self, showtime_data: dict):
         showtime = Showtime(**showtime_data)
         self.session.add(showtime)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(showtime)
         return showtime
-
-    async def get_booked_seats(self, showtime_id: int):
-        statement = select(Booking.seat_number).where(
-            Booking.showtime_id == showtime_id,
-            Booking.status == "active",
-        )
-        result = await self.session.scalars(statement)
-        return set(result.all())

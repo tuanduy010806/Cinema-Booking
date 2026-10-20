@@ -1,9 +1,10 @@
 from fastapi import HTTPException, Request, status
 
-from app.models.user import Role, User
+from app.domain.roles import Role
+from app.models.user import User
 
 
-class RollChecker:
+class RoleChecker:
     def __init__(self, allowed_role: Role | str = Role.USER):
         self.allowed_role = (
             allowed_role.value if isinstance(allowed_role, Role) else allowed_role

@@ -1,48 +1,52 @@
-from fastapi import HTTPException, status
-
+from app.core.exceptions import (
+    EmailAlreadyExistsError,
+    InvalidCredentialsError,
+    PasswordMismatchError,
+)
 from app.core.security import create_access_token, hash_password, verify_password
-from app.models.user import Role
+from app.domain.roles import Role
+from app.domain.unit_of_work import UnitOfWork
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 
 
 class AuthService:
     """Business logic for authentication."""
 
-    def __init__(self, user_repository):
+    def __init__(
+        self, user_repository, unit_of_work: UnitOfWork | None = None
+    ):
         self.user_repository = user_repository
+        self.unit_of_work = unit_of_work
 
     async def register(self, payload: RegisterRequest) -> TokenResponse:
         if payload.password != payload.repassword:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Passwords do not match",
-            )
+            raise PasswordMismatchError("Passwords do not match")
 
         if await self.user_repository.get_by_email(payload.email) is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Email is already registered",
-            )
+            raise EmailAlreadyExistsError("Email is already registered")
 
-        user = await self.user_repository.create(
-            {
-                "email": payload.email,
-                "username": payload.email.partition("@")[0],
-                "password_hash": hash_password(payload.password),
-                "role": Role.USER.value,
-            }
-        )
+        try:
+            user = await self.user_repository.create(
+                {
+                    "email": payload.email,
+                    "username": payload.email.partition("@")[0],
+                    "password_hash": hash_password(payload.password),
+                    "role": Role.USER.value,
+                }
+            )
+            if self.unit_of_work is not None:
+                await self.unit_of_work.commit()
+        except Exception:
+            if self.unit_of_work is not None:
+                await self.unit_of_work.rollback()
+            raise
         access_token = create_access_token({"sub": str(user.user_id)})
         return TokenResponse(access_token=access_token)
 
     async def login(self, payload: LoginRequest) -> TokenResponse:
         user = await self.user_repository.get_by_email(payload.email)
         if user is None or not verify_password(payload.password, user.password_hash):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            raise InvalidCredentialsError("Invalid email or password")
 
         access_token = create_access_token({"sub": str(user.user_id)})
         return TokenResponse(access_token=access_token)

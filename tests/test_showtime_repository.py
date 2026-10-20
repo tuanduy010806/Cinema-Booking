@@ -1,7 +1,7 @@
 import pytest
 
 from app.models.booking import Booking
-from app.repositories.showtime_repository import ShowtimeRepository
+from app.repositories.booking_repository import BookingRepository
 
 
 class _AsyncSessionAdapter:
@@ -15,7 +15,7 @@ class _AsyncSessionAdapter:
 
 
 @pytest.mark.asyncio
-async def test_get_booked_seats_returns_only_active(
+async def test_get_active_seat_numbers_returns_only_active(
     db_session, user1, showtime1
 ):
     db_session.add_all(
@@ -36,6 +36,6 @@ async def test_get_booked_seats_returns_only_active(
     )
     db_session.flush()
 
-    repository = ShowtimeRepository(_AsyncSessionAdapter(db_session))
+    repository = BookingRepository(_AsyncSessionAdapter(db_session))
 
-    assert await repository.get_booked_seats(showtime1.id) == {"1"}
+    assert await repository.get_active_seat_numbers(showtime1.id) == {"1"}

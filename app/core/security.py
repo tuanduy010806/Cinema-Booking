@@ -1,18 +1,16 @@
-import os
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from dotenv import load_dotenv
-from fastapi import HTTPException, status
 from pwdlib import PasswordHash
 
-load_dotenv()
+from app.core.config import settings
+from app.core.exceptions import InvalidTokenError
 
 password_hasher = PasswordHash.recommended()
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
+SECRET_KEY = settings.SECRET_KEY
+ALGORITHM = settings.ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 
 def hash_password(password: str) -> str:
@@ -23,22 +21,18 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return password_hasher.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict, exprie_delta: timedelta | None = None) -> str:
+def create_access_token(data: dict, expire_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
-    if exprie_delta is None:
-        exprie_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": datetime.now(timezone.utc) + exprie_delta})
+    if expire_delta is None:
+        expire_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": datetime.now(timezone.utc) + expire_delta})
     access_token = jwt.encode(to_encode, SECRET_KEY, ALGORITHM)
     return access_token
 
 
 def decode_access_token(token: str) -> dict:
-    credentials_exception = HTTPException(
-          status_code=status.HTTP_401_UNAUTHORIZED,
-          detail="could not validate"
-    )
-    try :
-        payload = jwt.decode(token,key=SECRET_KEY,algorithms=[ALGORITHM])
+    try:
+        payload = jwt.decode(token, key=SECRET_KEY, algorithms=[ALGORITHM])
     except jwt.InvalidTokenError:
-        raise credentials_exception
+        raise InvalidTokenError("could not validate") from None
     return payload

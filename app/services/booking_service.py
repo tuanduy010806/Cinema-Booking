@@ -1,18 +1,8 @@
-"""
-BookingService — pure business logic for the Booking domain.
-
-Rules enforced here:
-- No FastAPI imports.
-- No SQLAlchemy imports.
-- No direct DB access.
-- All persistence work delegated to the injected repository.
-- All domain invariants (ownership, state transitions, duplicates) live here.
-
-Integration changes (PROMPT 11 — Audit item #7):
-- All public methods converted to async def to match the async BookingRepository.
-"""
+"""Business logic for bookings."""
 
 from __future__ import annotations
+
+from datetime import datetime, timezone
 
 from app.core.exceptions import (
     BookingStateError,
@@ -20,14 +10,18 @@ from app.core.exceptions import (
     NotFoundError,
     OwnershipError,
 )
-from app.models.booking import Booking
 from app.schemas.booking import BookingCreate
+from app.models.booking import Booking
+from app.domain.unit_of_work import UnitOfWork
 
 
 class BookingService:
     """Business logic for bookings."""
 
-    def __init__(self, repo, showtime_repo) -> None:
+    def __init__(
+        self, repo, showtime_repo, hold_repo=None,
+        unit_of_work: UnitOfWork | None = None,
+    ) -> None:
         """
         Parameters
         ----------
@@ -40,6 +34,8 @@ class BookingService:
         """
         self.repo = repo
         self.showtime_repo = showtime_repo
+        self.hold_repo = hold_repo
+        self.unit_of_work = unit_of_work
 
     # ------------------------------------------------------------------
     # Public API
@@ -91,11 +87,29 @@ class BookingService:
                 seat_number=payload.seat_number,
             )
 
+        if self.hold_repo is not None:
+            held_seats = await self.hold_repo.get_active_seat_numbers(
+                payload.showtime_id, datetime.now(timezone.utc)
+            )
+            if payload.seat_number in held_seats:
+                raise DuplicateSeatError(
+                    showtime_id=payload.showtime_id,
+                    seat_number=payload.seat_number,
+                )
+
         # --- Step 2: persist after the sequential duplicate check ---
         booking_data = payload.model_dump()
-        return await self.repo.create(booking_data, user_id=user_id)
+        try:
+            booking = await self.repo.create(booking_data, user_id=user_id)
+            if self.unit_of_work is not None:
+                await self.unit_of_work.commit()
+            return booking
+        except Exception:
+            if self.unit_of_work is not None:
+                await self.unit_of_work.rollback()
+            raise
 
-    async def get_my_bookings(self, user_id: int) -> list[Booking]:
+    async def get_my_bookings(self, user_id: int):
         """Return all bookings that belong to *user_id*.
 
         Parameters
@@ -105,12 +119,12 @@ class BookingService:
 
         Returns
         -------
-        list[Booking]:
-            Possibly empty list of the user's bookings.
+        A possibly empty collection of the user's bookings, supplied by the
+        repository.
         """
         return await self.repo.get_by_user_id(user_id)
 
-    async def cancel_booking(self, user_id: int, booking_id: int) -> Booking:
+    async def cancel_booking(self, user_id: int, booking_id: int):
         """Cancel a booking.
 
         Flow
@@ -157,5 +171,12 @@ class BookingService:
             )
 
         # --- Step 4: persist cancellation (no hard-delete) ---
-        updated = await self.repo.update_status(booking_id, "cancelled")
-        return updated
+        try:
+            updated = await self.repo.update_status(booking_id, "cancelled")
+            if self.unit_of_work is not None:
+                await self.unit_of_work.commit()
+            return updated
+        except Exception:
+            if self.unit_of_work is not None:
+                await self.unit_of_work.rollback()
+            raise

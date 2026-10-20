@@ -1,13 +1,4 @@
-"""
-BookingRepository — async data-access layer.
-
-Audit changes applied (PROMPT 11):
-- Converted from synchronous Session to AsyncSession (Audit items #7, #8).
-- Replaced session.query() ORM-style with select() / scalars() compatible
-  with SQLAlchemy async engine.
-- All methods are now async def; callers must await them.
-- Business logic (ownership, state transitions) remains in BookingService.
-"""
+"""Async data access for bookings."""
 
 from __future__ import annotations
 
@@ -37,7 +28,7 @@ class BookingRepository:
         safe_data = {k: v for k, v in booking_data.items() if k != "user_id"}
         booking = Booking(**safe_data, user_id=user_id)
         self.db.add(booking)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(booking)
         return booking
 
@@ -52,7 +43,7 @@ class BookingRepository:
             return None
 
         booking.status = status
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(booking)
         return booking
 
@@ -63,6 +54,14 @@ class BookingRepository:
     async def get_by_id(self, booking_id: int) -> Booking | None:
         """Return a Booking by primary key, or None if not found."""
         return await self.db.get(Booking, booking_id)
+
+    async def get_by_ids(self, booking_ids: list[int]) -> list[Booking]:
+        if not booking_ids:
+            return []
+        result = await self.db.scalars(
+            select(Booking).where(Booking.id.in_(booking_ids))
+        )
+        return list(result.all())
 
     async def get_by_user_id(self, user_id: int) -> list[Booking]:
         """Return all bookings (any status) belonging to user_id."""
@@ -90,3 +89,22 @@ class BookingRepository:
         )
         result = await self.db.execute(statement)
         return result.scalar_one_or_none() is not None
+
+    async def get_active_seat_numbers(self, showtime_id: int) -> set[str]:
+        """Return seat labels with an active booking for a showtime."""
+        statement = select(Booking.seat_number).where(
+            Booking.showtime_id == showtime_id,
+            Booking.status == "active",
+        )
+        result = await self.db.scalars(statement)
+        return set(result.all())
+
+    async def create_many(self, booking_data: list[dict], user_id: int):
+        """Add a group of bookings to the current transaction without committing."""
+        bookings = [
+            Booking(**{k: v for k, v in data.items() if k != "user_id"}, user_id=user_id)
+            for data in booking_data
+        ]
+        self.db.add_all(bookings)
+        await self.db.flush()
+        return bookings
