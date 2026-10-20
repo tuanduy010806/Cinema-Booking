@@ -54,7 +54,7 @@ async def create_booking(
 
 
 @router.get(
-    "/me",
+    "/me", 
     response_model=list[BookingResponse],
     summary="Get my bookings",
 )
