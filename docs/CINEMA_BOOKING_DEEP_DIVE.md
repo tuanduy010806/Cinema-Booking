@@ -292,13 +292,55 @@ erDiagram
     SHOWTIMES ||--o{ SEAT_HOLDS : holds
     SEAT_HOLDS ||--|{ SEAT_HOLD_SEATS : contains
     BOOKINGS o|--o| SEAT_HOLD_SEATS : fulfills
-    USERS { int user_id PK string email UK string password_hash string role string username }
-    MOVIES { int id PK string title string description int duration_minutes }
-    SHOWTIMES { int id PK int movie_id FK datetime start_time int total_seats }
-    BOOKINGS { int id PK int user_id FK int showtime_id FK string seat_number string status datetime created_at }
-    SEAT_HOLDS { int id PK int user_id FK int showtime_id FK string status datetime expires_at }
-    SEAT_HOLD_SEATS { int id PK int hold_id FK string seat_number int booking_id FK_UK }
-    PAYMENTS { int id PK int hold_id UK int user_id FK int amount string currency string status datetime paid_at }
+    USERS {
+        int user_id PK
+        string email UK
+        string password_hash
+        string role
+        string username
+    }
+    MOVIES {
+        int id PK
+        string title
+        string description
+        int duration_minutes
+    }
+    SHOWTIMES {
+        int id PK
+        int movie_id FK
+        datetime start_time
+        int total_seats
+    }
+    BOOKINGS {
+        int id PK
+        int user_id FK
+        int showtime_id FK
+        string seat_number
+        string status
+        datetime created_at
+    }
+    SEAT_HOLDS {
+        int id PK
+        int user_id FK
+        int showtime_id FK
+        string status
+        datetime expires_at
+    }
+    SEAT_HOLD_SEATS {
+        int id PK
+        int hold_id FK
+        string seat_number
+        int booking_id FK
+    }
+    PAYMENTS {
+        int id PK
+        int hold_id UK
+        int user_id FK
+        int amount
+        string currency
+        string status
+        datetime paid_at
+    }
 ```
 
 ERD phản ánh FK/unique khai báo trong ORM, không phải toàn bộ quy tắc nghiệp vụ. Đặc biệt không có constraint duy nhất `(showtime_id, seat_number)` cho active Booking; payment `hold_id` unique nhưng không có ForeignKey tới `seat_holds.id` trong `app/models/payment.py:9-26`. `SeatHoldSeat` có unique booking_id nullable, nhưng không khai báo unique `(hold_id, seat_number)`.
