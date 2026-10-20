@@ -35,13 +35,6 @@ class NotFoundException(CinemaException):
     """Resource not found."""
 
 
-NotFoundError = NotFoundException
-
-
-class UnauthorizedException(CinemaException):
-    """Unauthorized access (e.g. missing / invalid credentials)."""
-
-
 class ForbiddenException(CinemaException):
     """Forbidden access (authenticated but not permitted)."""
 
@@ -60,13 +53,6 @@ class OwnershipError(ForbiddenException):
         super().__init__(
             f"User {user_id} does not own booking {booking_id}."
         )
-
-
-class PaymentOwnershipError(ForbiddenException):
-    """The payment reference is already associated with another user."""
-
-    def __init__(self) -> None:
-        super().__init__("This payment reference belongs to another user.")
 
 
 class HoldOwnershipError(ForbiddenException):

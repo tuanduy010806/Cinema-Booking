@@ -7,7 +7,6 @@ from app.core.exceptions import (
     HoldOwnershipError,
     HoldStateError,
     NotFoundException,
-    PaymentOwnershipError,
 )
 from app.domain.unit_of_work import UnitOfWork
 
@@ -68,8 +67,6 @@ class PaymentService:
                 amount=settings.DEMO_PAYMENT_AMOUNT_VND * len(seats),
                 paid_at=now,
             )
-            if payment.user_id != user_id:
-                raise PaymentOwnershipError()
             bookings = await self.booking_repository.create_many(
                 [
                     {"showtime_id": hold.showtime_id, "seat_number": seat.seat_number}
