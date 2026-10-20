@@ -6,9 +6,11 @@ from pathlib import Path
 from sqlalchemy import select, text
 
 from app.db.database import AsyncSessionLocal
+from app.domain.roles import Role
 from app.models.booking import Booking
 from app.models.movie import Movie
 from app.models.showtime import Showtime
+from app.models.user import User
 from app.schemas.movie import MovieCreate
 
 
@@ -37,10 +39,12 @@ def load_json_array(path: Path, label: str) -> list[dict[str, object]]:
             raise ValueError(f"Record at index {index} in {path} must be a JSON object.")
     return data
 
+
+def load_movie_data() -> list[dict[str, object]]:
+    """Load and validate movie records for the database."""
+    data = load_json_array(MOVIES_FILE, "Movie")
     validated_movies: list[dict[str, object]] = []
     for index, movie in enumerate(data):
-        if not isinstance(movie, dict):
-            raise ValueError(f"Movie at index {index} must be a JSON object.")
         validated = MovieCreate.model_validate(movie)
         if not validated.title.strip():
             raise ValueError(f"Movie at index {index} must have a non-empty title.")
