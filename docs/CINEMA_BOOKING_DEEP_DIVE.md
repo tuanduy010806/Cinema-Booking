@@ -4,7 +4,7 @@
 
 ## Phạm vi và cách dùng
 
-Đã khảo sát các module Python dưới `app/`, launcher `main.py`, cấu hình môi trường, Docker, script khởi tạo/seed, và các test liên quan. Đã đọc call path của auth, movie, showtime, booking, hold và payment; kiểm tra fixture test và file test booking constraints. Đã thử chạy `pytest tests/unit`, nhưng không chạy được: Python trong `.venv` trỏ đến interpreter Python 3.12 không còn tồn tại; Python hệ thống không có package `pytest`. Không chạy application, integration suite, truy vấn database hay benchmark. Bộ test tích hợp yêu cầu `TEST_DATABASE_URL` trỏ đến PostgreSQL test riêng (`tests/conftest.py:95-119`); không tự dùng `DATABASE_URL` thay thế. Các nhận định runtime vì vậy chưa được xác minh.
+Đã khảo sát các module Python dưới `app/`, cấu hình môi trường, Docker, script khởi tạo/seed, và các test liên quan. Đã đọc call path của auth, movie, showtime, booking, hold và payment; kiểm tra fixture test và file test booking constraints. Đã thử chạy `pytest tests/unit`, nhưng không chạy được: Python trong `.venv` trỏ đến interpreter Python 3.12 không còn tồn tại; Python hệ thống không có package `pytest`. Không chạy application, integration suite, truy vấn database hay benchmark. Bộ test tích hợp yêu cầu `TEST_DATABASE_URL` trỏ đến PostgreSQL test riêng (`tests/conftest.py:95-119`); không tự dùng `DATABASE_URL` thay thế. Các nhận định runtime vì vậy chưa được xác minh.
 
 Các đường dẫn/dòng dạng `path/to/module.py:10-20` là vị trí trong source hiện tại tại thời điểm soạn tài liệu. Mở file trực tiếp và đối chiếu trước khi dùng làm trích dẫn khi vấn đáp.
 
@@ -69,7 +69,6 @@ Handler và mapping exception nằm ở `app/main.py:38-68`; các router và th�
 
 ```text
 .
-├── main.py                       launcher Uvicorn cho app.main:app
 ├── app/
 │   ├── main.py                   tạo FastAPI, middleware, exception handler, include routers
 │   ├── api/                      HTTP routes và dependency wiring
@@ -91,8 +90,7 @@ Handler và mapping exception nằm ở `app/main.py:38-68`; các router và th�
 
 | File | Trách nhiệm và điểm cần biết |
 |---|---|
-| `main.py:1-18` | Launcher root; chạy Uvicorn trỏ tới `app.main:app`. |
-| `app/main.py:30-77` | Tạo `FastAPI`, gắn middleware, ánh xạ domain exceptions, đăng ký sáu router. |
+| `app/main.py:30-77` | Entry point duy nhất: tạo `FastAPI`, gắn middleware, ánh xạ domain exceptions, đăng ký sáu router. |
 | `app/core/config.py:5-15` | Settings đọc `.env`; bắt buộc `DATABASE_URL`, `SECRET_KEY`; mặc định algorithm HS256, token 60 phút, SQL echo false, payment 100000 VND/ghế, hold 300 giây. |
 | `app/core/security.py:10-38` | Hash/verify password; phát và decode JWT. |
 | `app/core/auth_middleware.py:11-46` | Parse Bearer, decode `sub`, nạp User vào request state hoặc trả 401. |
@@ -190,7 +188,7 @@ Các nhãn ở chương này nói về mức bằng chứng: **IMPLEMENTED** ngh
 | Demo payment | **IMPLEMENTED** | Không thấy test payment trong test file inventory. | Không gateway thật; payment status hiện ghi succeeded. |
 | Load test | Script `load_test/load_test.py` | Chưa chạy; tài liệu `LOAD_TEST_PLAN.md` nói kịch bản booking trực tiếp. | Không benchmark thay thế môi trường triển khai; không test hold/payment. |
 
-`tests/test_booking_constraints.py` tự ghi đây là legacy test được skip (`pytestmark` ở đầu file); test mô tả partial unique index/race nhưng model hiện không khai báo index đó. Vì thế không coi các assertion đó là xác nhận hiện trạng. Chỉ test thật được chạy mới nhận nhãn **TESTED** cho phiên làm việc.
+Không có test hiện hành xác nhận constraint database ngăn hai request đặt cùng ghế; model `Booking` cũng không khai báo constraint này. Các test booking thông thường không chứng minh được hành vi đồng thời.
 
 ## Chương 5 — Truy vết các luồng end-to-end
 
@@ -239,7 +237,7 @@ Nuance: middleware mở session truy vấn user riêng, rồi dependency DB củ
 
 `POST /api/v1/bookings/` body `showtime_id` + `seat_number`; `BookingCreate` yêu cầu regex `^[1-9][0-9]*$`. FastAPI validate trước endpoint. Endpoint lấy ID từ UserIdentity, không lấy owner từ body. Service:
 
-1. Lấy showtime, không có thì `NotFoundError`.
+1. Lấy showtime, không có thì `NotFoundException`.
 2. Parse nhãn ghế sang int, so với `total_seats`; quá sức chứa cũng trả not found.
 3. Query booking active cùng `(showtime_id, seat_number)`.
 4. Nếu có hold repository, query seat đang thuộc hold active/chưa hết hạn.
@@ -444,7 +442,7 @@ Design benefit: transaction ownership is more explicit than committing in every 
 
 ## Chương 10 — Configuration and local operations
 
-Ứng dụng đọc cấu hình từ environment qua `app/core/config.py`; biến quan trọng gồm URL database, JWT secret/algorithm/TTL, TTL hold và giá demo mỗi ghế. `.env.example` là mẫu, không ghi secret thật vào tài liệu. `main.py` chạy Uvicorn ở `127.0.0.1:8000` với reload mặc định khi gọi trực tiếp. Docker khởi tạo DB bằng `scripts/init_db.py` rồi chạy Uvicorn; `metadata.create_all` không thay thế migration có version. Seed dữ liệu là bước riêng.
+Ứng dụng đọc cấu hình từ environment qua `app/core/config.py`; biến quan trọng gồm URL database, JWT secret/algorithm/TTL, TTL hold và giá demo mỗi ghế. `.env.example` là mẫu, không ghi secret thật vào tài liệu. Chạy local bằng `py -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload`. Docker khởi tạo DB bằng `scripts/init_db.py` rồi chạy cùng entry point; `metadata.create_all` không thay thế migration có version. Seed dữ liệu là bước riêng.
 
 Compose wiring mô tả app và PostgreSQL nhưng tài liệu này không xác nhận container đã chạy. Tên environment giữa local, test và container phải được đối chiếu trước khi chạy integration test; chỉ dùng DB test/local có thể tạo bảng hoặc thay đổi dữ liệu.
 
@@ -499,10 +497,6 @@ Payment reads hold state/expiry, then writes payment/booking/status without `SEL
 ### MEDIUM — registration uniqueness race/error mapping (RISK)
 
 Service prechecks email, model has unique email, but simultaneous registration can still hit DB `IntegrityError`; no explicit conversion appears in service/repository. Translate DB uniqueness conflict to stable 409 after rollback.
-
-### MEDIUM — behavior/documentation/test mismatch (BUG in stale tests/docs, not runtime feature)
-
-Legacy `tests/test_booking_constraints.py` describes a partial unique index and error translation that current ORM/repository code does not implement; whole module is marked skipped. Old `BOOKING_CONTRACT.md` was replaced during prior documentation work; README may still describe details requiring source comparison. Treat source as current truth and update stale tests/docs. Do not cite skipped test expectation as implemented behavior.
 
 ### MEDIUM — test coverage for newer flows (NOT VERIFIED)
 

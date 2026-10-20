@@ -221,20 +221,13 @@ Danh sách phim mẫu nằm trong `data/movie.json`. Sửa file này rồi chạ
 `py seed.py` để cập nhật database.
 
 `init_db.py` chỉ tạo bảng còn thiếu, không sửa schema cũ. Chạy API từ thư mục
-gốc bằng một trong hai lệnh:
-
-```powershell
-py main.py
-```
-
-Hoặc gọi Uvicorn trực tiếp:
+gốc bằng lệnh:
 
 ```powershell
 py -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Lệnh Uvicorn dùng ứng dụng `app` trong `app/main.py`. `py main.py` chạy launcher
-ở thư mục gốc.
+Lệnh trên chạy ứng dụng duy nhất được khai báo tại `app/main.py`.
 
 Swagger UI: <http://127.0.0.1:8000/docs>. OpenAPI JSON:
 <http://127.0.0.1:8000/openapi.json>. Base URL local:
@@ -516,9 +509,8 @@ Integration tests dùng database riêng. Copy `.env.test.example` thành
 Ví dụ `TEST_DATABASE_URL` khi dùng PostgreSQL trong Docker Compose:
 `postgresql+psycopg://cinema:123456@localhost:5432/cinema_booking_test`.
 Không dùng database ứng dụng hoặc production để chạy integration tests. Test
-fixtures sẽ xóa dữ liệu trong database test sau khi chạy. Bài
-`test_booking_constraints.py` đang bị skip vì database chưa chống được hai yêu
-cầu đặt cùng ghế đồng thời.
+fixtures sẽ xóa dữ liệu trong database test sau khi chạy. Hiện chưa có test
+đồng thời xác nhận hai request tranh cùng một ghế được xử lý an toàn.
 
 ### Kiểm thử tải
 
