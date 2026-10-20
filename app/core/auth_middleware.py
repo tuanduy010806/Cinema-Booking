@@ -15,6 +15,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         authorization = request.headers.get("Authorization")
         request.state.current_user = None
 
+        # Public routes accept no token; supplied tokens are always checked.
         if authorization is None:
             return await call_next(request)
 
@@ -28,6 +29,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         except (InvalidTokenError, KeyError, TypeError, ValueError):
             return self._unauthorized()
 
+        # Reload user and role on every request.
         async with AsyncSessionLocal() as session:
             user = await UserRepository(session).get_by_id(user_id)
 

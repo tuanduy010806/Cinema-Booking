@@ -40,6 +40,7 @@ class AuthService:
             if self.unit_of_work is not None:
                 await self.unit_of_work.rollback()
             raise
+        # Issue a token only after user creation succeeds.
         access_token = create_access_token({"sub": str(user.user_id)})
         return TokenResponse(access_token=access_token)
 

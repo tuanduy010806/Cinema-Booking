@@ -19,6 +19,7 @@ class RoleChecker:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+        # Role checks do not replace ownership checks in services.
         if user.role != self.allowed_role:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

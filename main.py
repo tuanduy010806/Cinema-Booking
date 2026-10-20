@@ -12,11 +12,6 @@ app = FastAPI(title="Cinema Booking System")
 app.add_middleware(AuthMiddleware)
 
 
-# ---------------------------------------------------------------------------
-# Global domain exception handlers
-# Map service-layer exceptions → correct HTTP status codes
-# ---------------------------------------------------------------------------
-
 
 @app.exception_handler(NotFoundException)
 async def not_found_handler(request: Request, exc: NotFoundException) -> JSONResponse:
@@ -32,10 +27,6 @@ async def unauthorized_handler(request: Request, exc: UnauthorizedException) -> 
 async def forbidden_handler(request: Request, exc: ForbiddenException) -> JSONResponse:
     return JSONResponse(status_code=403, content={"detail": str(exc)})
 
-
-# ---------------------------------------------------------------------------
-# Routers
-# ---------------------------------------------------------------------------
 
 app.include_router(auth_router)
 app.include_router(movie_router)

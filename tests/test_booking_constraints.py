@@ -1,18 +1,11 @@
-"""Legacy PostgreSQL constraint and race tests, retained but intentionally skipped.
-
-The simplified Phase 1 contract requires only the service-level sequential
-duplicate check. The current Booking model has no partial unique index, so the
-legacy tests below do not represent current acceptance criteria and must stay
-skipped unless the database-level concurrency requirement is explicitly
-reintroduced.
-"""
+"""Legacy booking constraint tests; skipped because the model has no seat constraint."""
 
 from __future__ import annotations
 
 import pytest
 
 pytestmark = pytest.mark.skip(
-    reason="Database race/constraint guarantees are outside the simplified Phase 1 scope."
+    reason="The current Booking model has no database-level seat constraint."
 )
 
 import threading
@@ -29,11 +22,6 @@ from app.models.showtime import Showtime
 from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
 
-# ---------------------------------------------------------------------------
-# Internal helpers — direct DB inserts that bypass the service pre-check
-# so the constraint itself is exercised.
-# ---------------------------------------------------------------------------
-
 def _insert_booking(
     session: Session,
     *,
@@ -44,7 +32,7 @@ def _insert_booking(
 ) -> Booking:
     """Insert a Booking row directly via the session (no service pre-check)."""
     booking = Booking(
-        user_id=user.user_id,          # Audit #13: actual PK column is user_id
+        user_id=user.user_id,
         showtime_id=showtime.id,
         seat_number=seat_number,
         status=status,
@@ -53,11 +41,6 @@ def _insert_booking(
     session.add(booking)
     session.flush()   # send the INSERT; raises IntegrityError on constraint violation
     return booking
-
-
-# ===========================================================================
-# TEST 1 — Two ACTIVE bookings for the same seat → constraint rejects the 2nd
-# ===========================================================================
 
 def test_duplicate_active_seat_rejected_by_constraint(
     db_session: Session, user1: User, showtime1: Showtime
@@ -76,14 +59,10 @@ def test_duplicate_active_seat_rejected_by_constraint(
 
     proxy = _SyncSessionAsyncProxy(db_session)
     repo = BookingRepository(proxy)
-
-    # First booking succeeds.
     first = asyncio.get_event_loop().run_until_complete(
         repo.create({"showtime_id": showtime1.id, "seat_number": "1"}, user_id=user1.user_id)
     )
     assert first.status == "active"
-
-    # Second booking on the same (showtime, seat, status=active) must fail.
     with pytest.raises(DuplicateSeatError) as exc_info:
         asyncio.get_event_loop().run_until_complete(
             repo.create({"showtime_id": showtime1.id, "seat_number": "1"}, user_id=user1.user_id)
@@ -92,11 +71,6 @@ def test_duplicate_active_seat_rejected_by_constraint(
     err = exc_info.value
     assert err.showtime_id == showtime1.id
     assert err.seat_number == "1"
-
-
-# ===========================================================================
-# TEST 2 — Cancelled booking does NOT block a new ACTIVE booking (partial index)
-# ===========================================================================
 
 def test_cancelled_seat_allows_new_active_booking(
     db_session: Session, user1: User, user2: User, showtime1: Showtime
@@ -113,22 +87,15 @@ def test_cancelled_seat_allows_new_active_booking(
     This test verifies that the index predicate ``WHERE status = 'active'``
     correctly allows re-booking after cancellation.
     """
-    # Step 1: insert active booking for user1
     first = _insert_booking(db_session, user=user1, showtime=showtime1, seat_number="1")
     assert first.status == "active"
     db_session.flush()
-
-    # Step 2: cancel it directly (simulate what update_status does)
     first.status = "cancelled"
     db_session.flush()
-
-    # Step 3: user2 books the same seat — must succeed
     second = _insert_booking(db_session, user=user2, showtime=showtime1, seat_number="1")
     assert second.status == "active"
     assert second.showtime_id == showtime1.id
     assert second.seat_number == "1"
-
-    # Both rows must exist
     db_session.expire_all()
     rows = (
         db_session.query(Booking)
@@ -142,11 +109,6 @@ def test_cancelled_seat_allows_new_active_booking(
     statuses = {r.status for r in rows}
     assert "active" in statuses
     assert "cancelled" in statuses
-
-
-# ===========================================================================
-# TEST 3 — Same seat label on DIFFERENT showtimes → both allowed
-# ===========================================================================
 
 def test_same_seat_on_different_showtimes_allowed(
     db_session: Session, user1: User, showtime1: Showtime, showtime2: Showtime
@@ -164,28 +126,6 @@ def test_same_seat_on_different_showtimes_allowed(
     assert b2.showtime_id == showtime2.id
     assert b1.status == "active"
     assert b2.status == "active"
-
-
-# ===========================================================================
-# TEST 4 — Concurrent transactions race for the same seat
-# ===========================================================================
-#
-# Approach
-# --------
-# Two threads each open their own independent DB connection (NOT the shared
-# test connection).  They both attempt to INSERT (showtime1, '1', active).
-# PostgreSQL's row-level locking inside the partial unique index guarantees
-# exactly one INSERT commits; the other receives a serialisation/integrity
-# error.
-#
-# Because these threads use *independent* connections (not the conftest
-# savepoint-wrapped connection), they are NOT rolled back by the test fixture.
-# We therefore clean up explicitly in the finally block.
-#
-# Limitation: this exercises intra-process concurrency via two real PG
-# connections.  It does not simulate multi-server concurrency, but the same
-# DB-level constraint applies in that scenario too.
-# ===========================================================================
 
 import os
 from pathlib import Path
@@ -211,16 +151,11 @@ def test_concurrent_booking_only_one_succeeds(
     test_url = _load_env_test_url()
     if not test_url:
         pytest.skip("TEST_DATABASE_URL not available — skipping concurrency test")
-
-    # We use the shared test_engine so the tables definitely exist.
-    # Each thread gets its own connection + session (independent transactions).
     ThreadSession = sessionmaker(bind=test_engine, autocommit=False, autoflush=False)
 
     results: list[str] = []   # "ok" or "dup"
     errors:  list[Exception] = []
     inserted_ids: list[int] = []
-
-    # A barrier ensures both threads attempt their INSERT at the same instant.
     barrier = threading.Barrier(2, timeout=10)
 
     def attempt_booking(seat_number: str = "1") -> None:
@@ -257,8 +192,6 @@ def test_concurrent_booking_only_one_succeeds(
     t2.start()
     t1.join(timeout=15)
     t2.join(timeout=15)
-
-    # Cleanup: remove rows committed by threads (not covered by savepoint rollback)
     if inserted_ids:
         cleanup_session = ThreadSession()
         try:
@@ -268,8 +201,6 @@ def test_concurrent_booking_only_one_succeeds(
             cleanup_session.commit()
         finally:
             cleanup_session.close()
-
-    # Report unexpected errors
     if errors:
         pytest.fail(f"Unexpected errors in concurrent threads: {errors}")
 

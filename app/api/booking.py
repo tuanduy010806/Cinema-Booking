@@ -14,16 +14,8 @@ from app.repositories.seat_hold_repository import SeatHoldRepository
 from app.schemas.booking import BookingCreate, BookingResponse
 from app.services.booking_service import BookingService
 
-# ---------------------------------------------------------------------------
-# Router
-# ---------------------------------------------------------------------------
-
 router = APIRouter(prefix="/api/v1/bookings", tags=["bookings"])
 
-
-# ---------------------------------------------------------------------------
-# Service dependency
-# ---------------------------------------------------------------------------
 
 async def get_booking_service(db: AsyncSession = Depends(get_db)) -> BookingService:
     """Wire the Booking and Showtime repositories into the service."""
@@ -33,10 +25,6 @@ async def get_booking_service(db: AsyncSession = Depends(get_db)) -> BookingServ
         booking_repo, showtime_repo, SeatHoldRepository(db), SqlAlchemyUnitOfWork(db)
     )
 
-
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
 
 @router.post(
     "/",

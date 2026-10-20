@@ -45,6 +45,7 @@ class SeatHoldService:
             held = await self.hold_repository.get_active_seat_numbers(
                 payload.showtime_id, now
             )
+            # Both bookings and live holds make a seat unavailable.
             unavailable = booked | held
             for seat in payload.seat_numbers:
                 if seat in unavailable:
@@ -73,6 +74,7 @@ class SeatHoldService:
             raise HoldOwnershipError()
         seats = await self.hold_repository.get_seats(hold_id)
         now = datetime.now(timezone.utc)
+        # Expiry appears in this response; reads do not update the row.
         state = (
             "expired"
             if hold.status == "active" and hold.expires_at <= now

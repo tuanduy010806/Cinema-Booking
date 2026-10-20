@@ -1,4 +1,4 @@
-"""Focused authentication and role smoke tests for Person 1."""
+"""Authentication and role tests."""
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session

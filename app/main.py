@@ -29,11 +29,6 @@ from app.core.exceptions import (
 
 app = FastAPI(title="Cinema Booking System")
 app.add_middleware(AuthMiddleware)
-# ---------------------------------------------------------------------------
-# Global domain exception handlers
-# Map service-layer exceptions → correct HTTP status codes
-# ---------------------------------------------------------------------------
-
 
 EXCEPTION_STATUS_MAP = {
     NotFoundException: 404,
@@ -64,10 +59,6 @@ async def domain_exception_handler(request: Request, exc: CinemaException) -> JS
         headers=headers,
     )
 
-
-# ---------------------------------------------------------------------------
-# Routers
-# ---------------------------------------------------------------------------
 
 app.include_router(auth_router)
 app.include_router(movie_router)

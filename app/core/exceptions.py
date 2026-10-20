@@ -7,11 +7,6 @@ them to HTTP responses through exception handlers or middleware.
 """
 
 
-# ---------------------------------------------------------------------------
-# Base
-# ---------------------------------------------------------------------------
-
-
 class CinemaException(Exception):
     """Base exception for cinema booking system."""
 
@@ -32,24 +27,15 @@ class InvalidCredentialsError(AuthenticationError):
     """Raised when an email or password is incorrect."""
 
 
-# ---------------------------------------------------------------------------
-# Generic resource exceptions
-# ---------------------------------------------------------------------------
-
 class InvalidTokenError(CinemaException):
     pass
+
 
 class NotFoundException(CinemaException):
     """Resource not found."""
 
 
-# Canonical alias used by the Booking domain (matches prompt requirement).
 NotFoundError = NotFoundException
-
-
-# ---------------------------------------------------------------------------
-# Access-control exceptions
-# ---------------------------------------------------------------------------
 
 
 class UnauthorizedException(CinemaException):
@@ -105,11 +91,6 @@ class HoldExpiredError(CinemaException):
     def __init__(self, hold_id: int) -> None:
         self.hold_id = hold_id
         super().__init__(f"Hold {hold_id} has expired.")
-
-
-# ---------------------------------------------------------------------------
-# Booking-specific exceptions
-# ---------------------------------------------------------------------------
 
 
 class DuplicateSeatError(CinemaException):
