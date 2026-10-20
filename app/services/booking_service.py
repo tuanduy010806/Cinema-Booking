@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from app.core.exceptions import (
     BookingStateError,
     DuplicateSeatError,
-    NotFoundError,
+    NotFoundException,
     OwnershipError,
 )
 from app.schemas.booking import BookingCreate
@@ -41,11 +41,11 @@ class BookingService:
         """Create a booking after checking the showtime and seat availability."""
         showtime = await self.showtime_repo.get_by_id(payload.showtime_id)
         if showtime is None:
-            raise NotFoundError(f"Showtime {payload.showtime_id} not found.")
+            raise NotFoundException(f"Showtime {payload.showtime_id} not found.")
 
         seat_number = int(payload.seat_number)
         if seat_number > showtime.total_seats:
-            raise NotFoundError(
+            raise NotFoundException(
                 f"Seat {payload.seat_number} not found for showtime {payload.showtime_id}."
             )
 
@@ -100,7 +100,7 @@ class BookingService:
         """Cancel an active booking owned by the requesting user."""
         booking = await self.repo.get_by_id(booking_id)
         if booking is None:
-            raise NotFoundError(f"Booking {booking_id} not found.")
+            raise NotFoundException(f"Booking {booking_id} not found.")
 
         if booking.user_id != user_id:
             raise OwnershipError(booking_id=booking_id, user_id=user_id)
