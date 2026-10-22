@@ -1,4 +1,4 @@
-﻿# Tích hợp các thành phần hiện tại
+﻿# Hướng dẫn tích hợp và vận hành
 
 ## Luồng request
 
@@ -30,7 +30,7 @@ Compose chờ healthcheck PostgreSQL trước khi khởi động API. API chạy
 
 Schema và dữ liệu mẫu là hai thao tác riêng. Seeder trên máy host đọc `DATABASE_URL` từ `.env`, lấy phim từ `data/movie.json`, rồi thêm dữ liệu mẫu vào PostgreSQL. Môi trường `.venv` cần cài dependencies từ `requirements.txt`.
 
-## Điểm kiểm tra khi debug
+## Kiểm tra khi vận hành
 
 - `docker compose ps`: trạng thái dịch vụ và healthcheck (API kiểm tra `/docs`).
 - `docker compose logs --tail 100 db api`: lỗi PostgreSQL hoặc khởi động API.

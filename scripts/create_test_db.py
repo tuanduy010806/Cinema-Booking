@@ -29,10 +29,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
-# ---------------------------------------------------------------------------
-# Load .env.test if present (best-effort; no hard dependency on dotenv)
-# ---------------------------------------------------------------------------
-
 def _load_env_test() -> None:
     """Parse key=value pairs from .env.test and inject them into os.environ.
 
@@ -52,10 +48,6 @@ def _load_env_test() -> None:
         value = value.strip().strip('"').strip("'")
         os.environ.setdefault(key, value)
 
-
-# ---------------------------------------------------------------------------
-# Validation helpers
-# ---------------------------------------------------------------------------
 
 def _get_test_url() -> str:
     """Return TEST_DATABASE_URL or abort with a clear error message."""
@@ -89,17 +81,12 @@ def _assert_test_database(url: str) -> None:
     return db_name
 
 
-# ---------------------------------------------------------------------------
-# Database operations
-# ---------------------------------------------------------------------------
-
 def _admin_url(test_url: str) -> str:
     """Build an admin-level URL pointing at the 'postgres' maintenance DB.
 
     This is used to issue CREATE DATABASE when the target DB doesn't exist yet.
     """
     parsed = urlparse(test_url)
-    # Replace the database path with the postgres maintenance database
     admin = parsed._replace(path="/postgres")
     return admin.geturl()
 
@@ -112,7 +99,6 @@ def ensure_database_exists(test_url: str, db_name: str) -> None:
         print("[ERROR] SQLAlchemy is not installed.", file=sys.stderr)
         sys.exit(1)
 
-    # ---- Step 1: try to connect directly to the test database ---------------
     engine = create_engine(test_url, isolation_level="AUTOCOMMIT")
     try:
         with engine.connect() as conn:
@@ -124,12 +110,10 @@ def ensure_database_exists(test_url: str, db_name: str) -> None:
         # Database probably doesn't exist yet; fall through to create it.
         engine.dispose()
 
-    # ---- Step 2: connect to postgres maintenance DB and create the test DB --
     admin_url = _admin_url(test_url)
     admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
     try:
         with admin_engine.connect() as conn:
-            # Check existence before attempting CREATE to avoid a spurious error.
             row = conn.execute(
                 text("SELECT 1 FROM pg_database WHERE datname = :name"),
                 {"name": db_name},
@@ -173,10 +157,6 @@ def verify_connection(test_url: str, db_name: str) -> None:
     finally:
         engine.dispose()
 
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 
 def main() -> None:
     _load_env_test()

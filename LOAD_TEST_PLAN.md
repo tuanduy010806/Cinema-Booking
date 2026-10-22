@@ -4,9 +4,7 @@
 
 Kịch bản Locust nằm trong `load_test/load_test.py`. Mỗi virtual user dùng JWT được cấu hình, đặt một ghế riêng còn trống và đọc danh sách booking của tài khoản. Kịch bản này tạo tải cho luồng booking, không xác minh khả năng xử lý cạnh tranh trên cùng một ghế.
 
-Kịch bản hiện chỉ kiểm tra luồng đặt booking trực tiếp; không tạo seat hold hoặc
-payment demo. Không dùng kịch bản này để kết luận về xử lý đồng thời của luồng
-hold/thanh toán.
+Kịch bản này chỉ tạo tải cho luồng đặt booking trực tiếp. Nó không tạo hold hoặc thanh toán mô phỏng, nên không đo tải hay mức độ an toàn đồng thời của các luồng đó.
 
 ## Điều kiện chạy
 
@@ -28,5 +26,5 @@ Ví dụ:
 locust -f load_test/load_test.py --host https://<api-host> --headless -u 10 -r 1 -t 60s
 ```
 
-Dải ghế cần có ít nhất một ghế riêng cho mỗi virtual user. Lệnh mẫu chỉ là cách chạy; kết quả hiệu năng phải được đo trong môi trường triển khai mục tiêu.
+Mỗi virtual user cần một ghế riêng còn trống. Đo hiệu năng trong môi trường triển khai mục tiêu và dùng dữ liệu được dành riêng cho kiểm thử.
 

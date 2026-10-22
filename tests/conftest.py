@@ -12,20 +12,14 @@ Design decisions
   (The project has no Alembic; adding it is out of scope for this task.)
 * Every test function gets its own transaction that is rolled back at the end,
   giving full isolation without wiping and re-creating the schema each time.
-* Two users (user_id 1, 2) and two showtimes (id 1, 2) are seeded per test
-  via function-scoped fixtures so tests always start from a known state.
-* Booking's service dependency uses the isolated test session, and the real
-* AuthMiddleware uses that same session through a narrow async adapter.
+* Two users and two showtimes are seeded per test.
+* Booking and authentication use the isolated test session.
 
 Integration details:
 - The client uses a real JWT and exercises AuthMiddleware → UserRepository →
   Booking's get_current_user adapter. It bypasses the login endpoint so the
   tests stay focused on the booking workflow instead of exercising login.
-- user1/user2 fixtures include username (required column); tokens use the
-  actual user.user_id primary key (Audit #13).
-- get_booking_service is overridden with a sync-compatible shim that wraps
-  the sync test session in a minimal async-compatible proxy so the async
-  BookingRepository can be used in tests (Audit #7, #8).
+- The booking service uses a proxy around the synchronous test session.
 """
 
 from __future__ import annotations
@@ -41,10 +35,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
-
-# ---------------------------------------------------------------------------
-# Load .env.test (best-effort; no hard dependency on python-dotenv)
-# ---------------------------------------------------------------------------
 
 def _load_env_test() -> None:
     """Inject key=value pairs from .env.test into os.environ.
@@ -91,10 +81,6 @@ if not os.environ.get("DATABASE_URL", "").strip():
         )
     os.environ["DATABASE_URL"] = async_database_url
 
-# ---------------------------------------------------------------------------
-# Fail fast if TEST_DATABASE_URL is absent
-# ---------------------------------------------------------------------------
-
 _TEST_DATABASE_URL: str = os.environ.get("TEST_DATABASE_URL", "").strip()
 
 _unit_test_dir = (Path(__file__).parent / "unit").resolve()
@@ -118,47 +104,28 @@ if not _TEST_DATABASE_URL and not _running_only_unit_tests:
         returncode=1,
     )
 
-# ---------------------------------------------------------------------------
-# Import all models so Base.metadata knows every table
-# ---------------------------------------------------------------------------
-
-# These imports register the ORM classes against Base.metadata.
-# They must appear before create_all() is called.
 from app.db.database import Base          # noqa: E402
 from app.models.booking import Booking    # noqa: E402, F401
 from app.models.movie import Movie        # noqa: E402, F401
 from app.models.showtime import Showtime  # noqa: E402, F401
 from app.models.user import User          # noqa: E402, F401
 
-# ---------------------------------------------------------------------------
-# Test engine — session-scoped (one engine for the entire test run)
-# ---------------------------------------------------------------------------
-
 @pytest.fixture(scope="session")
 def test_engine():
     """Create a SQLAlchemy engine connected to the test PostgreSQL database."""
     engine = create_engine(
         _TEST_DATABASE_URL,
-        # Pool settings suitable for test runs:
         pool_pre_ping=True,
-        echo=False,            # set True to debug SQL during development
+        echo=False,
     )
 
-    # Create all tables once per test session.
-    # This is safe because we are on the TEST database, never production.
     Base.metadata.create_all(bind=engine)
 
     yield engine
 
-    # Tear down: drop all tables after the entire test session completes.
-    # This leaves the database clean for the next run.
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
 
-
-# ---------------------------------------------------------------------------
-# Test session — function-scoped with savepoint rollback for isolation
-# ---------------------------------------------------------------------------
 
 @pytest.fixture()
 def db_session(test_engine) -> Generator[Session, None, None]:
@@ -195,19 +162,6 @@ def db_session(test_engine) -> Generator[Session, None, None]:
     transaction.rollback()
     connection.close()
 
-
-# ---------------------------------------------------------------------------
-# Async-compatible session proxy for Movie, Showtime, and Booking repositories
-#
-# Repositories use AsyncSession in production. The test db_session is a sync
-# Session tied to a savepoint-wrapped connection.
-#
-# This proxy exposes the async methods used by the repositories while
-# delegating to the sync test Session. This lets API integration tests use the
-# real PostgreSQL schema without creating a second async engine.
-#
-# The proxy preserves savepoint-based transaction isolation for all tests.
-# ---------------------------------------------------------------------------
 
 class _SyncSessionAsyncProxy:
     """Minimal async proxy around a synchronous SQLAlchemy Session.
@@ -247,25 +201,11 @@ class _SyncSessionAsyncProxy:
         self._session.delete(instance)
 
 
-# ---------------------------------------------------------------------------
-# Booking DB override and AuthMiddleware test-session adapter
-# ---------------------------------------------------------------------------
-
 @pytest.fixture()
 def override_get_db(db_session: Session, monkeypatch: pytest.MonkeyPatch):
     """Use the isolated test session for Booking and the real auth middleware.
 
-    The application still runs Person 1's real AuthMiddleware, JWT decoder,
-    UserRepository lookup, and Booking get_current_user dependency. Only the
-    middleware's session factory is adapted to the same isolated PostgreSQL
-    Session used by this synchronous TestClient fixture.
-
-    Integration details (Audit #7, #8, #12, #13):
-    - get_booking_service is overridden (not get_db directly) so the async
-      BookingRepository receives the _SyncSessionAsyncProxy wrapping the
-      savepoint-isolated test Session.
-    - AuthMiddleware's AsyncSessionLocal is adapted to that proxy, keeping
-      authentication lookups inside the test transaction.
+    Adapt the middleware and booking service to the isolated test session.
     """
     from app.api.booking import get_booking_service
     import app.core.auth_middleware as auth_middleware
@@ -303,10 +243,6 @@ def override_get_db(db_session: Session, monkeypatch: pytest.MonkeyPatch):
     yield
     app.dependency_overrides.clear()
 
-
-# ---------------------------------------------------------------------------
-# Minimum required fixtures: 2 users + 2 showtimes
-# ---------------------------------------------------------------------------
 
 @pytest.fixture()
 def user1(db_session: Session) -> User:
@@ -374,10 +310,6 @@ def showtime2(db_session: Session, movie: Movie) -> Showtime:
     db_session.flush()
     return st
 
-
-# ---------------------------------------------------------------------------
-# FastAPI TestClient — with full dependency overrides applied
-# ---------------------------------------------------------------------------
 
 @pytest.fixture()
 def client(override_get_db, user1: User) -> Generator[TestClient, None, None]:

@@ -14,16 +14,10 @@ class BookingRepository:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    # ------------------------------------------------------------------
-    # Write operations
-    # ------------------------------------------------------------------
-
     async def create(self, booking_data: dict, user_id: int) -> Booking:
         """Insert a new Booking row.
 
-        Strips any user_id key from booking_data before INSERT so callers
-        cannot override the authenticated user.
-
+        The authenticated user ID always overrides any value in booking_data.
         """
         safe_data = {k: v for k, v in booking_data.items() if k != "user_id"}
         booking = Booking(**safe_data, user_id=user_id)
@@ -47,10 +41,6 @@ class BookingRepository:
         await self.db.refresh(booking)
         return booking
 
-    # ------------------------------------------------------------------
-    # Read operations
-    # ------------------------------------------------------------------
-
     async def get_by_id(self, booking_id: int) -> Booking | None:
         """Return a Booking by primary key, or None if not found."""
         return await self.db.get(Booking, booking_id)
@@ -68,10 +58,6 @@ class BookingRepository:
         statement = select(Booking).where(Booking.user_id == user_id)
         result = await self.db.execute(statement)
         return list(result.scalars().all())
-
-    # ------------------------------------------------------------------
-    # Seat availability check
-    # ------------------------------------------------------------------
 
     async def check_seat_exists(self, showtime_id: int, seat_number: str) -> bool:
         """Return True if an active booking exists for (showtime_id, seat_number).

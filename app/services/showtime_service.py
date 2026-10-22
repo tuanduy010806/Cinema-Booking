@@ -47,6 +47,7 @@ class ShowtimeService:
             held_seats = await self.hold_repository.get_active_seat_numbers(
                 showtime_id, datetime.now(timezone.utc)
             )
+        # Availability is derived from bookings and holds, not stored.
         seats = []
         for seat_index in range(1, showtime.total_seats + 1):
             seat_number = str(seat_index)

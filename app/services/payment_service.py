@@ -7,7 +7,6 @@ from app.core.exceptions import (
     HoldOwnershipError,
     HoldStateError,
     NotFoundException,
-    PaymentOwnershipError,
 )
 from app.domain.unit_of_work import UnitOfWork
 
@@ -39,6 +38,7 @@ class PaymentService:
             seats = await self.hold_repository.get_seats(hold_id)
             existing = await self.payment_repository.get_by_hold_id(hold_id)
             if hold.status == "paid":
+                # Return the original records for a payment retry.
                 if existing is None:
                     raise RuntimeError("Paid hold has no payment record")
                 bookings = await self._bookings_for_seats(seats)
@@ -47,12 +47,11 @@ class PaymentService:
                 raise HoldStateError(hold_id, hold.status)
             if hold.expires_at <= now:
                 await self.hold_repository.mark_status(hold, "expired")
-                # Persist expiry even though this request returns an error.
+                # Keep the expired state even though this request returns an error.
                 await self.unit_of_work.commit()
                 raise HoldExpiredError(hold_id)
             if existing is not None:
-                # Prevent a pre-hold standalone demo payment from being mistaken
-                # for successful settlement of this hold.
+                # A payment reference used earlier cannot settle a new hold.
                 raise HoldStateError(hold_id, "payment_reference_already_used")
 
             booked = await self.booking_repository.get_active_seat_numbers(
@@ -68,8 +67,6 @@ class PaymentService:
                 amount=settings.DEMO_PAYMENT_AMOUNT_VND * len(seats),
                 paid_at=now,
             )
-            if payment.user_id != user_id:
-                raise PaymentOwnershipError()
             bookings = await self.booking_repository.create_many(
                 [
                     {"showtime_id": hold.showtime_id, "seat_number": seat.seat_number}
@@ -79,10 +76,11 @@ class PaymentService:
             )
             await self.hold_repository.attach_bookings(seats, bookings)
             await self.hold_repository.mark_status(hold, "paid")
+            # Commit payment, bookings, seat links, and hold status together.
             await self.unit_of_work.commit()
             return {"payment": payment, "bookings": bookings}, True
         except HoldExpiredError:
-            # The expired status was committed above; do not roll it back.
+            # The expired status was committed before raising this error.
             raise
         except Exception:
             await self.unit_of_work.rollback()

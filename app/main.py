@@ -9,12 +9,10 @@ from app.api.seat_hold import router as seat_hold_router
 from app.api.showtime import router as showtime_router
 from app.core.auth_middleware import AuthMiddleware
 from app.core.exceptions import (
-    AuthenticationError,
     BookingStateError,
     CinemaException,
     DuplicateSeatError,
     EmailAlreadyExistsError,
-    ForbiddenException,
     HoldExpiredError,
     HoldOwnershipError,
     HoldStateError,
@@ -22,18 +20,11 @@ from app.core.exceptions import (
     InvalidTokenError,
     NotFoundException,
     OwnershipError,
-    PaymentOwnershipError,
     PasswordMismatchError,
-    UnauthorizedException,
 )
 
 app = FastAPI(title="Cinema Booking System")
 app.add_middleware(AuthMiddleware)
-# ---------------------------------------------------------------------------
-# Global domain exception handlers
-# Map service-layer exceptions → correct HTTP status codes
-# ---------------------------------------------------------------------------
-
 
 EXCEPTION_STATUS_MAP = {
     NotFoundException: 404,
@@ -41,15 +32,11 @@ EXCEPTION_STATUS_MAP = {
     BookingStateError: 400,
     PasswordMismatchError: 400,
     InvalidCredentialsError: 401,
-    AuthenticationError: 401,
     InvalidTokenError: 401,
-    UnauthorizedException: 401,
     OwnershipError: 403,
-    PaymentOwnershipError: 403,
     HoldOwnershipError: 403,
     HoldExpiredError: 409,
     HoldStateError: 409,
-    ForbiddenException: 403,
     EmailAlreadyExistsError: 409,
 }
 
@@ -64,10 +51,6 @@ async def domain_exception_handler(request: Request, exc: CinemaException) -> JS
         headers=headers,
     )
 
-
-# ---------------------------------------------------------------------------
-# Routers
-# ---------------------------------------------------------------------------
 
 app.include_router(auth_router)
 app.include_router(movie_router)

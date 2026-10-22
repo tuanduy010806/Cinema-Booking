@@ -5,7 +5,7 @@ import pytest
 from app.core.exceptions import (
     BookingStateError,
     DuplicateSeatError,
-    NotFoundError,
+    NotFoundException,
     OwnershipError,
 )
 from app.schemas.booking import BookingCreate
@@ -80,7 +80,7 @@ async def test_create_booking_uses_authenticated_user_and_numeric_seat(service):
 async def test_create_booking_rejects_missing_showtime(service):
     booking_service, _ = service
 
-    with pytest.raises(NotFoundError, match="Showtime 999 not found"):
+    with pytest.raises(NotFoundException, match="Showtime 999 not found"):
         await booking_service.create_booking(
             user_id=7, payload=BookingCreate(showtime_id=999, seat_number="1")
         )
@@ -90,7 +90,7 @@ async def test_create_booking_rejects_missing_showtime(service):
 async def test_create_booking_rejects_seat_over_capacity(service):
     booking_service, _ = service
 
-    with pytest.raises(NotFoundError, match="Seat 6 not found"):
+    with pytest.raises(NotFoundException, match="Seat 6 not found"):
         await booking_service.create_booking(
             user_id=7, payload=BookingCreate(showtime_id=1, seat_number="6")
         )
@@ -143,7 +143,7 @@ async def test_cancel_booking_changes_active_to_cancelled_and_reopens_seat(servi
 async def test_cancel_booking_rejects_missing_booking(service):
     booking_service, _ = service
 
-    with pytest.raises(NotFoundError, match="Booking 999 not found"):
+    with pytest.raises(NotFoundException, match="Booking 999 not found"):
         await booking_service.cancel_booking(user_id=7, booking_id=999)
 
 

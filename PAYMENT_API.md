@@ -1,60 +1,38 @@
-# Seat hold and demo payment API
+# API giữ ghế và thanh toán mô phỏng
 
-All hold and payment endpoints require `Authorization: Bearer <access_token>`.
-The server holds seats for five minutes. The client does not submit the hold
-duration, user ID, amount, or payment result.
+Các endpoint giữ ghế và thanh toán yêu cầu xác thực bằng Bearer token. Thời hạn giữ ghế, người dùng, số tiền và kết quả thanh toán do server xác định; client không gửi các giá trị này.
 
-For local/Docker configuration, copy `.env.example` to `.env`. Configure
-`SEAT_HOLD_TTL_SECONDS` (default `300`) and `DEMO_PAYMENT_AMOUNT_VND` (default
-`100000`); Docker Compose passes both values to the API container. This demo
-does not connect to an external payment provider.
+Khi chạy local hoặc Docker, sao chép `.env.example` thành `.env`. Có thể cấu hình `SEAT_HOLD_TTL_SECONDS` (mặc định 300 giây) và `DEMO_PAYMENT_AMOUNT_VND` (mặc định 100000 đồng). Thanh toán hiện là mô phỏng, chưa kết nối nhà cung cấp bên ngoài.
 
-## Create a hold
+## Tạo hold
 
 `POST /api/v1/holds`
 
-```json
-{"showtime_id":1,"seat_numbers":["3","4"]}
-```
+    {
+      "showtime_id": 1,
+      "seat_numbers": ["3", "4"]
+    }
 
-The request must contain 1–5 distinct positive numeric seat labels. The whole
-group is accepted or rejected together. Seats that are actively booked or held
-cannot be held. A successful response contains the hold `id`, seat list,
-`status`, `created_at`, and `expires_at` (UTC). The five-minute expiry is set by
-the server; `SEAT_HOLD_TTL_SECONDS` defaults to `300`.
+Request gồm từ 1 đến 5 nhãn ghế dạng số dương, không trùng nhau. Hệ thống nhận hoặc từ chối toàn bộ nhóm ghế. Ghế đã có booking active hoặc đang được hold còn hạn không thể được giữ thêm. Response thành công gồm mã hold, danh sách ghế, trạng thái, thời điểm tạo và thời điểm hết hạn theo UTC. Thời hạn do server đặt theo `SEAT_HOLD_TTL_SECONDS`.
 
-`GET /api/v1/holds/{hold_id}` returns the caller's hold. Its status is reported
-as `expired` after the deadline even if no request has persisted that state yet.
-`DELETE /api/v1/holds/{hold_id}` releases an active hold early. A paid hold
-cannot be released.
+`GET /api/v1/holds/{hold_id}` trả về hold của người gọi. Sau hạn, trạng thái được trả là expired dù chưa có request nào ghi trạng thái này xuống database. `DELETE /api/v1/holds/{hold_id}` giải phóng hold còn active; không thể giải phóng hold đã paid.
 
-`GET /api/v1/showtimes/{showtime_id}/seats` reports seats in active, unexpired
-holds as unavailable. Expired holds stop blocking seats without a background
-worker.
+`GET /api/v1/showtimes/{showtime_id}/seats` báo các ghế thuộc hold active chưa hết hạn là không khả dụng. Hold hết hạn không còn chặn ghế; hệ thống không cần worker nền để mở lại ghế.
 
-## Pay for a hold
+## Thanh toán hold
 
 `POST /api/v1/payments`
 
-```json
-{"hold_id":123456}
-```
+    {
+      "hold_id": 123456
+    }
 
-The hold must exist, belong to the caller, still be active, and be unexpired.
-The demo succeeds immediately and charges
-`DEMO_PAYMENT_AMOUNT_VND` per seat (default `100000` VND). The response
-contains the payment and every booking created for the held seats. Payment,
-booking creation, and the hold's transition to `paid` share one database
-transaction. Repeating payment for an already paid hold returns the same
-payment and bookings (`200`); a new payment returns `201`.
+Hold phải tồn tại, thuộc người gọi, còn active và chưa hết hạn. Thanh toán mô phỏng thành công ngay, với số tiền `DEMO_PAYMENT_AMOUNT_VND` cho mỗi ghế (mặc định 100000 đồng). Response gồm payment và booking được tạo cho từng ghế. Payment, các booking và việc chuyển trạng thái hold sang paid nằm trong cùng transaction.
 
-`GET /api/v1/payments/me` returns the caller's payment history. The existing
-single-seat `POST /api/v1/bookings/` API remains available; it rejects seats
-held by an active hold.
+Gửi lại request cho hold đã thanh toán trả về payment và booking cũ với HTTP 200; thanh toán mới trả HTTP 201.
 
-## Database setup
+`GET /api/v1/payments/me` trả danh sách payment của người gọi. API đặt trực tiếp một ghế `POST /api/v1/bookings/` vẫn hoạt động và từ chối ghế đang thuộc hold active.
 
-`scripts/init_db.py` creates missing tables, including hold and payment tables,
-for a new database. It does not alter existing tables or replace a schema
-migration tool. The application uses straightforward checks in each request;
-it does not serialize simultaneous requests that claim the same seat.
+## Khởi tạo database
+
+`scripts/init_db.py` tạo các bảng còn thiếu, bao gồm bảng hold và payment. Script không sửa đổi bảng đã tồn tại và không thay thế công cụ migration. Ứng dụng kiểm tra tình trạng ghế trong từng request nhưng chưa tuần tự hóa các request đồng thời cùng giữ hoặc đặt một ghế.
