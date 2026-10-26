@@ -5,7 +5,7 @@
 | Thuộc tính | Giá trị |
 |---|---|
 | Sản phẩm | Cinema Booking API |
-| Loại tài liệu | Software Requirements Specification (SRS) — đặc tả theo hệ thống hiện có |
+| Loại tài liệu | Đặc tả yêu cầu phần mềm (SRS) — mô tả theo hệ thống hiện có |
 | Phiên bản | 1.0 |
 | Ngôn ngữ | Tiếng Việt |
 | Cơ sở đặc tả | Chức năng và quy tắc nghiệp vụ của Cinema Booking API |
