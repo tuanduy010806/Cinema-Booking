@@ -78,7 +78,7 @@ Các router chính: `/api/v1/auth`, `/api/v1/movies`, `/api/v1/showtimes`, `/api
 
 ## 5. Cài đặt và chạy dự án
 
-Chọn **một** trong hai cách bên dưới. Cả hai đều dùng PostgreSQL; khác nhau ở chỗ API chạy trong Docker hay chạy trực tiếp bằng Python trên máy.
+Dùng **một** trong hai cách bên dưới. Cả hai cách đều dùng PostgreSQL; khác nhau ở  API chạy trong Docker hay chạy trực tiếp bằng Python trên máy.
 
 ### 5.1. Chạy cả API và PostgreSQL bằng Docker
 
@@ -104,7 +104,7 @@ $keyGenerator.GetBytes($keyBytes)
 $keyGenerator.Dispose()
 ```
 
-Sao chép chuỗi được in ra vào dòng `SECRET_KEY=` rồi lưu file. Các giá trị database mẫu phù hợp để chạy local. Nếu đổi `POSTGRES_PASSWORD`, hãy cập nhật mật khẩu trong `DATABASE_URL` cho khớp. Không đưa `.env` lên GitHub.
+Sao chép chuỗi được in ra vào dòng `SECRET_KEY=` rồi lưu file. Các giá trị database mẫu phù hợp để chạy local. Nếu đổi `POSTGRES_PASSWORD`, hãy cập nhật mật khẩu trong `DATABASE_URL` cho khớp. 
 
 Build image và khởi động API cùng PostgreSQL:
 
@@ -134,6 +134,7 @@ Tại thư mục dự án, bật Docker Desktop rồi khởi động bằng:
 
 ```powershell
 docker compose up -d
+docker compose 
 ```
 
 Mở <http://localhost:8000/docs>. Dừng dịch vụ nhưng giữ container và dữ liệu bằng:
@@ -146,11 +147,10 @@ Lần sau dùng `docker compose start`. Nếu dùng `docker compose down`, conta
 
 ### 5.2. Chạy API bằng Python, PostgreSQL bằng Docker
 
-Chọn cách này khi muốn sửa code và để API tự khởi động lại nhờ `--reload`. Cần cài Python 3.12 và Docker Desktop. PostgreSQL vẫn chạy trong Docker, còn API chạy bằng Python trên máy host.
+ Cần cài Python 3.12 và Docker Desktop. PostgreSQL vẫn chạy trong Docker, còn API chạy bằng Python trên máy host.
 
 #### Thiết lập lần đầu
 
-Trong PowerShell, nếu máy chưa có repo thì clone một lần. Nếu đã clone rồi, chỉ cần chuyển vào thư mục dự án; không chạy lại lệnh clone:
 
 ```powershell
 git clone https://github.com/tuanduy010806/Cinema-Booking
