@@ -1,6 +1,5 @@
 # Cinema Booking: hướng dẫn đọc mã nguồn 
 
-> Tài liệu giới thiệu kiến trúc, các luồng nghiệp vụ, mô hình dữ liệu, API và những giới hạn cần nắm khi trình bày dự án. Các nhãn **ĐÃ TRIỂN KHAI**, **CÓ MÃ KIỂM THỬ**, **ĐÃ KIỂM THỬ**, **SUY LUẬN** và **RỦI RO/CÒN THIẾU** phân biệt chức năng trong mã nguồn, kiểm thử có trong kho mã, kết quả đã chạy, nhận định suy luận và vấn đề cần xử lý. Khi cần xác nhận hành vi cụ thể, đối chiếu mã nguồn và OpenAPI.
 
 ## Phạm vi và cách dùng
 
