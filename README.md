@@ -82,11 +82,11 @@ Chọn **một** trong hai cách bên dưới. Cả hai đều dùng PostgreSQL;
 
 ### 5.1. Chạy cả API và PostgreSQL bằng Docker
 
-Đây là cách đơn giản nhất để chạy API. Cần cài Git và Docker Desktop, sau đó mở Docker Desktop. Không cần cài Python trên máy để chạy API.
+ Cần cài Git và Docker Desktop, sau đó mở Docker Desktop. Không cần cài Python trên máy để chạy API.
 
 #### Thiết lập lần đầu
 
-Trong PowerShell, chuyển tới thư mục cha nơi bạn muốn lưu dự án rồi chạy:
+Trong PowerShell, chuyển tới thư mục  nơi bạn muốn lưu dự án rồi chạy:
 
 ```powershell
 git clone https://github.com/tuanduy010806/Cinema-Booking
@@ -146,11 +146,10 @@ Lần sau dùng `docker compose start`. Nếu dùng `docker compose down`, conta
 
 ### 5.2. Chạy API bằng Python, PostgreSQL bằng Docker
 
-Chọn cách này khi muốn sửa code và để API tự khởi động lại nhờ `--reload`. Cần cài Python 3.12 và Docker Desktop. PostgreSQL vẫn chạy trong Docker, còn API chạy bằng Python trên máy host.
+Cần cài Python 3.12 và Docker Desktop. PostgreSQL vẫn chạy trong Docker, còn API chạy bằng Python trên máy host.
 
 #### Thiết lập lần đầu
 
-Trong PowerShell, nếu máy chưa có repo thì clone một lần. Nếu đã clone rồi, chỉ cần chuyển vào thư mục dự án; không chạy lại lệnh clone:
 
 ```powershell
 git clone https://github.com/tuanduy010806/Cinema-Booking
