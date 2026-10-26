@@ -76,28 +76,48 @@ data/                     # Dữ liệu mẫu được seeder sử dụng
 
 Các router chính: `/api/v1/auth`, `/api/v1/movies`, `/api/v1/showtimes`, `/api/v1/bookings`, `/api/v1/holds`, `/api/v1/payments`.
 
-## 5. Chạy nhanh và tài liệu API
+## 5. Cài đặt và chạy dự án
 
-### Chạy bằng Docker
+Chọn **một** trong hai cách bên dưới. Cả hai đều dùng PostgreSQL; khác nhau ở chỗ API chạy trong Docker hay chạy trực tiếp bằng Python trên máy.
 
-Cần Git, Docker Desktop và Docker Compose. Tại PowerShell:
+### 5.1. Chạy cả API và PostgreSQL bằng Docker
+
+Đây là cách đơn giản nhất để chạy API. Cần cài Git và Docker Desktop, sau đó mở Docker Desktop. Không cần cài Python trên máy để chạy API.
+
+#### Thiết lập lần đầu
+
+Trong PowerShell, chuyển tới thư mục cha nơi bạn muốn lưu dự án rồi chạy:
 
 ```powershell
 git clone https://github.com/tuanduy010806/Cinema-Booking
 cd Cinema-Booking
-Copy-Item .env.example .env
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-Đổi `SECRET_KEY` trong `.env` thành giá trị bí mật riêng. Nếu đổi `POSTGRES_PASSWORD`, đảm bảo mật khẩu trong `DATABASE_URL` khớp nhau. Không commit file `.env`.
+Lệnh cuối tạo `.env` từ file mẫu nếu `.env` chưa tồn tại. Mở `.env` bằng trình soạn thảo và thay giá trị mẫu của `SECRET_KEY` bằng một chuỗi bí mật riêng. Có thể tạo chuỗi bằng PowerShell:
 
-Khởi động database và API:
+```powershell
+$keyGenerator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$keyBytes = New-Object byte[] 32
+$keyGenerator.GetBytes($keyBytes)
+[Convert]::ToBase64String($keyBytes)
+$keyGenerator.Dispose()
+```
+
+Sao chép chuỗi được in ra vào dòng `SECRET_KEY=` rồi lưu file. Các giá trị database mẫu phù hợp để chạy local. Nếu đổi `POSTGRES_PASSWORD`, hãy cập nhật mật khẩu trong `DATABASE_URL` cho khớp. Không đưa `.env` lên GitHub.
+
+Build image và khởi động API cùng PostgreSQL:
 
 ```powershell
 docker compose up -d --build
 docker compose ps
 ```
 
-API tự tạo các bảng còn thiếu. Để nạp phim, suất chiếu, tài khoản và booking mẫu, cài Python cùng dependencies trên máy host rồi chạy seeder:
+Đợi `db` và `api` báo `healthy`, sau đó mở <http://localhost:8000/docs>. Container API tự tạo các bảng còn thiếu khi khởi động. Docker đóng gói Python và dependencies bên trong image; máy host không cần Python để chạy API.
+
+#### Nạp dữ liệu mẫu (tùy chọn)
+
+Nếu bỏ qua bước này, API vẫn chạy nhưng database ban đầu chưa có phim/tài khoản/booking mẫu. Seeder hiện chạy trên máy host, vì vậy bước này cần Python 3.12 và cài dependencies:
 
 ```powershell
 py -3.12 -m venv .venv
@@ -106,25 +126,45 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe seed.py
 ```
 
-Có thể bỏ qua bước cài Python và seed nếu chỉ cần API cùng database trống. Khi `db` và `api` đều báo `healthy`, mở <http://localhost:8000/docs>. Dừng dịch vụ và giữ dữ liệu database bằng:
+Chỉ cần nạp dữ liệu mẫu lần đầu hoặc khi bạn chủ động muốn chạy lại seeder; không chạy bước này mỗi lần bật API.
+
+#### Khởi động và tắt những lần sau
+
+Tại thư mục dự án, bật Docker Desktop rồi khởi động bằng:
 
 ```powershell
-docker compose down
+docker compose up -d
 ```
 
-### Chạy API bằng Python
-
-Cách này chạy PostgreSQL trong Docker, còn API chạy trên máy host:
+Mở <http://localhost:8000/docs>. Dừng dịch vụ nhưng giữ container và dữ liệu bằng:
 
 ```powershell
-py -m venv .venv
+docker compose stop
+```
+
+Lần sau dùng `docker compose start`. Nếu dùng `docker compose down`, container sẽ bị xóa nhưng volume database vẫn được giữ; lần sau khởi động bằng `docker compose up -d`. Không dùng `docker compose down -v` nếu muốn giữ dữ liệu. Chỉ thêm `--build` khi cần build lại image sau khi đổi code, Dockerfile hoặc dependencies.
+
+### 5.2. Chạy API bằng Python, PostgreSQL bằng Docker
+
+Chọn cách này khi muốn sửa code và để API tự khởi động lại nhờ `--reload`. Cần cài Python 3.12 và Docker Desktop. PostgreSQL vẫn chạy trong Docker, còn API chạy bằng Python trên máy host.
+
+#### Thiết lập lần đầu
+
+Trong PowerShell, nếu máy chưa có repo thì clone một lần. Nếu đã clone rồi, chỉ cần chuyển vào thư mục dự án; không chạy lại lệnh clone:
+
+```powershell
+git clone https://github.com/tuanduy010806/Cinema-Booking
+cd Cinema-Booking
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 py -m pip install --upgrade pip
 py -m pip install -r requirements.txt
-Copy-Item .env.example .env
 ```
 
-Trong `.env`, đặt `SECRET_KEY` riêng. `DATABASE_URL` mặc định kết nối PostgreSQL ở `localhost`. Khởi động database, tạo bảng và nạp dữ liệu mẫu:
+Mở `.env`, đặt `SECRET_KEY` thành giá trị riêng như hướng dẫn ở cách Docker. `DATABASE_URL` trong file mẫu kết nối tới PostgreSQL trên `localhost`; nếu đổi mật khẩu PostgreSQL, cập nhật cả `POSTGRES_PASSWORD` và mật khẩu trong URL.
+
+Tạo bảng còn thiếu và nạp dữ liệu mẫu lần đầu:
 
 ```powershell
 docker compose up -d db
@@ -132,17 +172,25 @@ py scripts/init_db.py
 py seed.py
 ```
 
-Chạy API từ thư mục gốc repository:
+#### Khởi động và tắt những lần sau
+
+Mỗi terminal mới cần kích hoạt môi trường Python. Tại thư mục dự án chạy:
 
 ```powershell
+docker compose up -d db
+.\.venv\Scripts\Activate.ps1
 py -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Mở Swagger UI tại <http://127.0.0.1:8000/docs>.
+Mở <http://127.0.0.1:8000/docs>. Không cần chạy lại `init_db.py` hoặc `seed.py` mỗi lần. Dừng API bằng `Ctrl+C`; nếu muốn dừng PostgreSQL thì chạy thêm:
 
-### Tài khoản mẫu và API
+```powershell
+docker compose stop db
+```
 
-Seeder đọc dữ liệu từ `data/`. Tài khoản ADMIN mẫu được khai báo trong `data/user.json`:
+### Tài khoản mẫu và tài liệu API
+
+Tài khoản ADMIN bên dưới chỉ có sau khi đã chạy seeder; thông tin được khai báo trong `data/user.json`:
 
 - Email: `admin@cinema.local`
 - Mật khẩu: `Admin123!`
@@ -151,9 +199,9 @@ Seeder đọc dữ liệu từ `data/`. Tài khoản ADMIN mẫu được khai b
 
 Khi API đang chạy:
 
-- Swagger UI: <http://localhost:8000/docs>
-- ReDoc: <http://localhost:8000/redoc>
-- OpenAPI JSON: <http://localhost:8000/openapi.json>
+- Swagger UI: <http://localhost:8000/docs> (Docker) hoặc <http://127.0.0.1:8000/docs> (Python trên máy).
+- ReDoc: <http://localhost:8000/redoc>.
+- OpenAPI JSON: <http://localhost:8000/openapi.json>.
 
 Có thể lưu đặc tả OpenAPI hiện tại để dùng riêng:
 
@@ -162,6 +210,8 @@ Invoke-WebRequest http://localhost:8000/openapi.json -OutFile openapi.json
 ```
 
 ### Kiểm thử
+
+Kiểm thử chạy trên máy host bằng Python 3.12 và môi trường `.venv`. Nếu bạn chỉ chọn Docker và đã bỏ qua cài Python để nạp dữ liệu, cần cài Python cùng dependencies theo bước nạp dữ liệu ở trên trước khi chạy các lệnh kiểm thử.
 
 Chạy unit tests:
 
