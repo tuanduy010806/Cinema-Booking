@@ -15,7 +15,7 @@ Các lệnh dưới đây dùng PowerShell trên Windows. Cần cài Git, Docker
 Clone dự án và tạo cấu hình local:
 
 ```powershell
-git clone <GITHUB_REPOSITORY_URL>
+git clone https://github.com/tuanduy010806/Cinema-Booking
 cd Cinema-Booking
 Copy-Item .env.example .env
 ```
