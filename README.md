@@ -229,7 +229,7 @@ Không dùng database ứng dụng hoặc production cho integration tests. Hư�
 
 ### Kết quả kiểm thử tải trên Kaggle CPU
 
-Lần chạy này dùng commit `c56e70a` trên Kaggle CPU, với 4 CPU logic và 31,35 GB RAM được môi trường báo cáo. Locust chạy 50 người dùng ảo, tăng 5 người mỗi giây trong 60 giây. API, PostgreSQL và Locust cùng chạy trên máy Kaggle.
+Locust chạy 50 người dùng ảo, tăng 5 người mỗi giây trong 60 giây. API, PostgreSQL và Locust cùng chạy trên máy Kaggle.
 
 | Chỉ số | Kết quả |
 |---|---:|
@@ -245,13 +245,8 @@ Lần chạy này dùng commit `c56e70a` trên Kaggle CPU, với 4 CPU logic và
 
 ![Dashboard kết quả kiểm thử tải trên Kaggle CPU](docs/images/kaggle-load-test-dashboard.png)
 
-*Hình 1. Diễn biến độ trễ, thông lượng, request lỗi, CPU, RAM và kết nối PostgreSQL trong lần chạy.*
+*Hình . Diễn biến độ trễ, thông lượng, request lỗi, CPU, RAM và kết nối PostgreSQL trong lần chạy.*
 
-Trong dashboard, biểu đồ độ trễ theo dõi p50, p95 và p99; các đường tăng mạnh lúc bắt đầu tăng tải rồi ổn định hơn về sau. Biểu đồ throughput cho thấy số request mỗi giây tăng theo số người dùng và duy trì quanh 110–120 request/giây trong phần lớn thời gian chạy. Đường failures/sec nằm ở mức 0, phù hợp với kết quả không có request lỗi.
-
-Ba biểu đồ còn lại ghi nhận CPU và RAM của **toàn bộ máy Kaggle**, không chỉ riêng API; biểu đồ cuối đếm số kết nối PostgreSQL đang hoạt động. RAM tăng trong giai đoạn tải lên đỉnh khoảng 1,47 GB rồi giảm và ổn định. Số kết nối database đạt tối đa 31.
-
-Ở cấu hình này, hệ thống hoàn tất 5.908 request mà không ghi nhận lỗi. p95 là 650 ms, còn p99 là 1,2 giây, nên vẫn có một nhóm nhỏ request phản hồi chậm hơn đáng kể. Đây là kết quả của một lần chạy ngắn, không phải ngưỡng tải tối đa. Vì bộ phát tải và server dùng chung máy Kaggle, thông lượng và tài nguyên đo được phản ánh toàn bộ môi trường thử nghiệm. Bài chạy cũng chưa kiểm tra tranh chấp khi nhiều người cùng đặt một ghế.
 
 ### Tài liệu chi tiết
 
