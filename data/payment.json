@@ -1,0 +1,10 @@
+[
+  {
+    "hold_id": 920001,
+    "user_id": 2,
+    "amount": 100000,
+    "currency": "VND",
+    "status": "succeeded",
+    "age_seconds": 300
+  }
+]

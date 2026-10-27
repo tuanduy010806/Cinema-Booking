@@ -1,0 +1,20 @@
+[
+  {
+    "showings": [
+      {"day_offset": 0, "start_time": "19:00", "total_seats": 50},
+      {"day_offset": 1, "start_time": "21:50", "total_seats": 50}
+    ]
+  },
+  {
+    "showings": [
+      {"day_offset": 0, "start_time": "18:30", "total_seats": 40},
+      {"day_offset": 1, "start_time": "20:30", "total_seats": 40}
+    ]
+  },
+  {
+    "showings": [
+      {"day_offset": 0, "start_time": "16:00", "total_seats": 40},
+      {"day_offset": 1, "start_time": "20:00", "total_seats": 40}
+    ]
+  }
+]
