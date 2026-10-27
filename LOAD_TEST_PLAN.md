@@ -1,30 +1,42 @@
-﻿# Kiểm thử tải
+# Kiểm thử tải toàn hệ thống
 
-## Kịch bản
+Kịch bản Locust ở `load_test/load_test.py` tạo tải cho các API người dùng và API quản trị trong cùng lần chạy.
 
-Kịch bản Locust nằm trong `load_test/load_test.py`. Mỗi virtual user dùng JWT được cấu hình, đặt một ghế riêng còn trống và đọc danh sách booking của tài khoản. Kịch bản này tạo tải cho luồng booking, không xác minh khả năng xử lý cạnh tranh trên cùng một ghế.
+## Phạm vi API
 
-Kịch bản này chỉ tạo tải cho luồng đặt booking trực tiếp. Nó không tạo hold hoặc thanh toán mô phỏng, nên không đo tải hay mức độ an toàn đồng thời của các luồng đó.
+- **Auth:** mỗi virtual user đăng ký tài khoản riêng, đăng nhập và truy vấn `/auth/me`.
+- **Movies:** đọc danh sách/chi tiết; tài khoản admin tạo, cập nhật và xóa phim kiểm thử.
+- **Showtimes:** đọc danh sách và sơ đồ ghế; admin tạo một suất chiếu kiểm thử trong mỗi lần chạy.
+- **Bookings:** đặt ghế, xem booking của mình và hủy booking.
+- **Holds:** tạo, xem và nhả giữ ghế.
+- **Payments:** thanh toán một hold cho mỗi virtual user và xem lịch sử thanh toán.
 
-## Điều kiện chạy
+Các API quản trị yêu cầu token của tài khoản `ADMIN`. Luồng giữ ghế/thanh toán được chạy bằng tài khoản người dùng thường. Mỗi virtual user có tài khoản riêng để không dồn dữ liệu booking/payment vào cùng một người.
 
-- API phải truy cập được từ máy hoặc notebook chạy Locust.
-- Cần một JWT thử nghiệm hợp lệ.
-- Cần ID suất chiếu đang tồn tại, tổng sức chứa và dải ghế chưa được đặt.
-- Dùng tài khoản và dữ liệu dành riêng cho kiểm thử.
+## Chuẩn bị
 
-Đặt các biến môi trường sau trong môi trường chạy:
+Khởi động API và PostgreSQL, tạo dữ liệu seed, sau đó cấu hình các biến môi trường:
 
-- `BOOKING_ACCESS_TOKEN`: JWT thử nghiệm.
-- `BOOKING_SHOWTIME_ID`: ID suất chiếu.
-- `BOOKING_TOTAL_SEATS`: sức chứa.
-- `BOOKING_SEAT_START`: nhãn ghế bắt đầu, mặc định là 1.
+- `BOOKING_ADMIN_TOKEN`: JWT của tài khoản admin. Notebook Kaggle hiện tại có thể dùng `BOOKING_ACCESS_TOKEN` làm giá trị dự phòng sau khi nâng quyền tài khoản.
+- `BOOKING_SHOWTIME_ID`: suất chiếu thử nghiệm còn ghế trống.
+- `BOOKING_TOTAL_SEATS`: sức chứa của suất chiếu.
+- `BOOKING_MOVIE_ID`: phim hiện có để đọc/tạo suất chiếu; mặc định `1`.
+- `BOOKING_SEAT_START`: ghế đầu tiên dành cho booking trực tiếp; mặc định `1`.
+- `BOOKING_TEST_PASSWORD`: mật khẩu cho tài khoản thử nghiệm; mặc định `LoadTest123!`.
 
 Ví dụ:
 
 ```sh
-locust -f load_test/load_test.py --host https://<api-host> --headless -u 10 -r 1 -t 60s
+locust -f load_test/load_test.py --host http://127.0.0.1:8000 \
+  --headless -u 50 -r 5 -t 60s --csv benchmark_results/locust_run
 ```
 
-Mỗi virtual user cần một ghế riêng còn trống. Đo hiệu năng trong môi trường triển khai mục tiêu và dùng dữ liệu được dành riêng cho kiểm thử.
+Giữ số virtual user nhỏ hơn một nửa số ghế còn trống kể từ `BOOKING_SEAT_START`, vì mỗi user cần một ghế cho booking có thể hủy và một ghế cho thanh toán. Chạy trên một suất chiếu mới hoặc dành riêng cho kiểm thử để tránh xung đột với dữ liệu thật.
 
+## Lưu ý dữ liệu
+
+- Tài khoản người dùng được đăng ký mới theo từng virtual user và được giữ lại trong DB sau khi chạy.
+- Booking trực tiếp được hủy sau khi đo; booking phát sinh từ thanh toán được giữ lại.
+- Phim admin tạo được xóa sau khi cập nhật.
+- API hiện chưa có chức năng xóa suất chiếu. Vì vậy kịch bản tạo đúng một suất chiếu admin mỗi lần chạy và suất đó còn lại trong DB.
+- Kịch bản này đo tải và phản hồi chức năng trên các luồng thông thường. Nó chưa kiểm tra race condition nhiều người đặt cùng một ghế; đó cần là kịch bản kiểm thử cạnh tranh riêng.
