@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.openapi.utils import get_openapi
 
 from app.api.auth import router as auth_router
 from app.api.booking import router as booking_router
@@ -58,6 +59,51 @@ app.include_router(showtime_router)
 app.include_router(booking_router)
 app.include_router(payment_router)
 app.include_router(seat_hold_router)
+
+
+def custom_openapi():
+    """Expose the middleware's Bearer JWT authentication in Swagger UI."""
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        routes=app.routes,
+    )
+    schema.setdefault("components", {}).setdefault("securitySchemes", {})[
+        "BearerAuth"
+    ] = {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+    }
+
+    protected_operations = {
+        ("/api/v1/auth/me", "get"),
+        ("/api/v1/bookings/", "post"),
+        ("/api/v1/bookings/me", "get"),
+        ("/api/v1/bookings/{booking_id}", "delete"),
+        ("/api/v1/holds", "post"),
+        ("/api/v1/holds/{hold_id}", "get"),
+        ("/api/v1/holds/{hold_id}", "delete"),
+        ("/api/v1/payments", "post"),
+        ("/api/v1/payments/me", "get"),
+        ("/api/v1/movies", "post"),
+        ("/api/v1/movies/{movie_id}", "put"),
+        ("/api/v1/movies/{movie_id}", "delete"),
+        ("/api/v1/showtimes", "post"),
+    }
+    for path, path_item in schema["paths"].items():
+        for method, operation in path_item.items():
+            if (path, method.lower()) in protected_operations:
+                operation["security"] = [{"BearerAuth": []}]
+
+    app.openapi_schema = schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
 
 if __name__ == "__main__":
     import uvicorn
