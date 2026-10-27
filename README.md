@@ -43,7 +43,7 @@ Mật khẩu được băm trước khi lưu. Middleware kiểm tra Bearer JWT v
 - **Schema database:** `scripts/init_db.py` dùng `metadata.create_all()` để tạo bảng còn thiếu; không cập nhật schema đã tồn tại. Repo chưa cấu hình migration.
 - **Thanh toán:** payment hiện là mô phỏng nội bộ, không xác nhận giao dịch với nhà cung cấp và không xử lý webhook/hoàn tiền.
 - **Thời gian:** hold được lọc theo `expires_at`; chưa có worker nền. Suất chiếu dùng kiểu thời gian cần được cấu hình nhất quán giữa client và môi trường triển khai.
-- **Kiểm thử tải:** kịch bản trong `load_test/load_test.py` tập trung vào booking trực tiếp; không đo luồng hold/payment hoặc chứng minh an toàn khi tranh chấp ghế.
+- **Kiểm thử tải:** Locust có các luồng tra cứu, xác thực, booking, hold, payment và thao tác quản trị. Bài chạy hiện tại chưa kiểm tra nhiều người cùng tranh một ghế; kết quả Kaggle cũng chỉ phản ánh cấu hình và thời lượng của lần chạy đã ghi nhận.
 
 ## 4. Kiến trúc, tổ chức mã nguồn và công nghệ
 
@@ -64,7 +64,7 @@ scripts/
   init_db.py              # Tạo các bảng còn thiếu
 tests/                    # Unit và integration tests
 load_test/
-  load_test.py            # Kịch bản tải Locust cho booking
+  load_test.py            # Kịch bản tải Locust cho các luồng API
 data/                     # Dữ liệu mẫu được seeder sử dụng
 ```
 
@@ -226,6 +226,27 @@ Integration tests cần PostgreSQL riêng. Tạo `.env.test` từ `.env.test.exa
 ```
 
 Không dùng database ứng dụng hoặc production cho integration tests. Hướng dẫn Locust xem [LOAD_TEST_PLAN.md](LOAD_TEST_PLAN.md).
+
+### Kết quả kiểm thử tải trên Kaggle CPU
+
+Locust chạy 50 người dùng ảo, tăng 5 người mỗi giây trong 60 giây. API, PostgreSQL và Locust cùng chạy trên máy Kaggle.
+
+| Chỉ số | Kết quả |
+|---|---:|
+| Tổng request | 5.908 |
+| Request lỗi | 0 (0%) |
+| Thông lượng trung bình | 99,39 request/giây |
+| Độ trễ trung bình | 346,75 ms |
+| p50 / p95 / p99 | 290 / 650 / 1.200 ms |
+| CPU trung bình / cao nhất | 49,2% / 78,2% |
+| RAM trung bình / cao nhất | 1.231 / 1.467 MB |
+| RAM tăng so với ban đầu | 426,4 MB |
+| Kết nối PostgreSQL hoạt động cao nhất | 31 |
+
+![Dashboard kết quả kiểm thử tải trên Kaggle CPU](docs/images/kaggle-load-test-dashboard.png)
+
+*Hình . Diễn biến độ trễ, thông lượng, request lỗi, CPU, RAM và kết nối PostgreSQL trong lần chạy.*
+
 
 ### Tài liệu chi tiết
 
