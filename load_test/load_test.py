@@ -226,7 +226,11 @@ class AdminApiUser(HttpUser):
             if _admin_showtime_created:
                 return
             _admin_showtime_created = True
-            start_time = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+            # The PostgreSQL column is TIMESTAMP WITHOUT TIME ZONE. Keep the
+            # wall-clock value in UTC, but serialize it without a UTC offset.
+            start_time = (
+                datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=30)
+            ).isoformat()
             created = self._request(
                 "POST",
                 "/api/v1/showtimes",
