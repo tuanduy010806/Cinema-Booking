@@ -7,11 +7,6 @@ them to HTTP responses through exception handlers or middleware.
 """
 
 
-# ---------------------------------------------------------------------------
-# Base
-# ---------------------------------------------------------------------------
-
-
 class CinemaException(Exception):
     """Base exception for cinema booking system."""
 
@@ -32,28 +27,12 @@ class InvalidCredentialsError(AuthenticationError):
     """Raised when an email or password is incorrect."""
 
 
-# ---------------------------------------------------------------------------
-# Generic resource exceptions
-# ---------------------------------------------------------------------------
-
 class InvalidTokenError(CinemaException):
     pass
 
+
 class NotFoundException(CinemaException):
     """Resource not found."""
-
-
-# Canonical alias used by the Booking domain (matches prompt requirement).
-NotFoundError = NotFoundException
-
-
-# ---------------------------------------------------------------------------
-# Access-control exceptions
-# ---------------------------------------------------------------------------
-
-
-class UnauthorizedException(CinemaException):
-    """Unauthorized access (e.g. missing / invalid credentials)."""
 
 
 class ForbiddenException(CinemaException):
@@ -76,19 +55,32 @@ class OwnershipError(ForbiddenException):
         )
 
 
-# ---------------------------------------------------------------------------
-# Booking-specific exceptions
-# ---------------------------------------------------------------------------
+class HoldOwnershipError(ForbiddenException):
+    """The hold belongs to a different user."""
+
+    def __init__(self) -> None:
+        super().__init__("This seat hold belongs to another user.")
+
+
+class HoldStateError(CinemaException):
+    """The requested operation is invalid for the hold's current state."""
+
+    def __init__(self, hold_id: int, state: str) -> None:
+        self.hold_id = hold_id
+        self.state = state
+        super().__init__(f"Hold {hold_id} cannot be used while in state '{state}'.")
+
+
+class HoldExpiredError(CinemaException):
+    """The seat hold expired before payment or release could complete."""
+
+    def __init__(self, hold_id: int) -> None:
+        self.hold_id = hold_id
+        super().__init__(f"Hold {hold_id} has expired.")
 
 
 class DuplicateSeatError(CinemaException):
-    """
-    A booking for the same (showtime_id, seat_number) pair already exists
-    with status 'active'.
-
-    Raised by the Repository when a DB-level unique-constraint violation is
-    detected, *and* by the Service on the pre-check (optimistic path).
-    """
+    """Raised when an active booking or hold already exists for the seat."""
 
     def __init__(self, showtime_id: int, seat_number: str) -> None:
         self.showtime_id = showtime_id

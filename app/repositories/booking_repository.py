@@ -1,13 +1,4 @@
-"""
-BookingRepository — async data-access layer.
-
-Audit changes applied (PROMPT 11):
-- Converted from synchronous Session to AsyncSession (Audit items #7, #8).
-- Replaced session.query() ORM-style with select() / scalars() compatible
-  with SQLAlchemy async engine.
-- All methods are now async def; callers must await them.
-- Business logic (ownership, state transitions) remains in BookingService.
-"""
+"""Async data access for bookings."""
 
 from __future__ import annotations
 
@@ -23,21 +14,15 @@ class BookingRepository:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    # ------------------------------------------------------------------
-    # Write operations
-    # ------------------------------------------------------------------
-
     async def create(self, booking_data: dict, user_id: int) -> Booking:
         """Insert a new Booking row.
 
-        Strips any user_id key from booking_data before INSERT so callers
-        cannot override the authenticated user.
-
+        The authenticated user ID always overrides any value in booking_data.
         """
         safe_data = {k: v for k, v in booking_data.items() if k != "user_id"}
         booking = Booking(**safe_data, user_id=user_id)
         self.db.add(booking)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(booking)
         return booking
 
@@ -52,27 +37,27 @@ class BookingRepository:
             return None
 
         booking.status = status
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(booking)
         return booking
-
-    # ------------------------------------------------------------------
-    # Read operations
-    # ------------------------------------------------------------------
 
     async def get_by_id(self, booking_id: int) -> Booking | None:
         """Return a Booking by primary key, or None if not found."""
         return await self.db.get(Booking, booking_id)
+
+    async def get_by_ids(self, booking_ids: list[int]) -> list[Booking]:
+        if not booking_ids:
+            return []
+        result = await self.db.scalars(
+            select(Booking).where(Booking.id.in_(booking_ids))
+        )
+        return list(result.all())
 
     async def get_by_user_id(self, user_id: int) -> list[Booking]:
         """Return all bookings (any status) belonging to user_id."""
         statement = select(Booking).where(Booking.user_id == user_id)
         result = await self.db.execute(statement)
         return list(result.scalars().all())
-
-    # ------------------------------------------------------------------
-    # Seat availability check
-    # ------------------------------------------------------------------
 
     async def check_seat_exists(self, showtime_id: int, seat_number: str) -> bool:
         """Return True if an active booking exists for (showtime_id, seat_number).
@@ -99,3 +84,13 @@ class BookingRepository:
         )
         result = await self.db.scalars(statement)
         return set(result.all())
+
+    async def create_many(self, booking_data: list[dict], user_id: int):
+        """Add a group of bookings to the current transaction without committing."""
+        bookings = [
+            Booking(**{k: v for k, v in data.items() if k != "user_id"}, user_id=user_id)
+            for data in booking_data
+        ]
+        self.db.add_all(bookings)
+        await self.db.flush()
+        return bookings

@@ -24,6 +24,6 @@ class ShowtimeRepository:
     async def create(self, showtime_data: dict):
         showtime = Showtime(**showtime_data)
         self.session.add(showtime)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(showtime)
         return showtime

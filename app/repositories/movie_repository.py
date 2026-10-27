@@ -22,7 +22,7 @@ class MovieRepository:
     async def create(self, movie_data: dict):
         movie = Movie(**movie_data)
         self.session.add(movie)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(movie)
         return movie
 
@@ -34,7 +34,7 @@ class MovieRepository:
         for field, value in movie_data.items():
             setattr(movie, field, value)
 
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(movie)
         return movie
 
@@ -44,5 +44,5 @@ class MovieRepository:
             return False
 
         await self.session.delete(movie)
-        await self.session.commit()
+        await self.session.flush()
         return True

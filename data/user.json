@@ -1,0 +1,37 @@
+[
+  {
+    "user_id": 1,
+    "email": "admin@cinema.local",
+    "username": "admin",
+    "password": "Admin123!",
+    "role": "ADMIN"
+  },
+  {
+    "user_id": 2,
+    "email": "alice@example.com",
+    "username": "alice",
+    "password": "Alice123!",
+    "role": "USER"
+  },
+  {
+    "user_id": 3,
+    "email": "bob@example.com",
+    "username": "bob",
+    "password": "Bob123456!",
+    "role": "USER"
+  },
+  {
+    "user_id": 4,
+    "email": "charlie@example.com",
+    "username": "charlie",
+    "password": "Charlie123!",
+    "role": "USER"
+  },
+  {
+    "user_id": 5,
+    "email": "diana@example.com",
+    "username": "diana",
+    "password": "Diana123!",
+    "role": "USER"
+  }
+]

@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,6 +9,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    SQL_ECHO: bool = False
+    DEMO_PAYMENT_AMOUNT_VND: int = Field(default=100_000, gt=0)
+    SEAT_HOLD_TTL_SECONDS: int = Field(default=300, ge=1)
 
 
 settings = Settings()

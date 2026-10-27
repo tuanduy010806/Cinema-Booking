@@ -21,11 +21,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return password_hasher.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict, exprie_delta: timedelta | None = None) -> str:
+def create_access_token(data: dict, expire_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
-    if exprie_delta is None:
-        exprie_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": datetime.now(timezone.utc) + exprie_delta})
+    if expire_delta is None:
+        expire_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": datetime.now(timezone.utc) + expire_delta})
     access_token = jwt.encode(to_encode, SECRET_KEY, ALGORITHM)
     return access_token
 

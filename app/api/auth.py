@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user_account
 from app.db.database import get_db
+from app.repositories.unit_of_work import SqlAlchemyUnitOfWork
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import CurrentUserResponse, LoginRequest, RegisterRequest, TokenResponse
 from app.services.auth_service import AuthService
@@ -11,7 +12,7 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 
 def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
-    return AuthService(UserRepository(db))
+    return AuthService(UserRepository(db), SqlAlchemyUnitOfWork(db))
 
 
 @router.post("/register", response_model=TokenResponse)

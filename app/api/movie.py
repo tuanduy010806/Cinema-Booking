@@ -3,7 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permission import RoleChecker
 from app.db.database import get_db
-from app.models.user import Role
+from app.repositories.unit_of_work import SqlAlchemyUnitOfWork
+from app.domain.roles import Role
 from app.repositories.movie_repository import MovieRepository
 from app.schemas.movie import MovieCreate, MovieResponse, MovieUpdate
 from app.services.movie_service import MovieService
@@ -12,7 +13,7 @@ router = APIRouter(prefix="/api/v1/movies", tags=["movies"])
 
 
 def get_movie_service(db: AsyncSession = Depends(get_db)) -> MovieService:
-    return MovieService(MovieRepository(db))
+    return MovieService(MovieRepository(db), SqlAlchemyUnitOfWork(db))
 
 
 @router.get("", response_model=list[MovieResponse])
