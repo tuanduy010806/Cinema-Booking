@@ -3,7 +3,7 @@
 
 ## Phạm vi và cách dùng
 
-Tài liệu tập trung vào cách các thành phần phối hợp và lý do thiết kế. Đường dẫn mã nguồn được ghi cạnh nội dung liên quan để tiện tra cứu; số dòng có thể thay đổi khi mã nguồn được chỉnh sửa.
+Tài liệu tập trung vào cách các thành phần phối hợp và lý do thiết kế. Đường dẫn file và tên hàm/symbol được ghi cạnh nội dung để tiện tra cứu; nên tìm theo symbol vì vị trí dòng thay đổi theo phiên bản mã nguồn.
 
 ## Chương 1 — Bản đồ hệ thống
 
@@ -23,11 +23,11 @@ Request không có bearer có thể đến endpoint public. Nếu client gửi b
 - **USER:** thao tác booking, hold, payment thuộc tài khoản hiện tại.
 - **ADMIN:** quyền USER cộng với tạo/sửa/xóa phim và tạo showtime. Role đọc từ bản ghi User trong database.
 
-Đăng ký gán role `USER` trong `AuthService.register` (`app/services/auth_service.py:21-44`). `Role.ADMIN`/`Role.USER` là enum thuần (`app/domain/roles.py:1-7`). Không có endpoint cấp quyền admin trong routers được đăng ký.
+Đăng ký gán role `USER` trong `AuthService.register` (`app/services/auth_service.py`). `Role.ADMIN`/`Role.USER` là enum thuần (`app/domain/roles.py`). Không có endpoint cấp quyền admin trong routers được đăng ký.
 
 ### Stack thực tế
 
-Python async, FastAPI, Pydantic, SQLAlchemy async, PostgreSQL/asyncpg, PyJWT, pwdlib, Docker Compose. Căn cứ: manifest `requirements.txt`, imports trong `app/main.py`, `app/db/database.py:1-25`, `app/core/security.py:1-14` và `docker-compose.yml`. Phiên bản package phải đọc từ manifest tại thời điểm chạy; tài liệu này không suy diễn số phiên bản ngoài nội dung đó.
+Python async, FastAPI, Pydantic, SQLAlchemy async, PostgreSQL/asyncpg, PyJWT, pwdlib, Docker Compose. Căn cứ: manifest `requirements.txt`, imports trong `app/main.py`, `app/db/database.py`, `app/core/security.py` và `docker-compose.yml`. Phiên bản package phải đọc từ manifest tại thời điểm chạy; tài liệu này không suy diễn số phiên bản ngoài nội dung đó.
 
 ### Kiến trúc code thực tế
 
@@ -49,7 +49,7 @@ flowchart TD
     Resp --> C
 ```
 
-Đây là phân tầng mục tiêu thể hiện qua cách nối dependency; implementation không hoàn toàn tách domain: một số service import ORM model/Pydantic schema trực tiếp. Routers tạo repository và `SqlAlchemyUnitOfWork` từ cùng session, ví dụ `app/api/booking.py:28-38`, `app/api/payment.py:16-23`; transaction của payment/booking/hold vì vậy dùng cùng session. `AuthMiddleware` mở session riêng để tìm user trước khi vào dependency của endpoint (`app/core/auth_middleware.py:14-38`).
+Đây là phân tầng mục tiêu thể hiện qua cách nối dependency; implementation không hoàn toàn tách domain: một số service import ORM model/Pydantic schema trực tiếp. Routers tạo repository và `SqlAlchemyUnitOfWork` từ cùng session, ví dụ `app/api/booking.py`, `app/api/payment.py`; transaction của payment/booking/hold vì vậy dùng cùng session. `AuthMiddleware` mở session riêng để tìm user trước khi vào dependency của endpoint (`app/core/auth_middleware.py`).
 
 ### Vòng đời request
 
@@ -60,7 +60,7 @@ flowchart TD
 5. Với ghi dữ liệu, service gọi Unit of Work để commit; nếu lỗi trong khối ghi thì gọi rollback.
 6. FastAPI serialize kết quả qua `response_model`; lỗi domain đi qua handler toàn cục thành `{"detail":"..."}`.
 
-Handler và mapping exception nằm ở `app/main.py:38-68`; các router và thứ tự đăng ký ở `app/main.py:72-77`.
+Handler và mapping exception nằm ở `app/main.py`; các router và thứ tự đăng ký ở `app/main.py`.
 
 ## Chương 2 — Cây thư mục và vai trò từng file
 
@@ -69,7 +69,7 @@ Handler và mapping exception nằm ở `app/main.py:38-68`; các router và th�
 ├── app/
 │   ├── main.py                   tạo FastAPI, middleware, exception handler, include routers
 │   ├── api/                      HTTP routes và dependency wiring
-│   ├── core/                     config, JWT/hash, middleware, permission, exceptions
+│   ├── core/                     config, JWT/hash, middleware, permission, exceptions, OpenAPI security
 │   ├── db/database.py            Base, engine, async session, get_db
 │   ├── domain/                   Role và Protocol UnitOfWork
 │   ├── models/                   ORM tables
@@ -77,67 +77,68 @@ Handler và mapping exception nằm ở `app/main.py:38-68`; các router và th�
 │   ├── schemas/                  Pydantic request/response
 │   └── services/                 quy tắc nghiệp vụ
 ├── scripts/init_db.py            tạo bảng còn thiếu bằng metadata.create_all
-├── seed.py                       nạp/sync phim và showtime mẫu
-├── data/movie.json               nguồn dữ liệu phim mẫu cho seeder
+├── seed.py                       nạp/sync phim, showtime, user, booking, hold, payment mẫu
+├── data/                         movie, showtime, user, booking, seat_hold, payment JSON
 ├── tests/                        integration tests PostgreSQL và unit tests
-└── load_test/load_test.py        kịch bản Locust
+└── load_test/load_test.py        kịch bản Locust cho API khách và admin
 ```
 
 ### Entry point, core và database
 
 | File | Trách nhiệm và điểm cần biết |
 |---|---|
-| `app/main.py:30-77` | Entry point duy nhất: tạo `FastAPI`, gắn middleware, ánh xạ domain exceptions, đăng ký sáu router. |
-| `app/core/config.py:5-15` | Settings đọc `.env`; bắt buộc `DATABASE_URL`, `SECRET_KEY`; mặc định algorithm HS256, token 60 phút, SQL echo false, payment 100000 VND/ghế, hold 300 giây. |
-| `app/core/security.py:10-38` | Hash/verify password; phát và decode JWT. |
-| `app/core/auth_middleware.py:11-46` | Parse Bearer, decode `sub`, nạp User vào request state hoặc trả 401. |
-| `app/core/permission.py:7-28` | `RoleChecker`: xác thực object User trên request state và so role. |
-| `app/core/exceptions.py:15-137` | Domain exception thuần Python; các lớp ownership/state/not-found/duplicate. |
-| `app/db/database.py:8-37` | Declarative Base, engine với pool size 10/max overflow 20, session factory và dependency `get_db`. |
-| `app/domain/__init__.py:1` | Ghi nhận package domain chứa các khái niệm nghiệp vụ không phụ thuộc framework. |
-| `app/domain/roles.py:1-7` | Enum role, không phụ thuộc ORM. |
-| `app/domain/unit_of_work.py:1-12` | Protocol chỉ khai báo commit/rollback. |
-| `app/repositories/unit_of_work.py:1-14` | Adapter commit/rollback trên AsyncSession. |
+| `app/main.py` | Entry point duy nhất: tạo `FastAPI`, gắn middleware, ánh xạ domain exceptions, đăng ký sáu router. |
+| `app/core/config.py` | Settings đọc `.env`; bắt buộc `DATABASE_URL`, `SECRET_KEY`; mặc định algorithm HS256, token 60 phút, SQL echo false, payment 100000 VND/ghế, hold 300 giây. |
+| `app/core/security.py` | Hash/verify password; phát và decode JWT. |
+| `app/core/auth_middleware.py` | Parse Bearer, decode `sub`, nạp User vào request state hoặc trả 401. |
+| `app/core/permission.py` | `RoleChecker`: xác thực object User trên request state và so role. |
+| `app/core/exceptions.py` | Domain exception thuần Python; các lớp ownership/state/not-found/duplicate. |
+| `app/db/database.py` | Declarative Base, engine với pool size 10/max overflow 20, session factory và dependency `get_db`. |
+| `app/domain/__init__.py` | Ghi nhận package domain chứa các khái niệm nghiệp vụ không phụ thuộc framework. |
+| `app/domain/roles.py` | Enum role, không phụ thuộc ORM. |
+| `app/domain/unit_of_work.py` | Protocol chỉ khai báo commit/rollback. |
+| `app/repositories/unit_of_work.py` | Adapter commit/rollback trên AsyncSession. |
 
 ### API, schema, service, repository và model theo module
 
-Mỗi hàng liệt kê tất cả file ứng dụng trong module. Hàm quan trọng/luồng cụ thể được phân tích ở Chương 5–12.
+Bảng dưới liệt kê các file ứng dụng theo module, gồm các file hỗ trợ OpenAPI; hàm quan trọng/luồng cụ thể được phân tích ở Chương 5–12.
 
 | Module/file | Mục đích và liên kết |
 |---|---|
-| `app/api/auth.py:11-39` | `/auth`; lắp `AuthService`, route register/login/me. |
-| `app/api/dependencies.py:5-29` | Lấy User từ request state; tạo `UserIdentity` hoặc public account dict. |
-| `app/schemas/auth.py:1-23` | Đăng ký/đăng nhập, phản hồi token và thông tin người dùng hiện tại. |
-| `app/services/auth_service.py:12-52` | So khớp password xác nhận, tạo user, login và phát token. |
-| `app/repositories/user_repository.py:7-25` | Tìm user theo id/email và insert user. |
-| `app/models/user.py:8-15` | Bảng `users`; email unique; password lưu hash. |
-| `app/api/movie.py:12-63` | Đọc công khai và ghi phim dành cho ADMIN. |
-| `app/schemas/movie.py:5-24` | Ràng buộc tiêu đề/thời lượng và cấu trúc phản hồi. |
-| `app/services/movie_service.py:7-60` | Read, create/update/delete; commit/rollback ghi. |
-| `app/repositories/movie_repository.py:8-48` | CRUD ORM; list theo id giảm dần. |
-| `app/models/movie.py:6-13` | Bảng movies. |
-| `app/api/showtime.py:15-57` | Liệt kê suất chiếu/ghế công khai; tạo suất chiếu dành cho ADMIN. |
-| `app/schemas/showtime.py:7-24` | Dữ liệu vào và phản hồi cho suất chiếu, ghế. |
-| `app/services/showtime_service.py:9-59` | Xác nhận movie, dựng availability từ booking+hold. |
-| `app/repositories/showtime_repository.py:8-29` | List/filter, get, create showtime. |
-| `app/models/showtime.py:9-18` | Bảng showtimes; `start_time` là `DateTime` không bật timezone. |
-| `app/api/booking.py:21-83` | Route đặt trực tiếp, list cá nhân, hủy. |
-| `app/schemas/booking.py:6-19` | Request và response booking. |
-| `app/services/booking_service.py:18-182` | Capacity/duplicate/ownership/state rules. |
-| `app/repositories/booking_repository.py:11-110` | CRUD, seat lookup, multi-booking insert; không tự commit. |
-| `app/models/booking.py:9-21` | Bảng booking; trạng thái mặc định `active`; không khai báo duy nhất theo ghế/suất chiếu. |
-| `app/api/seat_hold.py:14-51` | Tạo/xem/giải phóng hold; toàn bộ cần identity. |
-| `app/schemas/seat_hold.py:7-30` | Giữ tạm 1–5 ghế; kiểm tra nhãn số dương và không trùng trong yêu cầu. |
-| `app/services/seat_hold_service.py:14-126` | Tạo hold, quyền sở hữu, release/expiry và sinh ID ngẫu nhiên. |
-| `app/repositories/seat_hold_repository.py:9-70` | Lưu lượt giữ và ghế; lọc ghế đang được giữ và chưa hết hạn. |
-| `app/models/seat_hold.py:9-40` | Hai bảng `seat_holds`, `seat_hold_seats`; booking_id unique nullable cho liên kết sau payment. |
-| `app/api/payment.py:13-50` | Pay hold và list payments của tôi. |
-| `app/schemas/payment.py:8-26` | Dữ liệu vào/ra thanh toán và kết quả gồm thanh toán cùng các booking. |
-| `app/services/payment_service.py:15-100` | Thanh toán mô phỏng, tạo booking, liên kết lượt giữ và xử lý yêu cầu gửi lại an toàn khi lượt giữ đã thanh toán. |
-| `app/repositories/payment_repository.py:9-48` | Tạo thanh toán thành công, tìm theo lượt giữ và liệt kê theo người dùng. |
-| `app/models/payment.py:9-26` | Bảng payments; unique `hold_id`; amount/currency/status/timestamps. |
+| `app/api/auth.py` | `/auth`; lắp `AuthService`, route register/login/me. |
+| `app/api/dependencies.py` | Lấy User từ request state; tạo `UserIdentity` hoặc public account dict. |
+| `app/core/openapi_security.py` | Khai báo HTTP Bearer scheme cho OpenAPI/Swagger; việc xác thực token thực tế do middleware thực hiện. |
+| `app/schemas/auth.py` | Đăng ký/đăng nhập, phản hồi token và thông tin người dùng hiện tại. |
+| `app/services/auth_service.py` | So khớp password xác nhận, tạo user, login và phát token. |
+| `app/repositories/user_repository.py` | Tìm user theo id/email và insert user. |
+| `app/models/user.py` | Bảng `users`; email unique; password lưu hash. |
+| `app/api/movie.py` | Đọc công khai và ghi phim dành cho ADMIN. |
+| `app/schemas/movie.py` | Ràng buộc tiêu đề/thời lượng và cấu trúc phản hồi. |
+| `app/services/movie_service.py` | Read, create/update/delete; commit/rollback ghi. |
+| `app/repositories/movie_repository.py` | CRUD ORM; list theo id giảm dần. |
+| `app/models/movie.py` | Bảng movies. |
+| `app/api/showtime.py` | Liệt kê suất chiếu/ghế công khai; tạo suất chiếu dành cho ADMIN. |
+| `app/schemas/showtime.py` | Dữ liệu vào và phản hồi cho suất chiếu, ghế. |
+| `app/services/showtime_service.py` | Xác nhận movie, dựng availability từ booking+hold. |
+| `app/repositories/showtime_repository.py` | List/filter, get, create showtime. |
+| `app/models/showtime.py` | Bảng showtimes; `start_time` là `DateTime` không bật timezone. |
+| `app/api/booking.py` | Route đặt trực tiếp, list cá nhân, hủy. |
+| `app/schemas/booking.py` | Request và response booking. |
+| `app/services/booking_service.py` | Capacity/duplicate/ownership/state rules. |
+| `app/repositories/booking_repository.py` | CRUD, seat lookup, multi-booking insert; không tự commit. |
+| `app/models/booking.py` | Bảng booking; trạng thái mặc định `active`; không khai báo duy nhất theo ghế/suất chiếu. |
+| `app/api/seat_hold.py` | Tạo/xem/giải phóng hold; toàn bộ cần identity. |
+| `app/schemas/seat_hold.py` | Giữ tạm 1–5 ghế; kiểm tra nhãn số dương và không trùng trong yêu cầu. |
+| `app/services/seat_hold_service.py` | Tạo hold, quyền sở hữu, release/expiry và sinh ID ngẫu nhiên. |
+| `app/repositories/seat_hold_repository.py` | Lưu lượt giữ và ghế; lọc ghế đang được giữ và chưa hết hạn. |
+| `app/models/seat_hold.py` | Hai bảng `seat_holds`, `seat_hold_seats`; booking_id unique nullable cho liên kết sau payment. |
+| `app/api/payment.py` | Pay hold và list payments của tôi. |
+| `app/schemas/payment.py` | Dữ liệu vào/ra thanh toán và kết quả gồm thanh toán cùng các booking. |
+| `app/services/payment_service.py` | Thanh toán mô phỏng, tạo booking, liên kết lượt giữ và xử lý yêu cầu gửi lại an toàn khi lượt giữ đã thanh toán. |
+| `app/repositories/payment_repository.py` | Tạo thanh toán thành công, tìm theo lượt giữ và liệt kê theo người dùng. |
+| `app/models/payment.py` | Bảng payments; unique `hold_id`; amount/currency/status/timestamps. |
 
-Không thấy migration tool trong inventory file; `scripts/init_db.py:16-33` gọi `Base.metadata.create_all`, chỉ tạo bảng thiếu, không nâng cấp schema đang tồn tại. Đây là **IMPLEMENTED** theo script, không giả định schema production đồng bộ.
+Không thấy migration tool trong inventory file; `scripts/init_db.py` gọi `Base.metadata.create_all`, chỉ tạo bảng thiếu, không nâng cấp schema đang tồn tại. Đây là **IMPLEMENTED** theo script, không giả định schema production đồng bộ.
 
 ## Chương 3 — Khái niệm nền để đọc code
 
@@ -181,9 +182,9 @@ Các nhãn phân biệt chức năng có trong source, test có trong repository
 | Đọc phim/suất chiếu công khai | **ĐÃ TRIỂN KHAI** router/service/repository | Có các tệp unit test và integration test tương ứng. | Chưa có phân trang/tìm kiếm nâng cao. |
 | ADMIN ghi phim/tạo suất chiếu | **ĐÃ TRIỂN KHAI** `RoleChecker(Role.ADMIN)` trong router | Có kiểm thử quyền ADMIN ở xác thực/phim/suất chiếu. | Xóa phim đang được tham chiếu có thể bị khóa ngoại từ chối; chưa thấy ánh xạ lỗi riêng. |
 | Đặt trực tiếp một ghế | **ĐÃ TRIỂN KHAI** | Có unit test và integration test booking. | Kiểm tra trùng theo kiểu kiểm tra rồi mới ghi, không có ràng buộc database bảo đảm tính nguyên tử. |
-| Giữ nhiều ghế | **ĐÃ TRIỂN KHAI** | Danh sách tệp chưa có kiểm thử riêng cho service/router giữ ghế. | Chưa có khóa database ngăn tranh chấp giữa giữ ghế/booking/thanh toán. |
-| Thanh toán mô phỏng | **ĐÃ TRIỂN KHAI** | Danh sách tệp kiểm thử chưa có bài kiểm thử thanh toán riêng. | Không kết nối cổng thanh toán thật; trạng thái payment hiện được ghi là `succeeded`. |
-| Kiểm thử tải | Kịch bản `load_test/load_test.py` | Tạo booking trực tiếp. | Không đo luồng giữ ghế/thanh toán và không thay thế kiểm thử tải trong môi trường triển khai. |
+| Giữ nhiều ghế | **ĐÃ TRIỂN KHAI** | Chưa có unit/integration test chuyên biệt cho service/router; kịch bản Locust có gọi API tạo, xem và release hold. | Chưa có khóa database ngăn tranh chấp giữa giữ ghế/booking/thanh toán. |
+| Thanh toán mô phỏng | **ĐÃ TRIỂN KHAI** | Chưa có unit/integration test chuyên biệt; kịch bản Locust có gọi API payment cho hold. | Không kết nối cổng thanh toán thật; trạng thái payment hiện được ghi là `succeeded`. |
+| Kiểm thử tải | Kịch bản `load_test/load_test.py` | Có các tác vụ duyệt catalog, đăng ký/đăng nhập, booking/hủy, hold/release, payment hold và thao tác admin. | Không kiểm tra tranh chấp cùng ghế, không phải unit/integration test, và không thay thế kiểm thử tải trên môi trường triển khai. |
 
 Không có test hiện hành xác nhận constraint database ngăn hai request đặt cùng ghế; model `Booking` cũng không khai báo constraint này. Các test booking thông thường không chứng minh được hành vi đồng thời.
 
@@ -212,7 +213,7 @@ sequenceDiagram
     S-->>C: access_token, token_type
 ```
 
-Evidence: router/service wiring `app/api/auth.py:11-39`; validation/business and commit `app/services/auth_service.py:21-52`; repository insert `app/repositories/user_repository.py:13-25`; hashing/JWT `app/core/security.py:16-38`.
+Evidence: router/service wiring `app/api/auth.py`; validation/business and commit `app/services/auth_service.py`; repository insert `app/repositories/user_repository.py`; hashing/JWT `app/core/security.py`.
 
 Thứ tự đáng hiểu: mật khẩu confirmation được so sánh trước query; email query kiểm tra trùng ở service; role được đặt cố định `USER`; create repository flush/refresh; service commit; chỉ sau commit phát JWT. Email unique ở DB bảo vệ trùng cuối cùng, nhưng cạnh tranh đăng ký có thể vượt qua precheck và tạo lỗi DB chưa được ánh xạ thành `EmailAlreadyExistsError`.
 
@@ -226,7 +227,7 @@ Thứ tự đáng hiểu: mật khẩu confirmation được so sánh trước q
 6. Gắn ORM User vào request state; dependency `get_current_user` trả `{id, role}` kiểu `UserIdentity`; `get_current_user_account` trả `user_id/email/role`.
 7. Các route admin thêm `RoleChecker(Role.ADMIN)`, còn booking/hold/payment gọi dependency identity. Việc sở hữu tài nguyên được service kiểm tra riêng.
 
-Evidence: `app/core/auth_middleware.py:14-46`, `app/core/security.py:24-38`, `app/api/dependencies.py:10-29`, `app/core/permission.py:13-28`, các router tương ứng.
+Evidence: `app/core/auth_middleware.py`, `app/core/security.py`, `app/api/dependencies.py`, `app/core/permission.py`, các router tương ứng.
 
 Nuance: middleware mở session truy vấn user riêng, rồi dependency DB của route dựng session khác. Vì middleware đóng session trước `call_next`, ORM User trong request state có thể đã detached; code dependencies chỉ đọc trường scalar, nhưng đây vẫn là coupling/lifecycle cần nắm.
 
@@ -240,7 +241,7 @@ Nuance: middleware mở session truy vấn user riêng, rồi dependency DB củ
 4. Nếu có hold repository, query seat đang thuộc hold active/chưa hết hạn.
 5. Tạo ORM booking với user id đã xác thực, flush; service commit rồi trả response.
 
-Evidence: schema `app/schemas/booking.py:6-19`; route `app/api/booking.py:41-54`; service `app/services/booking_service.py:44-110`; repository `app/repositories/booking_repository.py:21-33,76-110`.
+Evidence: schema `app/schemas/booking.py`; route `app/api/booking.py`; service `app/services/booking_service.py`; repository `app/repositories/booking_repository.py`.
 
 Lỗi: schema sai => FastAPI 422; showtime/ghế ngoài capacity => `NotFoundException`/404; ghế active hoặc held => `DuplicateSeatError`/400. **RISK:** kiểm tra và INSERT không nằm trong một cơ chế loại trừ; hai request có thể cùng thấy ghế trống rồi cùng ghi. Không thấy unique constraint trên bảng Booking.
 
@@ -248,7 +249,7 @@ Lỗi: schema sai => FastAPI 422; showtime/ghế ngoài capacity => `NotFoundExc
 
 `DELETE /api/v1/bookings/{booking_id}` gọi `get_by_id`, kiểm tra tồn tại, kiểm tra `booking.user_id == user_id`, yêu cầu `status == active`, update status `cancelled`, flush/commit. Không xóa row. Khi availability query, chỉ booking active chiếm ghế nên sau hủy ghế hiện available.
 
-Evidence: `app/api/booking.py:69-83`, `app/services/booking_service.py:127-182`, `app/repositories/booking_repository.py:35-51,93-100`, `app/services/showtime_service.py:39-59`.
+Evidence: `app/api/booking.py`, `app/services/booking_service.py`, `app/repositories/booking_repository.py`, `app/services/showtime_service.py`.
 
 Mã lỗi: not found 404; ownership 403; trạng thái không active 400. Authorization đúng vì ID chủ thể đến từ JWT còn ownership được service xác nhận trên resource.
 
@@ -256,7 +257,7 @@ Mã lỗi: not found 404; ownership 403; trạng thái không active 400. Author
 
 Schema yêu cầu showtime id dương, 1–5 seat string duy nhất, regex số dương. Service xác nhận showtime và capacity; lấy tập booking active và hold active `expires_at > now`; nếu một ghế bận thì từ chối cả nhóm; sinh ID dương ngẫu nhiên (tối đa 20 lần dò không trùng hold/payment reference); gán `created_at`, `expires_at = now + TTL`; repository thêm Hold và các Seat rows; commit.
 
-Evidence: `app/schemas/seat_hold.py:7-19`, `app/services/seat_hold_service.py:29-66,104-115`, `app/repositories/seat_hold_repository.py:16-60`, `app/core/config.py:13-14`.
+Evidence: `app/schemas/seat_hold.py`, `app/services/seat_hold_service.py`, `app/repositories/seat_hold_repository.py`, `app/core/config.py`.
 
 Release: chủ hold mới được giải phóng; chỉ status active; nếu đã quá hạn thì ghi `expired`, nếu còn hạn thì `released`; commit trả trạng thái. Get hold tính response `expired` theo thời gian nhưng không persist trạng thái đó. Ghế hết hạn không bị chặn vì query availability lọc theo thời gian, không cần worker.
 
@@ -271,7 +272,7 @@ Release: chủ hold mới được giải phóng; chỉ status active; nếu đ�
 5. Xác nhận không có booking active nào chiếm seat trong hold.
 6. Tạo payment succeeded với `DEMO_PAYMENT_AMOUNT_VND * số ghế`; tạo booking cho từng seat; gắn booking_id từng SeatHoldSeat; chuyển hold sang paid; một commit chốt cả thay đổi.
 
-Evidence: `app/api/payment.py:25-50`, `app/services/payment_service.py:30-89`, `app/repositories/payment_repository.py:15-48`, `app/repositories/booking_repository.py:102-110`, `app/repositories/seat_hold_repository.py:65-70`.
+Evidence: `app/api/payment.py`, `app/services/payment_service.py`, `app/repositories/payment_repository.py`, `app/repositories/booking_repository.py`, `app/repositories/seat_hold_repository.py`.
 
 Nếu bước sau insert/payment thất bại, service rollback nên tránh trạng thái payment/booking/hold chỉ commit một phần trong transaction thông thường. **RISK:** chưa có row lock/atomic claim hold; hai thanh toán đồng thời có thể cùng qua các bước check. Unique payment.hold_id có thể chặn một insert payment, nhưng không thay thế chiến lược concurrency bao quát hay xác nhận hoàn chỉnh khi cạnh tranh.
 
@@ -285,7 +286,7 @@ erDiagram
     MOVIES ||--o{ SHOWTIMES : schedules
     SHOWTIMES ||--o{ BOOKINGS : contains
     SHOWTIMES ||--o{ SEAT_HOLDS : holds
-    SEAT_HOLDS ||--|{ SEAT_HOLD_SEATS : contains
+    SEAT_HOLDS ||--o{ SEAT_HOLD_SEATS : contains
     BOOKINGS o|--o| SEAT_HOLD_SEATS : fulfills
     USERS {
         int user_id PK
@@ -338,7 +339,7 @@ erDiagram
     }
 ```
 
-ERD phản ánh FK/unique khai báo trong ORM, không phải toàn bộ quy tắc nghiệp vụ. Đặc biệt không có constraint duy nhất `(showtime_id, seat_number)` cho active Booking; payment `hold_id` unique nhưng không có ForeignKey tới `seat_holds.id` trong `app/models/payment.py:9-26`. `SeatHoldSeat` có unique booking_id nullable, nhưng không khai báo unique `(hold_id, seat_number)`.
+ERD thể hiện các quan hệ FK/unique chính trong ORM; bội số `0..N` từ Hold sang HoldSeat phản ánh rằng database không buộc mọi hold phải có seat row. API yêu cầu 1–5 ghế khi tạo hold. Không có constraint duy nhất `(showtime_id, seat_number)` cho active Booking; payment `hold_id` unique nhưng không có ForeignKey tới `seat_holds.id`. `SeatHoldSeat` có unique `booking_id` nullable, nhưng không khai báo unique `(hold_id, seat_number)`.
 
 ### Các trạng thái
 
@@ -356,29 +357,29 @@ Giá trị status là string, không phải database enum/check constraint. Quy 
 
 ## Chương 7 — Danh mục API đã đăng ký
 
-Tất cả endpoint bên dưới có prefix thật từ router; sáu router include tại `app/main.py:72-77`. Public nghĩa là không cần JWT khi không gửi Authorization; middleware vẫn từ chối token sai nếu client tự gửi token.
+Tất cả endpoint bên dưới có prefix thật từ router; sáu router include tại `app/main.py`. Public nghĩa là không cần JWT khi không gửi Authorization; middleware vẫn từ chối token sai nếu client tự gửi token.
 
 | Phương thức và đường dẫn | Xác thực/quyền | Mã thành công | Nguồn |
 |---|---|---:|---|
-| `POST /api/v1/auth/register` | Công khai | 200 | `app/api/auth.py:18-25` |
-| `POST /api/v1/auth/login` | Công khai | 200 | `app/api/auth.py:27-34` |
-| `GET /api/v1/auth/me` | JWT | 200 | `app/api/auth.py:36-39` |
-| `GET /api/v1/movies` | Công khai | 200 | `app/api/movie.py:19-23` |
-| `GET /api/v1/movies/{movie_id}` | Công khai | 200 | `app/api/movie.py:25-29` |
-| `POST /api/v1/movies` | ADMIN | 200 | `app/api/movie.py:31-39` |
-| `PUT /api/v1/movies/{movie_id}` | ADMIN | 200 | `app/api/movie.py:41-53` |
-| `DELETE /api/v1/movies/{movie_id}` | ADMIN | 204 | `app/api/movie.py:55-63` |
-| `GET /api/v1/showtimes?movie_id=` | Công khai | 200 | `app/api/showtime.py:28-35` |
-| `POST /api/v1/showtimes` | ADMIN | 201 | `app/api/showtime.py:37-49` |
-| `GET /api/v1/showtimes/{id}/seats` | Công khai | 200 | `app/api/showtime.py:51-57` |
-| `POST /api/v1/bookings/` | JWT | 201 | `app/api/booking.py:41-54` |
-| `GET /api/v1/bookings/me` | JWT | 200 | `app/api/booking.py:56-67` |
-| `DELETE /api/v1/bookings/{id}` | JWT + owner | 200 | `app/api/booking.py:69-83` |
-| `POST /api/v1/holds` | JWT | 201 | `app/api/seat_hold.py:27-34` |
-| `GET /api/v1/holds/{id}` | JWT + owner | 200 | `app/api/seat_hold.py:36-43` |
-| `DELETE /api/v1/holds/{id}` | JWT + owner | 200 | `app/api/seat_hold.py:45-51` |
-| `POST /api/v1/payments` | JWT + hold owner | 201 new; 200 retry | `app/api/payment.py:25-43` |
-| `GET /api/v1/payments/me` | JWT | 200 | `app/api/payment.py:45-50` |
+| `POST /api/v1/auth/register` | Công khai | 200 | `app/api/auth.py` |
+| `POST /api/v1/auth/login` | Công khai | 200 | `app/api/auth.py` |
+| `GET /api/v1/auth/me` | JWT | 200 | `app/api/auth.py` |
+| `GET /api/v1/movies` | Công khai | 200 | `app/api/movie.py` |
+| `GET /api/v1/movies/{movie_id}` | Công khai | 200 | `app/api/movie.py` |
+| `POST /api/v1/movies` | ADMIN | 200 | `app/api/movie.py` |
+| `PUT /api/v1/movies/{movie_id}` | ADMIN | 200 | `app/api/movie.py` |
+| `DELETE /api/v1/movies/{movie_id}` | ADMIN | 204 | `app/api/movie.py` |
+| `GET /api/v1/showtimes?movie_id=` | Công khai | 200 | `app/api/showtime.py` |
+| `POST /api/v1/showtimes` | ADMIN | 201 | `app/api/showtime.py` |
+| `GET /api/v1/showtimes/{id}/seats` | Công khai | 200 | `app/api/showtime.py` |
+| `POST /api/v1/bookings/` | JWT | 201 | `app/api/booking.py` |
+| `GET /api/v1/bookings/me` | JWT | 200 | `app/api/booking.py` |
+| `DELETE /api/v1/bookings/{id}` | JWT + owner | 200 | `app/api/booking.py` |
+| `POST /api/v1/holds` | JWT | 201 | `app/api/seat_hold.py` |
+| `GET /api/v1/holds/{id}` | JWT + owner | 200 | `app/api/seat_hold.py` |
+| `DELETE /api/v1/holds/{id}` | JWT + owner | 200 | `app/api/seat_hold.py` |
+| `POST /api/v1/payments` | JWT + hold owner | 201 new; 200 retry | `app/api/payment.py` |
+| `GET /api/v1/payments/me` | JWT | 200 | `app/api/payment.py` |
 
 Schema phản hồi: xác thực tại `app/schemas/auth.py`; phim tại `movie.py`; suất chiếu tại `showtime.py`; booking tại `booking.py`; giữ ghế tại `seat_hold.py`; thanh toán tại `payment.py`. FastAPI/Pydantic xử lý lỗi kiểm tra dữ liệu HTTP; exception nghiệp vụ được ánh xạ tập trung. Không suy diễn endpoint không có trong các router này.
 
@@ -399,7 +400,7 @@ JWT chứa `sub` là ID user dạng chuỗi và thời điểm hết hạn; ch�
 
 ### Luồng JWT
 
-`create_access_token` sao chép dict claim đầu vào, thêm thời điểm hết hạn UTC (mặc định cấu hình 60 phút), rồi ký bằng thuật toán/khóa đã cấu hình. Đăng ký/đăng nhập gán `sub` bằng ID người dùng dạng chuỗi. `decode_access_token` gọi `jwt.decode` với danh sách thuật toán được phép; PyJWT xác minh chữ ký và hạn dùng, sau đó bọc `jwt.InvalidTokenError` thành exception nghiệp vụ `InvalidTokenError` (`app/core/security.py:24-38`). Middleware chuyển `sub` thành số nguyên và xử lý claim thiếu/không hợp lệ (`auth_middleware.py:20-27`).
+`create_access_token` sao chép dict claim đầu vào, thêm thời điểm hết hạn UTC (mặc định cấu hình 60 phút), rồi ký bằng thuật toán/khóa đã cấu hình. Đăng ký/đăng nhập gán `sub` bằng ID người dùng dạng chuỗi. `decode_access_token` gọi `jwt.decode` với danh sách thuật toán được phép; PyJWT xác minh chữ ký và hạn dùng, sau đó bọc `jwt.InvalidTokenError` thành exception nghiệp vụ `InvalidTokenError` (`app/core/security.py`). Middleware chuyển `sub` thành số nguyên và xử lý claim thiếu/không hợp lệ (`auth_middleware.py`).
 
 Payload JWT được ký nhưng không mã hóa; không đưa mật khẩu/bí mật vào claim. Vai trò không lấy từ claim trong token; middleware tải lại User từ database và `RoleChecker` so sánh vai trò hiện tại. Vì vậy, thay đổi vai trò có thể ảnh hưởng các yêu cầu tiếp theo dùng token hiện có, nếu không có bộ nhớ đệm riêng.
 
@@ -409,9 +410,9 @@ Payload JWT được ký nhưng không mã hóa; không đưa mật khẩu/bí m
 
 ### Lựa chọn bảo mật và điểm còn thiếu
 
-- Password storage uses `PasswordHash.recommended()` and verify function, not plaintext (`app/core/security.py:10-21`). Actual algorithm is delegated to library defaults; no runtime inspection was done.
-- Login uses the same `InvalidCredentialsError` message for unknown email and wrong password, reducing account enumeration through response difference (`auth_service.py:46-52`).
-- Registration schema has required strings but no visible length/complexity/email-normalization policy (`app/schemas/auth.py:4-12`).
+- Password storage uses `PasswordHash.recommended()` and verify function, not plaintext (`app/core/security.py`). Actual algorithm is delegated to library defaults; no runtime inspection was done.
+- Login uses the same `InvalidCredentialsError` message for unknown email and wrong password, reducing account enumeration through response difference (`auth_service.py`).
+- Registration schema has required strings but no visible length/complexity/email-normalization policy (`app/schemas/auth.py`).
 - Config sample values are development defaults; `docker-compose.yml` has a fallback SECRET_KEY. Must replace outside local use; this is configuration evidence, not a runtime breach finding.
 - No refresh/revocation endpoint found. Token lifetime limits exposure but does not provide immediate revocation except deleting/inactivating user (middleware reloads DB).
 - Middleware validates any Authorization header before route selection, so malformed/expired token can make a public read fail 401.
@@ -422,9 +423,9 @@ Engine async lấy cấu hình từ environment; session maker đặt `expire_on
 
 Transaction bảo vệ tính nguyên tử trong một session/DB transaction; nó không thay cho khóa hoặc constraint chống hai transaction cạnh tranh. Các bước “đọc ghế trống rồi ghi booking/hold” có khoảng thời gian cạnh tranh. Fixture tích hợp dùng adapter sync và override dependency, do đó không mặc định test đi qua cùng middleware/session lifecycle như ứng dụng chạy thật.
 
-`create_async_engine` dùng URL asyncpg từ cấu hình; pool được đặt ở 10 kết nối cộng tối đa 20 kết nối vượt mức. `async_sessionmaker` dùng `expire_on_commit=False`, `autoflush=False`; `get_db` cung cấp session, rollback nếu exception thoát ra ngoài, rồi đóng session (`app/db/database.py:10-37`).
+`create_async_engine` dùng URL asyncpg từ cấu hình; pool được đặt ở 10 kết nối cộng tối đa 20 kết nối vượt mức. `async_sessionmaker` dùng `expire_on_commit=False`, `autoflush=False`; `get_db` cung cấp session, rollback nếu exception thoát ra ngoài, rồi đóng session (`app/db/database.py`).
 
-Repository gọi `flush`, thường gọi thêm `refresh` và nhìn chung không tự commit (`booking_repository.py:21-33`; `movie_repository.py:22-53`). Nhờ vậy service có thể gom nhiều thao tác ghi trước khi commit. `SqlAlchemyUnitOfWork` giữ cùng đối tượng session và chuyển tiếp lệnh commit/rollback (`app/repositories/unit_of_work.py:4-14`). Luồng thanh toán dùng một session để tạo payment, tạo booking, gắn ID booking, cập nhật hold rồi commit một lần (`app/services/payment_service.py:62-83`).
+Repository gọi `flush`, thường gọi thêm `refresh` và nhìn chung không tự commit (`booking_repository.py`; `movie_repository.py`). Nhờ vậy service có thể gom nhiều thao tác ghi trước khi commit. `SqlAlchemyUnitOfWork` giữ cùng đối tượng session và chuyển tiếp lệnh commit/rollback (`app/repositories/unit_of_work.py`). Luồng thanh toán dùng một session để tạo payment, tạo booking, gắn ID booking, cập nhật hold rồi commit một lần (`app/services/payment_service.py`).
 
 Các điểm cần phân biệt:
 
@@ -453,9 +454,9 @@ Khai báo Docker Compose mô tả ứng dụng và PostgreSQL nhưng tài liệu
 | `DEMO_PAYMENT_AMOUNT_VND` | `100000`, >0 | Số tiền cố định cho mỗi ghế được giữ. |
 | `SEAT_HOLD_TTL_SECONDS` | `300`, >=1 | Thời hạn giữ ghế. |
 
-Xem `app/core/config.py:5-15`, tệp mẫu `.env.example` và phần Compose chuyển tiếp cấu hình trong `docker-compose.yml:25-35`. Kiểm tra tình trạng dịch vụ và thứ tự phụ thuộc được khai báo trong `docker-compose.yml`; theo Dockerfile/lệnh Compose, API trong container chạy `scripts/init_db.py` trước khi phục vụ yêu cầu. `create_all` không phải công cụ migration. Hãy nạp dữ liệu riêng bằng `seed.py` và `data/movie.json`; mã nguồn seeder ở `seed.py:17-104`. Hướng dẫn chạy đầy đủ nằm trong README nên không lặp lại tại đây.
+Xem `app/core/config.py`, tệp mẫu `.env.example` và phần Compose chuyển tiếp cấu hình trong `docker-compose.yml`. Kiểm tra tình trạng dịch vụ và thứ tự phụ thuộc được khai báo trong Compose; API trong container chạy `scripts/init_db.py` trước khi phục vụ yêu cầu. `create_all` không phải công cụ migration. Seeder `seed.py` đọc các file JSON phim, suất chiếu, user, booking, hold và payment trong `data/`. Hướng dẫn chạy đầy đủ nằm trong README nên không lặp lại tại đây.
 
-Thư mục `load_test/` cung cấp kịch bản tải Locust riêng. Kế hoạch yêu cầu mỗi người dùng ảo có dải ghế riêng cùng JWT/suất chiếu hợp lệ; kịch bản tạo booking trực tiếp và đọc danh sách booking, không kiểm tra tranh chấp cùng ghế hoặc luồng giữ ghế/thanh toán.
+Thư mục `load_test/` cung cấp kịch bản Locust cho API khách và admin. Mỗi người dùng ảo đăng ký/đăng nhập tài khoản riêng; tác vụ khách duyệt catalog, tạo rồi hủy booking, tạo/xem/release hold, thanh toán một hold và đọc payment. Tác vụ admin đọc catalog, tạo/sửa/xóa movie và tạo một showtime mỗi lần chạy. Kịch bản cần JWT admin, movie/showtime hợp lệ và đủ ghế theo cấu hình; nó không kiểm tra tranh chấp cùng ghế hoặc đảm bảo an toàn concurrency.
 
 ## Chương 11 — Phát hiện, giới hạn và hướng cải thiện cần trình bày chính xác
 
@@ -497,7 +498,7 @@ Service kiểm tra email trước, model có email duy nhất, nhưng các lư�
 
 ### TRUNG BÌNH — kiểm thử các luồng mới (CHƯA XÁC MINH)
 
-Danh sách tệp hiện không có module kiểm thử riêng cho giữ ghế/thanh toán. Bổ sung unit test và API test cho quyền sở hữu, ranh giới hết hạn, giải phóng, gửi lại yêu cầu, rollback giao dịch, số tiền và hành vi đồng thời trước khi đưa ra tuyên bố phù hợp cho môi trường production. Đây là nhận xét từ danh sách tệp, không phải tỷ lệ bao phủ kiểm thử.
+Hiện chưa có unit/integration test chuyên biệt cho service/router giữ ghế và thanh toán; Locust có gọi các API hold/release/payment nhưng không xác minh đầy đủ quyền sở hữu, ranh giới hết hạn, rollback, số tiền hay tranh chấp đồng thời. Nên bổ sung unit/API/integration test cho các hành vi đó trước khi đưa ra tuyên bố phù hợp cho môi trường production. Đây là nhận xét từ danh sách tệp, không phải tỷ lệ bao phủ kiểm thử.
 
 ### THẤP — ranh giới phụ thuộc/kiến trúc
 
@@ -515,7 +516,7 @@ Khi thuyết trình, trình bày theo thứ tự **hợp đồng HTTP → depend
 
 ### 12.1 Endpoint khai báo dependency và schema
 
-`app/api/booking.py:41-54`:
+`app/api/booking.py`:
 
 ```python
 @router.post("/", response_model=BookingResponse, status_code=201)
@@ -528,30 +529,30 @@ Decorator gắn method/path/response/status vào FastAPI. `payload` được par
 
 ### 12.2 `flush` tách khỏi commit
 
-`app/repositories/booking_repository.py:21-33`: repository lọc key `user_id` khỏi payload, dựng `Booking(..., user_id=user_id)`, add, flush, refresh. Lọc thêm ở repository là defense-in-depth chống caller override. Flush làm INSERT trong transaction để có ID/DB errors; commit do service/UoW.
+`app/repositories/booking_repository.py`: repository lọc key `user_id` khỏi payload, dựng `Booking(..., user_id=user_id)`, add, flush, refresh. Lọc thêm ở repository là defense-in-depth chống caller override. Flush làm INSERT trong transaction để có ID/DB errors; commit do service/UoW.
 
 ### 12.3 Middleware xác thực
 
-`app/core/auth_middleware.py:14-38`: khởi đầu với user None; parse Bearer; decode JWT; lấy `sub`; mở session và gọi `UserRepository.get_by_id`; gắn entity lên request state; gọi `call_next`. Middleware chỉ xác nhận danh tính, không áp role.
+`app/core/auth_middleware.py`: khởi đầu với user None; parse Bearer; decode JWT; lấy `sub`; mở session và gọi `UserRepository.get_by_id`; gắn entity lên request state; gọi `call_next`. Middleware chỉ xác nhận danh tính, không áp role.
 
 ### 12.4 Tình trạng ghế
 
-`app/services/showtime_service.py:39-59`: kiểm tra showtime tồn tại; lấy tập booking active; lấy tập hold có active status và expires_at sau `now`; sinh `1..total_seats`; availability là phần tử không nằm trong cả hai tập. Đây là snapshot theo thời điểm query, không phải cam kết rằng ghế sẽ còn trống khi request sau ghi.
+`app/services/showtime_service.py`: kiểm tra showtime tồn tại; lấy tập booking active; lấy tập hold có active status và expires_at sau `now`; sinh `1..total_seats`; availability là phần tử không nằm trong cả hai tập. Đây là snapshot theo thời điểm query, không phải cam kết rằng ghế sẽ còn trống khi request sau ghi.
 
 ### 12.5 Transaction thanh toán
 
-`app/services/payment_service.py:30-89`: đọc hold, xác nhận owner/trạng thái/expiry; nhánh retry paid đọc lại bookings; nhánh mới tạo payment, bookings, liên kết, đánh dấu paid rồi commit. Với thảo luận cần chỉ ra transaction giúp tránh partial success khi lỗi tuần tự, nhưng không tự loại trừ transaction cạnh tranh.
+`app/services/payment_service.py`: đọc hold, xác nhận owner/trạng thái/expiry; nhánh retry paid đọc lại bookings; nhánh mới tạo payment, bookings, liên kết, đánh dấu paid rồi commit. Với thảo luận cần chỉ ra transaction giúp tránh partial success khi lỗi tuần tự, nhưng không tự loại trừ transaction cạnh tranh.
 
 ## Chương 13 — Kiểm thử và cách kiểm chứng
 
 ### Cấu hình
 
-- Integration tests: `tests/conftest.py:95-119` yêu cầu `TEST_DATABASE_URL`, không fallback sang `DATABASE_URL`.
-- Fixture engine dùng PostgreSQL test và `Base.metadata.create_all` (`tests/conftest.py:137-150`).
-- Mỗi test bọc transaction ngoài + savepoint; cuối test rollback (`tests/conftest.py:163-196`).
-- Integration app dùng proxy chuyển các method async repository sang SQLAlchemy sync session; middleware session factory được monkeypatch và dependency DB được override (`tests/conftest.py:200-305`). Vì proxy delegate đồng bộ, đây là seam test, không phải mô phỏng hiệu năng async.
-- Fixture integration import/register Booking/Movie/Showtime/User (`tests/conftest.py:125-131`) rồi gọi `Base.metadata.create_all()` trong fixture engine (`tests/conftest.py:137-150`). `app.main` chỉ được import trong fixture request/client sau khi fixture database đã khởi tạo (`tests/conftest.py:254-274,382-399`); import đó mới kéo các router hold/payment vào. Do đó SeatHold/Payment không được đăng ký vào metadata trước lệnh `create_all()` trong luồng integration hiện tại; chưa có cơ sở nói setup integration xác minh schema mới.
-- Override `get_booking_service` trong fixture tạo `BookingService` chỉ với booking/showtime repositories (`tests/conftest.py:293-302`), không truyền SeatHoldRepository hoặc UnitOfWork. Vì vậy API booking integration qua override không bao phủ nhánh hold-aware của wiring production.
+- Integration tests: `tests/conftest.py` yêu cầu `TEST_DATABASE_URL`, không fallback sang `DATABASE_URL`.
+- Fixture engine dùng PostgreSQL test và `Base.metadata.create_all` (`tests/conftest.py`).
+- Mỗi test bọc transaction ngoài + savepoint; cuối test rollback (`tests/conftest.py`).
+- Integration app dùng proxy chuyển các method async repository sang SQLAlchemy sync session; middleware session factory được monkeypatch và dependency DB được override (`tests/conftest.py`). Vì proxy delegate đồng bộ, đây là seam test, không phải mô phỏng hiệu năng async.
+- Fixture integration import/register Booking/Movie/Showtime/User (`tests/conftest.py`) rồi gọi `Base.metadata.create_all()` trong fixture engine (`tests/conftest.py`). `app.main` chỉ được import trong fixture request/client sau khi fixture database đã khởi tạo (`tests/conftest.py`); import đó mới kéo các router hold/payment vào. Do đó SeatHold/Payment không được đăng ký vào metadata trước lệnh `create_all()` trong luồng integration hiện tại; chưa có cơ sở nói setup integration xác minh schema mới.
+- Override `get_booking_service` trong fixture tạo `BookingService` chỉ với booking/showtime repositories (`tests/conftest.py`), không truyền SeatHoldRepository hoặc UnitOfWork. Vì vậy API booking integration qua override không bao phủ nhánh hold-aware của wiring production.
 - `tests/unit/` dùng fake repositories/in-memory object, không cần PostgreSQL. Cấu hình pytest ở `pytest.ini`.
 
 ### Phạm vi có thể xác định từ danh sách kiểm thử
@@ -562,7 +563,7 @@ Khi đọc test, cần ghi nhận **đối tượng được kiểm tra**, **dep
 - Booking: input validation/capacity/duplicate, owner, cancel/state, list isolation (`tests/unit/test_booking.py`, `tests/test_booking.py`).
 - Movie/showtime: unit + HTTP tests, gồm role/write/validation paths.
 - Booking constraints: chưa có test xác nhận database ngăn hai request đặt cùng ghế; model Booking cũng không khai báo constraint này.
-- Hold/payment: repository chưa có test chuyên biệt cho service hoặc router của hai luồng này.
+- Hold/payment: chưa có unit/integration test chuyên biệt cho service/router; Locust hiện có các luồng API hold/release/payment nhưng không thay thế các test nghiệp vụ và concurrency.
 
 Integration test dùng TEST_DATABASE_URL và có thể tạo bảng trong database được cấu hình. Chỉ chạy bộ test này với database dành riêng cho kiểm thử; không trỏ vào database production hoặc dữ liệu cần giữ.
 
@@ -615,7 +616,7 @@ Các câu trả lời dưới đây tóm tắt hành vi và thiết kế trong m
 
 ### Mức 1: hiểu cơ bản
 
-1. **Hệ thống làm gì?** — REST API tra cứu phim/suất/ghế, xác thực, booking, giữ ghế và thanh toán mô phỏng. (router trong `app/main.py:72-77`)
+1. **Hệ thống làm gì?** — REST API tra cứu phim/suất/ghế, xác thực, booking, giữ ghế và thanh toán mô phỏng. (router trong `app/main.py`)
 2. **USER khác ADMIN ra sao?** — USER thao tác tài khoản; ADMIN thêm quyền ghi phim/tạo suất chiếu qua RoleChecker.
 3. **Router làm gì?** — Khai báo phương thức/đường dẫn HTTP, schema, dependency và gọi service; không nên chứa truy vấn nghiệp vụ dài.
 4. **Schema khác model thế nào?** — Schema là hợp đồng JSON; model ánh xạ bảng SQLAlchemy.
