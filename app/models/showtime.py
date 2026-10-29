@@ -7,6 +7,8 @@ from app.db.database import Base
 
 
 class Showtime(Base):
+    """Showtimes store ``start_time`` as naive UTC for legacy schema compatibility."""
+
     __tablename__ = "showtimes"
 
 

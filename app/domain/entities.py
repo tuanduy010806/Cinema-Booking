@@ -28,6 +28,8 @@ class MovieEntity:
 
 @dataclass(frozen=True)
 class ShowtimeEntity:
+    """Persisted showtime; ``start_time`` is naive UTC to match the DB column."""
+
     id: int
     movie_id: int
     start_time: datetime
@@ -36,6 +38,8 @@ class ShowtimeEntity:
 
 @dataclass(frozen=True)
 class BookingEntity:
+    """Persisted booking; ``created_at`` is an aware UTC timestamp."""
+
     id: int
     user_id: int
     showtime_id: int
@@ -54,6 +58,8 @@ class SeatHoldSeatEntity:
 
 @dataclass(frozen=True)
 class SeatHoldEntity:
+    """Persisted hold; creation and expiry timestamps are aware UTC values."""
+
     id: int
     user_id: int
     showtime_id: int
@@ -69,6 +75,8 @@ class SeatHoldEntity:
 
 @dataclass(frozen=True)
 class PaymentEntity:
+    """Persisted payment; timestamps are aware UTC values when present."""
+
     id: int
     hold_id: int
     user_id: int

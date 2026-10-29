@@ -10,8 +10,6 @@ from app.models.movie import Movie
 
 
 class MovieRepository:
-    """Data access for Movie entity."""
-
     def __init__(self, session: AsyncSession):
         self.session = session
 

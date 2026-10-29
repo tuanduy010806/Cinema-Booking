@@ -41,6 +41,8 @@ class UpdateMovieCommand:
 
 @dataclass(frozen=True)
 class CreateShowtimeCommand:
+    """Create a showtime; ``start_time`` is represented as naive UTC."""
+
     movie_id: int
     start_time: datetime
     total_seats: int

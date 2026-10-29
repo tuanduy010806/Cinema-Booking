@@ -4,12 +4,16 @@ from unittest.mock import AsyncMock
 
 from fastapi.testclient import TestClient
 
-from app.api.auth import get_auth_service
 from app.api.dependencies import UserIdentity, get_current_user
-from app.api.movie import get_movie_service, router as movie_router
-from app.api.payment import get_payment_service
-from app.api.seat_hold import get_seat_hold_service
-from app.api.showtime import get_showtime_service, router as showtime_router
+from app.api.providers import (
+    get_auth_service,
+    get_movie_service,
+    get_payment_service,
+    get_seat_hold_service,
+    get_showtime_service,
+)
+from app.api.movie import router as movie_router
+from app.api.showtime import router as showtime_router
 from app.core.permission import RoleChecker
 from app.domain.commands import CreateHoldCommand, CreateMovieCommand, CreateShowtimeCommand, LoginCommand, RegisterCommand, UpdateMovieCommand
 from app.domain.entities import BookingEntity, MovieEntity, PaymentEntity, SeatHoldEntity, SeatHoldSeatEntity, ShowtimeEntity, TokenResult

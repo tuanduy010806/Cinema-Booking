@@ -9,8 +9,6 @@ from app.domain.ports import ShowtimeRepository, MovieRepository, BookingReposit
 
 
 class ShowtimeService:
-    """Business logic for showtimes."""
-
     def __init__(
         self, showtime_repository: ShowtimeRepository, movie_repository: MovieRepository,
         booking_repository: BookingRepository,

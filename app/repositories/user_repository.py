@@ -9,8 +9,6 @@ from app.models.user import User
 
 
 class UserRepository:
-    """Data access for User entity."""
-
     def __init__(self, session: AsyncSession):
         self.session = session
 

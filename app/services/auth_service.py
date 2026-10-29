@@ -11,8 +11,6 @@ from app.domain.unit_of_work import UnitOfWork
 
 
 class AuthService:
-    """Business logic for authentication."""
-
     def __init__(
         self, user_repository: UserRepository, password_security: PasswordSecurity,
         token_issuer: TokenIssuer, unit_of_work: UnitOfWork | None = None

@@ -15,7 +15,7 @@ Base URL local: `http://localhost:8000`. Request body dùng JSON. Các ID là s�
 | Cập nhật phim | `PUT /api/v1/movies/{movie_id}` | `ADMIN` | Path: `movie_id`; body có thể gồm `title?`, `duration_minutes?`, `description?` | `200`: phim sau cập nhật | `404`: không tìm thấy phim; `422`: dữ liệu sai |
 | Xóa phim | `DELETE /api/v1/movies/{movie_id}` | `ADMIN` | Path: `movie_id` | `204`: không có body | `404`: không tìm thấy phim |
 | Danh sách suất chiếu | `GET /api/v1/showtimes` | Công khai | Query tùy chọn: `movie_id` | `200`: danh sách suất chiếu (`id`, `movie_id`, `start_time`, `total_seats`) | — |
-| Tạo suất chiếu | `POST /api/v1/showtimes` | `ADMIN` | Body: `movie_id` (> 0), `start_time`, `total_seats` (1–500) | `201`: suất chiếu vừa tạo | `404`: không tìm thấy phim; `422`: dữ liệu sai |
+| Tạo suất chiếu | `POST /api/v1/showtimes` | `ADMIN` | Body: `movie_id` (> 0), `start_time` (ISO 8601), `total_seats` (1–500) | `201`: suất chiếu vừa tạo; `start_time` trả về theo UTC | `404`: không tìm thấy phim; `422`: dữ liệu sai |
 | Tình trạng ghế | `GET /api/v1/showtimes/{showtime_id}/seats` | Công khai | Path: `showtime_id` | `200`: danh sách `seat_number`, `is_available` | `404`: không tìm thấy suất chiếu |
 | Booking của tôi | `GET /api/v1/bookings/me` | Đăng nhập | Không | `200`: danh sách booking của tài khoản | — |
 | Hủy booking | `DELETE /api/v1/bookings/{booking_id}` | Chủ booking | Path: `booking_id` | `200`: booking với trạng thái đã hủy | `400`: trạng thái không cho phép hủy; `403`: không phải chủ booking; `404`: không tìm thấy booking |
@@ -34,7 +34,8 @@ Base URL local: `http://localhost:8000`. Request body dùng JSON. Các ID là s�
 
 ## Lưu ý nghiệp vụ
 
-- Booking chỉ được tạo sau khi thanh toán hold thành công. Hold kiểm tra ghế ở tầng ứng dụng; nhiều request đồng thời vẫn có thể tranh cùng một ghế.
+- Booking chỉ được tạo sau khi thanh toán hold thành công. Khi giữ ghế, thanh toán hoặc giải phóng hold, service khóa hàng suất chiếu để tuần tự hóa các thao tác trên cùng suất. Database hiện chưa có unique constraint cuối cùng cho ghế của booking đang hoạt động.
+- `start_time` của suất chiếu được lưu và trả về theo UTC. Nếu request không có offset, API hiểu đó là UTC; nếu có offset, API đổi sang UTC. Ví dụ `2026-12-01T18:00:00+07:00` được trả về là `2026-12-01T11:00:00`.
 - Hold mặc định có thời hạn 300 giây (`SEAT_HOLD_TTL_SECONDS`). Ghế hết hạn được tính là khả dụng khi API kiểm tra; chưa có worker nền.
 - Thanh toán là mô phỏng. Số tiền mỗi ghế lấy từ `DEMO_PAYMENT_AMOUNT_VND`; payment thành công tạo booking cho các ghế trong hold.
 - `GET /api/v1/holds/{hold_id}` có thể trả trạng thái `expired` khi hold đã quá hạn, dù bản ghi chưa được cập nhật cho đến khi có thao tác ghi.

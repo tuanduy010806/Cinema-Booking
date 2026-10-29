@@ -7,6 +7,7 @@ import pytest
 from app.core.exceptions import NotFoundException
 from app.domain.commands import CreateShowtimeCommand as ShowtimeCreate
 from app.domain.entities import ShowtimeEntity, MovieEntity
+from app.schemas.showtime import ShowtimeCreate as ShowtimeCreateRequest
 from app.services.showtime_service import ShowtimeService
 
 
@@ -37,7 +38,7 @@ class FakeShowtimeRepository:
     async def get_by_id(self, showtime_id: int):
         return self.showtimes.get(showtime_id)
 
-    async def create(self, showtime_data: dict):
+    async def create(self, showtime_data: ShowtimeCreate):
         showtime_id = max(self.showtimes) + 1
         showtime = ShowtimeEntity(id=showtime_id, **asdict(showtime_data))
         self.showtimes[showtime_id] = showtime
@@ -48,6 +49,23 @@ class FakeShowtimeRepository:
 class FakeBookingRepository:
     async def get_active_seat_numbers(self, showtime_id: int):
         return {"2", "4"} if showtime_id == 1 else set()
+
+
+@pytest.mark.parametrize(
+    ("raw_start_time", "expected_start_time"),
+    [
+        ("2026-12-01T18:00:00", datetime(2026, 12, 1, 18, 0)),
+        ("2026-12-01T18:00:00+07:00", datetime(2026, 12, 1, 11, 0)),
+        ("2026-12-01T10:00:00Z", datetime(2026, 12, 1, 10, 0)),
+    ],
+)
+def test_showtime_request_normalizes_time_to_naive_utc(raw_start_time, expected_start_time):
+    request = ShowtimeCreateRequest(
+        movie_id=1, start_time=raw_start_time, total_seats=40
+    )
+
+    assert request.start_time == expected_start_time
+    assert request.start_time.utcoffset() is None
 
 
 @pytest.mark.asyncio

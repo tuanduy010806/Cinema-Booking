@@ -1,5 +1,5 @@
 @startuml
-title Cinema Booking — mô hình dữ liệu
+title Cinema Booking - Mo hinh du lieu hien tai
 hide circle
 skinparam backgroundColor #FAFBFD
 skinparam shadowing false
@@ -33,7 +33,7 @@ entity "showtimes" as showtimes {
   * id : INTEGER <<PK>>
   --
   movie_id : INTEGER <<FK, INDEX>>
-  start_time : DATETIME <<INDEX>>
+  start_time : DATETIME <<INDEX, naive UTC>>
   total_seats : INTEGER
 }
 
@@ -44,7 +44,7 @@ entity "bookings" as bookings {
   showtime_id : INTEGER <<FK>>
   seat_number : VARCHAR
   status : VARCHAR
-  created_at : DATETIME
+  created_at : DATETIME WITH TIME ZONE
 }
 
 entity "seat_holds" as seat_holds {
@@ -53,8 +53,8 @@ entity "seat_holds" as seat_holds {
   user_id : INTEGER <<FK, INDEX>>
   showtime_id : INTEGER <<FK, INDEX>>
   status : VARCHAR(20)
-  created_at : DATETIME
-  expires_at : DATETIME <<INDEX>>
+  created_at : DATETIME WITH TIME ZONE
+  expires_at : DATETIME WITH TIME ZONE <<INDEX>>
 }
 
 entity "seat_hold_seats" as hold_seats {
@@ -68,32 +68,37 @@ entity "seat_hold_seats" as hold_seats {
 entity "payments" as payments {
   * id : INTEGER <<PK>>
   --
-  hold_id : INTEGER <<UNIQUE>>
+  hold_id : INTEGER <<UNIQUE, no FK>>
   user_id : INTEGER <<FK, INDEX>>
   amount : INTEGER
   currency : VARCHAR(3)
   status : VARCHAR(20)
-  created_at : DATETIME
-  paid_at : DATETIME <<NULL>>
+  created_at : DATETIME WITH TIME ZONE
+  paid_at : DATETIME WITH TIME ZONE <<NULL>>
 }
 
-movies ||--o{ showtimes : "có suất chiếu"
-users ||--o{ bookings : "đặt"
-showtimes ||--o{ bookings : "được đặt"
-users ||--o{ seat_holds : "giữ ghế"
-showtimes ||--o{ seat_holds : "có lượt giữ"
-seat_holds ||--|{ hold_seats : "gồm ghế"
-bookings o|--o| hold_seats : "liên kết booking"
-users ||--o{ payments : "thanh toán"
+movies ||--o{ showtimes : has
+users ||--o{ bookings : owns
+showtimes ||--o{ bookings : booked for
+users ||--o{ seat_holds : creates
+showtimes ||--o{ seat_holds : held for
+seat_holds ||--|{ hold_seats : contains
+bookings o|--o| hold_seats : linked booking
+users ||--o{ payments : pays
 
 note right of payments
-  hold_id có UNIQUE trong model hiện tại,
-  nhưng chưa khai báo ForeignKey tới seat_holds.id.
-  Sơ đồ thể hiện cấu trúc vật lý đúng như mã nguồn.
+  hold_id has a UNIQUE constraint in the model,
+  but is not a foreign key to seat_holds.id.
 end note
 
 note bottom of bookings
-  Không có ràng buộc UNIQUE cho (showtime_id, seat_number)
-  trong model hiện tại.
+  There is no UNIQUE constraint on
+  (showtime_id, seat_number). Seat contention is
+  serialized by locking the showtime row in services.
+end note
+
+note bottom of showtimes
+  start_time uses PostgreSQL DATETIME without timezone.
+  The application stores and returns naive UTC.
 end note
 @enduml

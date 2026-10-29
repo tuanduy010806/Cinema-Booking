@@ -10,8 +10,6 @@ from app.models.showtime import Showtime
 
 
 class ShowtimeRepository:
-    """Data access for Showtime entity."""
-
     def __init__(self, session: AsyncSession):
         self.session = session
 

@@ -1,6 +1,5 @@
 @startuml
-title Cinema Booking - Kien truc he thong hien tai
-
+title Cinema Booking - Kien truc va cac thanh phan hien tai
 left to right direction
 skinparam backgroundColor #FAFBFD
 skinparam shadowing false
@@ -14,7 +13,7 @@ actor "Khach" as Guest
 actor "Nguoi dung (USER)" as User
 actor "Quan tri vien (ADMIN)" as Admin
 
-rectangle "Cinema Booking API\nPython 3.12 - FastAPI" as API {
+rectangle "Cinema Booking API - FastAPI" as API {
   package "HTTP API /api/v1" #EAF2FB {
     component "Auth API\nregister / login / me" as AuthAPI
     component "Movies API\nlist / detail / CRUD" as MovieAPI
@@ -24,41 +23,41 @@ rectangle "Cinema Booking API\nPython 3.12 - FastAPI" as API {
     component "Bookings API\nmy bookings / cancel" as BookingAPI
   }
 
-  package "Middleware, dependencies va validation" #FCE8E6 {
-    component "AuthMiddleware\nJWT Bearer validation\nreload user + role from DB" as AuthMiddleware
-    component "Current user dependencies" as CurrentUser
-    component "RoleChecker\nADMIN endpoints" as RoleChecker
-    component "Pydantic request / response schemas" as Schemas
-    component "CinemaException handler\nHTTP error responses" as ErrorHandler
+  package "HTTP boundary" #FCE8E6 {
+    component "AuthMiddleware\nvalidate JWT, reload user" as AuthMiddleware
+    component "Dependencies\ncurrent identity / role checks" as Dependencies
+    component "Pydantic schemas\nrequest / response" as Schemas
+    component "Exception handler\ndomain errors to HTTP" as ErrorHandler
   }
 
-  package "Business logic - Services" #E7F3E6 {
+  package "Business logic" #E7F3E6 {
     component "AuthService\npassword + access token" as AuthService
     component "MovieService" as MovieService
     component "ShowtimeService\nseat availability" as ShowtimeService
-    component "SeatHoldService\nseat hold + expiry" as HoldService
-    component "PaymentService\ndemo payment + booking creation" as PaymentService
+    component "SeatHoldService\nlock showtime, validate seats, expiry" as HoldService
+    component "PaymentService\nsettle demo payment + create bookings" as PaymentService
     component "BookingService\nlist + cancel" as BookingService
   }
 
-  package "Data access" #FFF3D6 {
-    component "Repositories\nusers, movies, showtimes,\nholds, payments, bookings" as Repositories
+  package "Composition and persistence" #FFF3D6 {
+    component "app/api/providers.py\nconstruct services + adapters" as Providers
+    component "Repositories\nORM to domain entities" as Repositories
     component "SqlAlchemyUnitOfWork\ncommit / rollback" as UoW
-    component "SQLAlchemy AsyncSession\nasync engine + pool" as Session
+    component "AsyncSession\nSQLAlchemy async engine" as Session
   }
 }
 
-database "PostgreSQL 16\ncinema_booking" as DB
-cloud "External payment gateway\nnot integrated" as Gateway #F4F4F4
+database "PostgreSQL\ncinema_booking" as DB
+cloud "Payment gateway\nnot integrated" as Gateway #F4F4F4
 
-Guest --> MovieAPI : HTTP / JSON\npublic read
-Guest --> ShowtimeAPI : HTTP / JSON\npublic read
+Guest --> MovieAPI : public read
+Guest --> ShowtimeAPI : public read
 User --> AuthAPI : register / login
-User --> HoldAPI : JWT\nhold or release seats
-User --> PaymentAPI : JWT\npay a hold
-User --> BookingAPI : JWT\nview or cancel own bookings
-Admin --> MovieAPI : JWT\nmanage movies
-Admin --> ShowtimeAPI : JWT\ncreate showtimes
+User --> HoldAPI : JWT, hold / release seats
+User --> PaymentAPI : JWT, pay hold
+User --> BookingAPI : JWT, view / cancel own bookings
+Admin --> MovieAPI : JWT, manage movies
+Admin --> ShowtimeAPI : JWT, create showtimes
 
 AuthAPI --> AuthMiddleware
 MovieAPI --> AuthMiddleware
@@ -66,16 +65,10 @@ ShowtimeAPI --> AuthMiddleware
 HoldAPI --> AuthMiddleware
 PaymentAPI --> AuthMiddleware
 BookingAPI --> AuthMiddleware
-AuthMiddleware --> CurrentUser
-AuthMiddleware --> Repositories : look up current user
-CurrentUser --> RoleChecker : identity / authorization
-AuthAPI ..> Schemas
-MovieAPI ..> Schemas
-ShowtimeAPI ..> Schemas
-HoldAPI ..> Schemas
-PaymentAPI ..> Schemas
-BookingAPI ..> Schemas
-API ..> ErrorHandler : domain errors
+AuthMiddleware --> Dependencies
+Dependencies --> Repositories : reload identity / role
+API ..> Schemas : validate and serialize
+API ..> ErrorHandler : map domain errors
 
 AuthAPI --> AuthService
 MovieAPI --> MovieService
@@ -83,7 +76,12 @@ ShowtimeAPI --> ShowtimeService
 HoldAPI --> HoldService
 PaymentAPI --> PaymentService
 BookingAPI --> BookingService
-
+Providers ..> AuthService
+Providers ..> MovieService
+Providers ..> ShowtimeService
+Providers ..> HoldService
+Providers ..> PaymentService
+Providers ..> BookingService
 AuthService --> Repositories
 MovieService --> Repositories
 ShowtimeService --> Repositories
@@ -93,17 +91,73 @@ BookingService --> Repositories
 Repositories --> Session
 UoW --> Session
 Session --> DB : SQL / asyncpg
-PaymentService ..> Gateway : no integration
+PaymentService ..> Gateway : not connected
 
 note bottom of API
-  Docker Compose runs two services: the FastAPI API and PostgreSQL.
-  Seat hold TTL is configurable (default 300 seconds).
-  Payment is simulated locally. A successful payment creates bookings
-  and marks the hold paid in one database transaction.
-  There is no direct booking-creation endpoint; the booking API lists
-  and cancels the authenticated user's bookings.
-  No frontend, background worker, cache, or external payment service
-  is currently part of the deployed application.
+  Hold creation and payment lock the showtime row to serialize
+  conflicting operations for the same showtime.
+  Payment, bookings, seat-to-booking links, and paid hold status
+  are committed in one transaction. Payment is simulated.
+  There is no direct booking-creation endpoint.
+  No frontend, cache, or background worker is part of this application.
 end note
+@enduml
 
+@startuml
+title Cinema Booking - Luong giu ghe den thanh toan va tao booking
+autonumber
+skinparam backgroundColor #FAFBFD
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+actor "Nguoi dung" as User
+participant "Seat Holds API" as HoldAPI
+participant "SeatHoldService" as HoldService
+participant "Payment API" as PaymentAPI
+participant "PaymentService" as PaymentService
+participant "SqlAlchemyUnitOfWork" as UoW
+database "PostgreSQL" as DB
+
+User -> HoldAPI : POST /api/v1/holds\nshowtime_id, seat_numbers
+HoldAPI -> HoldService : create_hold(user, command)
+HoldService -> DB : begin transaction
+HoldService -> DB : lock showtime row FOR UPDATE
+HoldService -> DB : read active bookings and unexpired holds
+alt Showtime missing, invalid, or seat unavailable
+  HoldService -> UoW : rollback
+  HoldAPI --> User : HTTP error
+else Seats available
+  HoldService -> DB : insert seat_holds + seat_hold_seats
+  HoldService -> UoW : commit
+  HoldAPI --> User : 201 hold + expiry
+end
+
+User -> PaymentAPI : POST /api/v1/payments\nhold_id
+PaymentAPI -> PaymentService : pay_for_hold(user, hold_id)
+PaymentService -> DB : begin transaction
+PaymentService -> DB : load hold; lock its showtime row
+PaymentService -> DB : reload hold and validate owner/status/expiry
+PaymentService -> DB : verify seats are not booked
+alt Hold invalid or seat conflict
+  PaymentService -> UoW : rollback
+  PaymentAPI --> User : HTTP error
+else Hold expired
+  PaymentService -> DB : mark hold expired
+  PaymentService -> UoW : commit expired status
+  PaymentAPI --> User : HTTP error
+else Valid active hold
+  PaymentService -> DB : insert succeeded demo payment
+  PaymentService -> DB : insert bookings for held seats
+  PaymentService -> DB : link hold seats to bookings
+  PaymentService -> DB : mark hold paid
+  PaymentService -> UoW : commit all changes atomically
+  PaymentAPI --> User : 201 payment + bookings
+end
+
+opt Retry payment for an already paid hold
+  User -> PaymentAPI : repeat payment request
+  PaymentAPI -> PaymentService : pay_for_hold(user, hold_id)
+  PaymentService --> PaymentAPI : return existing payment + bookings
+  PaymentAPI --> User : 200 existing result
+end
 @enduml

@@ -138,10 +138,8 @@ def db_session(test_engine) -> Generator[Session, None, None]:
     a full schema drop/create cycle.
     """
     connection = test_engine.connect()
-    # Begin an outer transaction that will be rolled back after the test.
     transaction = connection.begin()
 
-    # Bind a session to this connection.
     TestingSessionLocal = sessionmaker(bind=connection, autoflush=False, autocommit=False)
     session = TestingSessionLocal()
 
@@ -159,7 +157,6 @@ def db_session(test_engine) -> Generator[Session, None, None]:
 
     yield session
 
-    # Cleanup: roll back everything the test did.
     session.close()
     transaction.rollback()
     connection.close()
@@ -215,7 +212,7 @@ def override_get_db(db_session: Session, monkeypatch: pytest.MonkeyPatch):
 
     Adapt the middleware and booking service to the isolated test session.
     """
-    from app.api.booking import get_booking_service
+    from app.api.providers import get_booking_service
     import app.core.auth_middleware as auth_middleware
     from app.db.database import get_db
     from app.main import app

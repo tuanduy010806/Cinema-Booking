@@ -6,8 +6,6 @@ from app.domain.entities import MovieEntity
 
 
 class MovieService:
-    """Business logic for movies."""
-
     def __init__(
         self, movie_repository: MovieRepository, unit_of_work: UnitOfWork | None = None
     ):

@@ -9,8 +9,6 @@ from app.repositories.user_repository import UserRepository
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
-    """Middleware for authentication."""
-
     async def dispatch(self, request: Request, call_next):
         authorization = request.headers.get("Authorization")
         request.state.current_user = None

@@ -3,6 +3,7 @@ services:
     image: postgres:16
     restart: unless-stopped
     environment:
+      TZ: UTC
       POSTGRES_DB: cinema_booking
       POSTGRES_USER: cinema
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
@@ -25,6 +26,7 @@ services:
       db:
         condition: service_healthy
     environment:
+      TZ: UTC
       DATABASE_URL: postgresql+asyncpg://cinema:${POSTGRES_PASSWORD:-123456}@db:5432/cinema_booking
       SECRET_KEY: ${SECRET_KEY:-local-dev-secret-change-before-deploy}
       ALGORITHM: ${ALGORITHM:-HS256}

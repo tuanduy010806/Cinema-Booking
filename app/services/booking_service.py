@@ -1,5 +1,3 @@
-"""Business logic for bookings."""
-
 from __future__ import annotations
 
 from app.core.exceptions import (
@@ -13,8 +11,6 @@ from app.domain.entities import BookingEntity
 
 
 class BookingService:
-    """Business logic for bookings."""
-
     def __init__(self, repo: BookingRepository, unit_of_work: UnitOfWork | None = None) -> None:
         self.repo = repo
         self.unit_of_work = unit_of_work

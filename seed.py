@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy import select, text
@@ -23,6 +23,7 @@ BOOKINGS_FILE = DATA_DIR / "booking.json"
 SHOWTIMES_FILE = DATA_DIR / "showtime.json"
 SEAT_HOLDS_FILE = DATA_DIR / "seat_hold.json"
 PAYMENTS_FILE = DATA_DIR / "payment.json"
+CINEMA_TIMEZONE = timezone(timedelta(hours=7))
 
 
 def load_json_array(path: Path, label: str) -> list[dict[str, object]]:
@@ -148,9 +149,16 @@ def load_showtime_data() -> list[dict[str, object]]:
             if not isinstance(showing["total_seats"], int) or isinstance(showing["total_seats"], bool) or not 1 <= showing["total_seats"] <= 500:
                 raise ValueError(f"Showing {showing_index} in schedule {index} total_seats must be between 1 and 500.")
             try:
-                time.fromisoformat(showing["start_time"])
+                parsed_start_time = time.fromisoformat(showing["start_time"])
             except (TypeError, ValueError) as exc:
-                raise ValueError(f"Showing {showing_index} in schedule {index} has an invalid start_time.") from exc
+                raise ValueError(
+                    f"Showing {showing_index} in schedule {index} has an invalid start_time."
+                ) from exc
+            if parsed_start_time.utcoffset() is None:
+                raise ValueError(
+                    f"Showing {showing_index} in schedule {index} start_time must include "
+                    "a UTC offset, for example 19:00+07:00."
+                )
     showing_count = len(data[0]["showings"]) if data else 0
     if any(len(schedule["showings"]) != showing_count for schedule in data):
         raise ValueError("Every showtime schedule must contain the same number of showings.")
@@ -219,7 +227,6 @@ def load_payment_data() -> list[dict[str, object]]:
 
 
 async def main():
-    """Seed database with initial data."""
     movie_data = load_movie_data()
     user_data = load_user_data()
     booking_data = load_booking_data()
@@ -240,21 +247,25 @@ async def main():
                 movie.duration_minutes = values["duration_minutes"]
             movies.append(movie)
 
-        first_day = date.today() + timedelta(days=1)
+        first_day = datetime.now(CINEMA_TIMEZONE).date() + timedelta(days=1)
         showings_per_movie = len(showtime_data[0]["showings"])
         for movie_index, movie in enumerate(movies):
             schedule = showtime_data[movie_index % len(showtime_data)]["showings"]
             for showing_index, showing in enumerate(schedule):
                 showtime_time = time.fromisoformat(showing["start_time"])
-                start_time = datetime.combine(
+                local_start_time = datetime.combine(
                     first_day + timedelta(days=showing["day_offset"]), showtime_time
                 )
+                start_time = local_start_time.astimezone(timezone.utc).replace(tzinfo=None)
                 showtime_id = movie_index * showings_per_movie + showing_index + 1
                 showtime_by_id = await session.get(Showtime, showtime_id)
                 if showtime_by_id is not None:
+                    legacy_local_time = showtime_time.replace(tzinfo=None)
+                    normalized_utc_time = start_time.time()
                     if (
                         showtime_by_id.movie_id != movie.id
-                        or showtime_by_id.start_time.time() != showtime_time
+                        or showtime_by_id.start_time.time()
+                        not in {legacy_local_time, normalized_utc_time}
                     ):
                         raise ValueError(
                             f"Showtime ID {showtime_id} is already used by another record. "

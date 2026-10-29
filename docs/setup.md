@@ -24,7 +24,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Chờ `db` và `api` báo `healthy`, rồi mở <http://localhost:8000/docs>. Container API tự tạo các bảng còn thiếu.
+Chờ `db` và `api` báo `healthy`, rồi mở <http://localhost:8000/docs>. Container API tự tạo các bảng còn thiếu. Cơ chế này không sửa cấu trúc bảng đã tồn tại; nếu model đổi schema so với database trong volume cũ, cần áp dụng migration phù hợp trước khi chạy phiên bản mới. Dự án hiện chưa có migration tự động.
 
 ### Nạp dữ liệu mẫu (tùy chọn)
 
@@ -36,7 +36,25 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe seed.py
 ```
 
-Chỉ cần chạy seeder lần đầu hoặc khi muốn nạp lại dữ liệu.
+Chỉ cần chạy seeder lần đầu hoặc khi muốn nạp lại dữ liệu. Seeder có kiểm tra ID và dữ liệu trùng; khi chạy lại, nó cập nhật ngày/giờ của các suất mẫu hiện có để chúng tiếp tục ở tương lai. Không chạy seeder trên database production.
+
+Các giờ trong `data/showtime.json` là giờ Việt Nam và ghi kèm offset `+07:00`. Seeder đổi giờ sang UTC trước khi lưu vào cột `showtimes.start_time` không có múi giờ. API nhận thời gian ISO 8601; nếu có offset thì đổi sang UTC, nếu không có offset thì hiểu là UTC. Thời gian trả về cũng là UTC, không kèm offset. Seeder không tự đổi các suất chiếu khác đã có trong database.
+
+### Chạy kiểm thử tải (tùy chọn)
+
+Cài requirements, bật API và dùng một suất chiếu kiểm thử có đủ ghế trống liên tiếp. Mỗi Locust user cần một ghế riêng; các booking tạo thành công và tài khoản kiểm thử vẫn được giữ trong database sau khi chạy.
+
+Ví dụ với dữ liệu mẫu mới nạp (suất chiếu `1`, phim `1`, 10 người dùng, ghế `20`–`29`):
+
+```powershell
+$env:BOOKING_SHOWTIME_ID = "1"
+$env:BOOKING_TOTAL_SEATS = "50"
+$env:BOOKING_MOVIE_ID = "1"
+$env:BOOKING_SEAT_START = "20"
+.\.venv\Scripts\python.exe -m locust -f load_test/load_test.py --host http://127.0.0.1:8000 -u 10 -r 2 --run-time 60s --headless
+```
+
+Nếu các ghế mẫu đã được đặt hoặc giữ, chọn một dải ghế liên tiếp khác đang trống và cập nhật `BOOKING_SEAT_START`. Không chạy kịch bản trên database production.
 
 ### Dừng và khởi động lại
 
@@ -57,23 +75,25 @@ cd Cinema-Booking
 Copy-Item .env.example .env
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-py -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
 Đặt `SECRET_KEY` trong `.env`, sau đó tạo bảng và dữ liệu mẫu:
 
 ```powershell
 docker compose up -d db
-py scripts/init_db.py
-py seed.py
+.\.venv\Scripts\python.exe scripts/init_db.py
+.\.venv\Scripts\python.exe seed.py
 ```
+
+`seed.py` chạy từ máy host và dùng `DATABASE_URL` trong `.env`; với Compose mặc định, URL này trỏ tới PostgreSQL ở `localhost:5432`. Các giờ mẫu trong `data/showtime.json` dùng offset `+07:00` và được đổi sang UTC khi lưu.
 
 Mỗi lần chạy API, bật database và khởi động server:
 
 ```powershell
 docker compose up -d db
 .\.venv\Scripts\Activate.ps1
-py -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Mở <http://127.0.0.1:8000/docs>. Dừng API bằng `Ctrl+C`; dừng database bằng `docker compose stop db`.
