@@ -77,15 +77,7 @@ Công nghệ chính: **FastAPI, SQLAlchemy async, PostgreSQL, Pydantic, JWT, Doc
 
 Hướng dẫn chạy bằng Docker hoặc Python, nạp dữ liệu mẫu và các lưu ý khi dùng database hiện hữu nằm trong [setup.md](docs/setup.md). Container API tạo các bảng còn thiếu khi khởi động; dự án hiện chưa có migration để thay đổi cấu trúc bảng đã tồn tại.
 
-## 6. Hướng phát triển
-
-- Xây dựng giao diện để chọn phim, suất chiếu và ghế.
-- Bổ sung sơ đồ ghế theo hàng và cột.
-- Kết nối cổng thanh toán thật, xử lý webhook và hoàn tiền.
-- Gửi email xác nhận booking và xử lý hold hết hạn tự động.
-- Bổ sung lớp bảo vệ dữ liệu ở database cho booking đang hoạt động.
-
-## 7. Demo Phase 1
+## 6. Demo Phase 1
 
 1. Mở Swagger UI để xem phim, suất chiếu và tình trạng ghế.
 2. Đăng ký hoặc đăng nhập để nhận JWT.
@@ -93,7 +85,7 @@ Hướng dẫn chạy bằng Docker hoặc Python, nạp dữ liệu mẫu và c
 4. Thanh toán mô phỏng cho hold; booking được tạo khi payment thành công.
 5. Xem hoặc hủy booking; tài khoản ADMIN có thể quản lý phim và tạo suất chiếu.
 
-## 8. Số liệu kiểm thử tải đã ghi nhận
+## 7. Số liệu kiểm thử tải đã ghi nhận
 
 Các số liệu dưới đây là kết quả đo cũ, trước khi luồng giữ ghế → thanh toán → booking được chuẩn hóa. Kịch bản `load_test/load_test.py` hiện dùng API đăng ký, xem suất/ghế, giữ và giải phóng ghế, thanh toán hold, rồi xem booking/payment. Cần chạy lại kịch bản để có số liệu đánh giá luồng hiện tại. Lần đo cũ chạy API, PostgreSQL và Locust cùng máy Kaggle, dùng 50 người dùng ảo, tăng 5 người mỗi giây trong 60 giây.
 
@@ -109,7 +101,7 @@ Các số liệu dưới đây là kết quả đo cũ, trước khi luồng gi�
 
 ![Dashboard kết quả kiểm thử tải trên Kaggle CPU](docs/images/kaggle-load-test-dashboard.png)
 
-## 9. Giới hạn hiện tại
+## 8. Giới hạn hiện tại
 
 - Thanh toán chỉ mô phỏng; chưa tích hợp cổng thanh toán, webhook hoặc hoàn tiền.
 - Chưa có giao diện đặt vé hoàn chỉnh, sơ đồ ghế, email thông báo hoặc worker nền.
@@ -117,19 +109,19 @@ Các số liệu dưới đây là kết quả đo cũ, trước khi luồng gi�
 - Hold hết hạn được xác định khi API đọc hoặc cập nhật dữ liệu; chưa có tác vụ nền tự xử lý.
 - Khởi tạo database dùng `create_all`, chỉ tạo bảng còn thiếu và không thay thế migration cho schema đã tồn tại.
 
-## 10. Các hướng mở rộng đề xuất
+## 9. Các kỹ thuật có thể nâng cấp
 
-Các hạng mục dưới đây là những khả năng có thể phát triển thêm khi mở rộng sản phẩm và quy mô vận hành.
+Hệ thống hiện đã có các cơ chế nền tảng cho giữ ghế, thanh toán, truy vấn và quản lý transaction. Khi cần xử lý tải lớn hoặc quy trình thực tế phức tạp hơn, có thể nâng cấp theo các hướng sau:
 
-| # | Hướng mở rộng | Giá trị mang lại | Gợi ý triển khai |
+| # | Cơ chế hiện tại | Hướng nâng cấp kỹ thuật | Mục tiêu |
 | --- | --- | --- | --- |
-| 1 | **Tích hợp thanh toán trực tuyến** | Cho phép khách thanh toán bằng các phương thức phổ biến và nhận kết quả giao dịch tự động. | Tích hợp cổng thanh toán, xử lý webhook, đối soát giao dịch và quy trình hoàn tiền. |
-| 2 | **Sơ đồ phòng chiếu tương tác** | Giúp khách chọn vị trí ghế trực quan và xem loại ghế, giá vé theo khu vực. | Bổ sung cấu hình phòng, hàng ghế, loại ghế và giao diện sơ đồ theo từng suất chiếu. |
-| 3 | **Khuyến mãi và chương trình thành viên** | Tạo ưu đãi linh hoạt, khuyến khích khách quay lại sử dụng dịch vụ. | Phát triển mã giảm giá, điểm thành viên, hạng thành viên và quy tắc áp dụng ưu đãi. |
-| 4 | **Thông báo theo hành trình đặt vé** | Giúp khách theo dõi hold, thanh toán và lịch chiếu. | Gửi email hoặc thông báo khi đặt vé thành công, trước giờ chiếu và khi giao dịch cần xử lý. |
-| 5 | **Tìm kiếm và khám phá phim nâng cao** | Giúp khách tìm nội dung phù hợp nhanh hơn. | Bổ sung lọc theo thể loại, ngôn ngữ, ngày chiếu, rạp và sắp xếp theo mức độ quan tâm. |
-| 6 | **Phân trang và tối ưu truy vấn** | Giữ thời gian phản hồi ổn định khi số phim, suất chiếu và booking tăng. | Phân trang danh sách, đo truy vấn thường dùng, bổ sung index phù hợp và tối ưu theo kết quả đo. |
-| 7 | **Dashboard vận hành cho quản trị viên** | Hỗ trợ theo dõi tình hình kinh doanh và lập kế hoạch suất chiếu. | Tổng hợp doanh thu, tỷ lệ lấp đầy ghế, số vé bán và phim được quan tâm theo khoảng thời gian. |
-| 8 | **Tác vụ nền cho quy trình tự động** | Tách các công việc không cần xử lý ngay khỏi request của khách. | Dùng worker và hàng đợi cho nhắc lịch, xử lý hold hết hạn, gửi thông báo và tác vụ định kỳ. |
-| 9 | **Cá nhân hóa trải nghiệm khách hàng** | Đề xuất nội dung và suất chiếu phù hợp với sở thích của từng người. | Cho phép lưu phim yêu thích, ghi nhận lựa chọn và gợi ý phim dựa trên lịch sử tương tác. |
-| 10 | **Mở rộng năng lực vận hành** | Hỗ trợ theo dõi, xử lý sự cố và phục vụ lượng truy cập cao hơn. | Bổ sung log tập trung, metrics, cảnh báo, kiểm thử tải định kỳ và điều chỉnh số worker/pool theo tải thực tế. |
+| 1 | Các thao tác giữ, thanh toán và giải phóng ghế khóa dòng suất chiếu. | Chuyển sang quản lý tồn kho theo từng ghế hoặc khóa theo ghế; kết hợp ràng buộc duy nhất có điều kiện cho booking đang hoạt động. | Giảm tranh chấp giữa khách chọn ghế khác nhau và duy trì tính nhất quán khi nhiều request đồng thời. |
+| 2 | Thanh toán gửi lại cho cùng một hold có thể trả về kết quả đã tạo. | Mở rộng idempotency key cho toàn bộ thao tác tạo hold và thanh toán, lưu trạng thái yêu cầu với ràng buộc duy nhất. | Chịu được retry do timeout hoặc mất kết nối mà không tạo giao dịch lặp. |
+| 3 | Payment mô phỏng, booking và hold được ghi trong một transaction database. | Khi tích hợp cổng thanh toán, dùng transactional outbox kết hợp Saga/state machine, webhook đã xác thực và quy trình đối soát. | Xử lý nhất quán các bước giao dịch nằm giữa database và dịch vụ thanh toán bên ngoài. |
+| 4 | Thời hạn hold được kiểm tra trong các luồng đọc và ghi. | Dùng hàng đợi tác vụ có lịch chạy hoặc worker, kèm cập nhật trạng thái có điều kiện để phối hợp an toàn với thanh toán và giải phóng hold. | Xử lý lượng lớn hold hết hạn mà không phụ thuộc vào request của khách và tránh chuyển trạng thái sai khi có cạnh tranh. |
+| 5 | Các request đọc lấy dữ liệu từ PostgreSQL. | Bổ sung cache-aside có TTL và cơ chế invalidation theo phiên bản hoặc sự kiện cho dữ liệu ít thay đổi như phim và suất chiếu. | Giảm tải đọc database mà vẫn kiểm soát độ mới của dữ liệu. |
+| 6 | Repository truy vấn danh sách và dữ liệu nghiệp vụ trực tiếp. | Dùng cursor pagination, phân tích `EXPLAIN ANALYZE` và thiết kế index theo truy vấn thực tế. | Giữ truy vấn ổn định khi bảng lớn, tránh tải toàn bộ danh sách và giảm thời gian phản hồi. |
+| 7 | Một API process dùng pool kết nối database với giới hạn cấu hình cố định. | Tính ngân sách connection theo số worker/replica; cân nhắc read replica cho truy vấn phù hợp và giữ các luồng cần đọc sau ghi trên primary. | Mở rộng số instance mà không làm cạn connection PostgreSQL hoặc trả dữ liệu chưa cập nhật. |
+| 8 | API xử lý trực tiếp các request nghiệp vụ đồng bộ. | Áp dụng rate limiting, giới hạn tải và hàng đợi cho tác vụ có thể xử lý bất đồng bộ. | Điều tiết đột biến request và bảo vệ database, dịch vụ thanh toán khỏi quá tải. |
+| 9 | Kiểm tra tải qua các kịch bản Locust hiện có. | Xây dựng workload theo hành vi thực tế, tăng dần tải và đo p95/p99, lock wait, pool saturation cùng tỷ lệ giao dịch thành công. | Xác định ngưỡng chịu tải và điểm nghẽn trước khi tăng tài nguyên hoặc thay đổi kiến trúc. |
+| 10 | Theo dõi ứng dụng chủ yếu qua log và trạng thái endpoint. | Bổ sung structured logging, metrics, distributed tracing, dashboard và cảnh báo theo SLO. | Theo dấu một lượt đặt vé xuyên suốt API, database và cổng thanh toán, rút ngắn thời gian phát hiện sự cố. |
