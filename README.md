@@ -18,7 +18,7 @@ Hold mặc định có hiệu lực 300 giây (`SEAT_HOLD_TTL_SECONDS`). Giá th
 
 Ứng dụng FastAPI chạy cùng PostgreSQL bằng Docker Compose, được tổ chức theo các lớp API, service và repository. `AuthMiddleware` kiểm tra JWT Bearer và nạp lại người dùng; `RoleChecker` giới hạn thao tác quản trị. Booking chỉ được tạo sau khi `PaymentService` xử lý payment cho hold; API booking chỉ dùng để xem và hủy. Dữ liệu được truy cập bất đồng bộ qua SQLAlchemy tới PostgreSQL. Thanh toán hiện được mô phỏng, chưa kết nối cổng bên ngoài.
 
-![Sơ đồ kiến trúc hệ thống Cinema Booking](docs/images/architecture.svg)
+![Sơ đồ kiến trúc hệ thống Cinema Booking](docs/images/873261623_1505618934958511_9060769392012221377_n.png)
 
 Mã nguồn sơ đồ: [architecture.puml](docs/diagrams/architecture.puml).
 
