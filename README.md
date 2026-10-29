@@ -88,7 +88,6 @@ API, PostgreSQL và Locust chạy cùng máy Kaggle. Kịch bản dùng 50 ngư�
 
 ![Dashboard kết quả kiểm thử tải trên Kaggle CPU](docs/images/kaggle-load-test-dashboard.png)
 
-*Kết quả chỉ phản ánh cấu hình và thời lượng của lần chạy này; kịch bản chưa thử nhiều người cùng tranh một ghế.*
 
 ## 8. Giới hạn hiện tại
 
