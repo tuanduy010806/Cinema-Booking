@@ -1,3 +1,4 @@
+from dataclasses import asdict, replace
 import asyncio
 from types import SimpleNamespace
 
@@ -14,26 +15,35 @@ from app.core.exceptions import (
 )
 from app.core.security import decode_access_token, verify_password
 from app.models.user import Role, User
-from app.schemas.auth import LoginRequest, RegisterRequest
+from app.domain.commands import LoginCommand as LoginRequest, RegisterCommand as RegisterRequest
+from app.domain.entities import UserEntity, UserCredentials
+from app.core.security import PasswordSecurityAdapter, JwtTokenIssuer
 from app.services.auth_service import AuthService
 
 
 class FakeUserRepository:
     def __init__(self):
         self.users = {}
+        self.credentials = {}
 
     async def get_by_email(self, email: str):
         return self.users.get(email)
 
-    async def create(self, user_data: dict):
-        user = SimpleNamespace(user_id=len(self.users) + 1, **user_data)
+    async def get_credentials_by_email(self, email):
+        return self.credentials.get(email)
+
+    async def create(self, user_data):
+        data = asdict(user_data)
+        password_hash = data.pop("password_hash")
+        user = UserEntity(user_id=len(self.users) + 1, **data)
+        self.credentials[user.email] = UserCredentials(user.user_id, password_hash)
         self.users[user.email] = user
         return user
 
 
 def test_register_creates_user_and_returns_jwt():
     repository = FakeUserRepository()
-    service = AuthService(repository)
+    service = AuthService(repository, PasswordSecurityAdapter(), JwtTokenIssuer())
 
     result = asyncio.run(
         service.register(
@@ -47,12 +57,12 @@ def test_register_creates_user_and_returns_jwt():
 
     user = repository.users["user@example.com"]
     assert user.role == Role.USER.value
-    assert verify_password("correct-password", user.password_hash)
+    assert verify_password("correct-password", repository.credentials[user.email].password_hash)
     assert decode_access_token(result.access_token)["sub"] == str(user.user_id)
 
 
 def test_register_rejects_mismatched_passwords():
-    service = AuthService(FakeUserRepository())
+    service = AuthService(FakeUserRepository(), PasswordSecurityAdapter(), JwtTokenIssuer())
 
     with pytest.raises(PasswordMismatchError) as error:
         asyncio.run(
@@ -70,7 +80,7 @@ def test_register_rejects_mismatched_passwords():
 
 def test_register_rejects_existing_email():
     repository = FakeUserRepository()
-    service = AuthService(repository)
+    service = AuthService(repository, PasswordSecurityAdapter(), JwtTokenIssuer())
     payload = RegisterRequest(
         email="user@example.com",
         password="correct-password",
@@ -86,7 +96,7 @@ def test_register_rejects_existing_email():
 
 def test_login_verifies_plaintext_password_against_stored_hash():
     repository = FakeUserRepository()
-    service = AuthService(repository)
+    service = AuthService(repository, PasswordSecurityAdapter(), JwtTokenIssuer())
     asyncio.run(
         service.register(
             RegisterRequest(
@@ -109,7 +119,7 @@ def test_login_verifies_plaintext_password_against_stored_hash():
 
 def test_login_rejects_unknown_email_or_wrong_password():
     repository = FakeUserRepository()
-    service = AuthService(repository)
+    service = AuthService(repository, PasswordSecurityAdapter(), JwtTokenIssuer())
     asyncio.run(
         service.register(
             RegisterRequest(

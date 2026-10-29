@@ -1,4 +1,6 @@
 from datetime import datetime
+from app.domain.entities import PaymentEntity
+from app.repositories.mapping import to_entity
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +21,7 @@ class PaymentRepository:
         user_id: int,
         amount: int,
         paid_at: datetime,
-    ) -> Payment:
+    ) -> PaymentEntity:
         payment = Payment(
             hold_id=hold_id,
             user_id=user_id,
@@ -31,18 +33,19 @@ class PaymentRepository:
         )
         self.session.add(payment)
         await self.session.flush()
-        return payment
+        return to_entity(PaymentEntity, payment)
 
-    async def get_by_hold_id(self, hold_id: int) -> Payment | None:
-        return await self.session.scalar(
+    async def get_by_hold_id(self, hold_id: int) -> PaymentEntity | None:
+        return to_entity(PaymentEntity, await self.session.scalar(
             select(Payment).where(Payment.hold_id == hold_id)
-        )
+            .execution_options(populate_existing=True)
+        ))
 
-    async def get_by_user_id(self, user_id: int) -> list[Payment]:
+    async def get_by_user_id(self, user_id: int) -> list[PaymentEntity]:
         result = await self.session.scalars(
             select(Payment)
             .where(Payment.user_id == user_id)
             .order_by(Payment.created_at.desc())
         )
-        return list(result.all())
+        return [to_entity(PaymentEntity, row) for row in result.all()]
 

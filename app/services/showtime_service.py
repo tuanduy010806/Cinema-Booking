@@ -2,16 +2,19 @@ from datetime import datetime, timezone
 
 from app.core.exceptions import NotFoundException
 from app.domain.unit_of_work import UnitOfWork
-from app.models.showtime import Showtime
-from app.schemas.showtime import ShowtimeCreate
+from app.domain.results import SeatAvailability
+from app.domain.entities import ShowtimeEntity
+from app.domain.commands import CreateShowtimeCommand
+from app.domain.ports import ShowtimeRepository, MovieRepository, BookingRepository, SeatHoldRepository
 
 
 class ShowtimeService:
     """Business logic for showtimes."""
 
     def __init__(
-        self, showtime_repository, movie_repository, booking_repository,
-        hold_repository=None, unit_of_work: UnitOfWork | None = None,
+        self, showtime_repository: ShowtimeRepository, movie_repository: MovieRepository,
+        booking_repository: BookingRepository,
+        hold_repository: SeatHoldRepository | None = None, unit_of_work: UnitOfWork | None = None,
     ):
         self.showtime_repository = showtime_repository
         self.movie_repository = movie_repository
@@ -19,15 +22,15 @@ class ShowtimeService:
         self.hold_repository = hold_repository
         self.unit_of_work = unit_of_work
 
-    async def list_showtimes(self, movie_id: int | None = None) -> list[Showtime]:
+    async def list_showtimes(self, movie_id: int | None = None) -> list[ShowtimeEntity]:
         return await self.showtime_repository.get_all(movie_id=movie_id)
 
-    async def create_showtime(self, payload: ShowtimeCreate):
+    async def create_showtime(self, payload: CreateShowtimeCommand) -> ShowtimeEntity:
         movie = await self.movie_repository.get_by_id(payload.movie_id)
         if movie is None:
             raise NotFoundException("Movie not found")
         try:
-            showtime = await self.showtime_repository.create(payload.model_dump())
+            showtime = await self.showtime_repository.create(payload)
             if self.unit_of_work is not None:
                 await self.unit_of_work.commit()
             return showtime
@@ -36,7 +39,7 @@ class ShowtimeService:
                 await self.unit_of_work.rollback()
             raise
 
-    async def get_seats(self, showtime_id: int):
+    async def get_seats(self, showtime_id: int) -> list[SeatAvailability]:
         showtime = await self.showtime_repository.get_by_id(showtime_id)
         if showtime is None:
             raise NotFoundException("Showtime not found")
@@ -48,7 +51,7 @@ class ShowtimeService:
                 showtime_id, datetime.now(timezone.utc)
             )
         # Availability is derived from bookings and holds, not stored.
-        seats = []
+        seats: list[SeatAvailability] = []
         for seat_index in range(1, showtime.total_seats + 1):
             seat_number = str(seat_index)
             seats.append(

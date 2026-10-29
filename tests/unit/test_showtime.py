@@ -1,24 +1,26 @@
+from dataclasses import asdict, replace
 from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
 
 from app.core.exceptions import NotFoundException
-from app.schemas.showtime import ShowtimeCreate
+from app.domain.commands import CreateShowtimeCommand as ShowtimeCreate
+from app.domain.entities import ShowtimeEntity, MovieEntity
 from app.services.showtime_service import ShowtimeService
 
 
 class FakeMovieRepository:
     async def get_by_id(self, movie_id: int):
         if movie_id == 1:
-            return SimpleNamespace(id=1, title="Dune")
+            return MovieEntity(id=1, title="Dune", description=None, duration_minutes=166)
         return None
 
 
 class FakeShowtimeRepository:
     def __init__(self):
         self.showtimes = {
-            1: SimpleNamespace(
+            1: ShowtimeEntity(
                 id=1,
                 movie_id=1,
                 start_time=datetime(2026, 10, 1, 19, 0),
@@ -37,7 +39,7 @@ class FakeShowtimeRepository:
 
     async def create(self, showtime_data: dict):
         showtime_id = max(self.showtimes) + 1
-        showtime = SimpleNamespace(id=showtime_id, **showtime_data)
+        showtime = ShowtimeEntity(id=showtime_id, **asdict(showtime_data))
         self.showtimes[showtime_id] = showtime
         return showtime
 
@@ -54,7 +56,7 @@ async def test_list_and_create_showtimes():
     service = ShowtimeService(repository, FakeMovieRepository(), FakeBookingRepository())
 
     showtime = await service.create_showtime(
-        ShowtimeCreate(movie_id=1, start_time="2026-10-02T20:00:00", total_seats=40)
+        ShowtimeCreate(movie_id=1, start_time=datetime(2026, 10, 2, 20), total_seats=40)
     )
 
     assert showtime.movie_id == 1

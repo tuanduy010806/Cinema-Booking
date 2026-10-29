@@ -1,16 +1,18 @@
+from dataclasses import asdict, replace
 from types import SimpleNamespace
 
 import pytest
 
 from app.core.exceptions import NotFoundException
-from app.schemas.movie import MovieCreate, MovieUpdate
+from app.domain.commands import CreateMovieCommand as MovieCreate, UpdateMovieCommand as MovieUpdate
+from app.domain.entities import MovieEntity
 from app.services.movie_service import MovieService
 
 
 class FakeMovieRepository:
     def __init__(self):
         self.movies = {
-            1: SimpleNamespace(id=1, title="Dune", description=None, duration_minutes=166)
+            1: MovieEntity(id=1, title="Dune", description=None, duration_minutes=166)
         }
 
     async def get_all(self):
@@ -21,14 +23,14 @@ class FakeMovieRepository:
 
     async def create(self, movie_data: dict):
         movie_id = max(self.movies, default=0) + 1
-        movie = SimpleNamespace(id=movie_id, **movie_data)
+        movie = MovieEntity(id=movie_id, **asdict(movie_data))
         self.movies[movie_id] = movie
         return movie
 
     async def update(self, movie_id: int, movie_data: dict):
         movie = self.movies[movie_id]
-        for field, value in movie_data.items():
-            setattr(movie, field, value)
+        movie = replace(movie, **{key: value for key, value in asdict(movie_data).items() if value is not None})
+        self.movies[movie_id] = movie
         return movie
 
     async def delete(self, movie_id: int):

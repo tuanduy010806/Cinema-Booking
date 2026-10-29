@@ -69,6 +69,14 @@ data/             # Dữ liệu mẫu
 
 Công nghệ chính: **FastAPI, SQLAlchemy async, PostgreSQL, Pydantic, JWT, Docker Compose và Locust**.
 
+### Độc lập tầng nghiệp vụ
+
+Service nhận command Python thuần trong `app/domain/commands.py`, làm việc với entity bất biến trong `app/domain/entities.py` và các port trong `app/domain/ports.py`. Repository chuyển ORM thành entity trước khi trả kết quả; cập nhật dữ liệu bằng ID thay vì sửa entity. UnitOfWork tiếp tục có một hợp đồng duy nhất trong `app/domain/unit_of_work.py`.
+
+Router chuyển request Pydantic thành command; response schema giữ nguyên và chỉ xuất các trường công khai. Provider hiện tại truyền TTL giữ ghế, giá thanh toán demo và adapter hash mật khẩu/phát JWT vào service. Giữ ghế, thanh toán và giải phóng hold khóa cùng hàng suất chiếu; payment và release đọc lại hold sau khi lấy khóa. UserEntity không chứa password hash; đăng nhập đọc UserCredentials riêng. Việc gom provider và bổ sung unique index/migration thuộc các nhiệm vụ tiếp theo.
+
+Chạy kiểm thử không cần database bằng `python -m pytest tests/unit -q`. Các test kiểm tra ranh giới import, entity/ORM mapping, ánh xạ HTTP, cấu hình được truyền vào và transaction của service; kiểm thử tích hợp PostgreSQL vẫn cần `TEST_DATABASE_URL` riêng.
+
 ## 5. Cài đặt và chạy
 
 Cách chạy bằng Docker hoặc Python, nạp dữ liệu mẫu và chạy kiểm thử được hướng dẫn trong [setup.md](docs/setup.md).

@@ -109,6 +109,8 @@ from app.models.booking import Booking    # noqa: E402, F401
 from app.models.movie import Movie        # noqa: E402, F401
 from app.models.showtime import Showtime  # noqa: E402, F401
 from app.models.user import User          # noqa: E402, F401
+from app.models.seat_hold import SeatHold, SeatHoldSeat  # noqa: E402, F401
+from app.models.payment import Payment    # noqa: E402, F401
 
 @pytest.fixture(scope="session")
 def test_engine():
@@ -176,6 +178,12 @@ class _SyncSessionAsyncProxy:
     def add(self, instance: Any) -> None:
         self._session.add(instance)
 
+    def add_all(self, instances: list[Any]) -> None:
+        self._session.add_all(instances)
+
+    async def flush(self) -> None:
+        self._session.flush()
+
     async def commit(self) -> None:
         self._session.flush()   # savepoint-wrapped: flush instead of commit
 
@@ -212,7 +220,7 @@ def override_get_db(db_session: Session, monkeypatch: pytest.MonkeyPatch):
     from app.db.database import get_db
     from app.main import app
     from app.repositories.booking_repository import BookingRepository
-    from app.repositories.showtime_repository import ShowtimeRepository
+    from app.repositories.unit_of_work import SqlAlchemyUnitOfWork
     from app.services.booking_service import BookingService
 
     proxy = _SyncSessionAsyncProxy(db_session)
@@ -235,8 +243,7 @@ def override_get_db(db_session: Session, monkeypatch: pytest.MonkeyPatch):
 
     def _get_booking_service_override() -> BookingService:
         booking_repo = BookingRepository(proxy)
-        showtime_repo = ShowtimeRepository(proxy)
-        return BookingService(booking_repo, showtime_repo)
+        return BookingService(booking_repo, unit_of_work=SqlAlchemyUnitOfWork(proxy))
 
     app.dependency_overrides[get_db] = _get_db_override
     app.dependency_overrides[get_booking_service] = _get_booking_service_override
