@@ -14,7 +14,7 @@ Hold mặc định có hiệu lực 300 giây (`SEAT_HOLD_TTL_SECONDS`). Giá th
 
 ## 2. API và bảo mật
 
-API dùng REST và JSON. Khi ứng dụng đang chạy, tài liệu tương tác có tại [Swagger UI](http://localhost:8000/docs).
+API dùng REST và JSON. Khi ứng dụng đang chạy, tài liệu tương tác có tại [Swagger UI](http://localhost:8000/docs). Tham khảo endpoint, đầu vào, đầu ra và lỗi trong [api-reference.md](api-reference.md).
 
 | Nhóm endpoint | Quyền | Chức năng |
 | --- | --- | --- |
