@@ -86,7 +86,9 @@ API, PostgreSQL và Locust chạy cùng máy Kaggle. Kịch bản dùng 50 ngư�
 | CPU trung bình / cao nhất | 49,2% / 78,2% |
 | RAM trung bình / cao nhất | 1.231 / 1.467 MB |
 
-Kết quả chỉ phản ánh cấu hình và thời lượng của lần chạy này; kịch bản chưa thử nhiều người cùng tranh một ghế.
+![Dashboard kết quả kiểm thử tải trên Kaggle CPU](docs/images/kaggle-load-test-dashboard.png)
+
+*Kết quả chỉ phản ánh cấu hình và thời lượng của lần chạy này; kịch bản chưa thử nhiều người cùng tranh một ghế.*
 
 ## 8. Giới hạn hiện tại
 
