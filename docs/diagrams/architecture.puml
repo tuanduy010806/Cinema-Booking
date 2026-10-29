@@ -1,92 +1,109 @@
 @startuml
-title Cinema Booking — kiến trúc hệ thống
+title Cinema Booking - Kien truc he thong hien tai
+
 left to right direction
 skinparam backgroundColor #FAFBFD
 skinparam shadowing false
-skinparam roundcorner 14
+skinparam roundcorner 12
 skinparam packageStyle rectangle
 skinparam defaultFontName Arial
 skinparam ArrowColor #526579
 skinparam packageBorderColor #8A9BAD
 
-actor "Khách" as Guest
-actor "Người dùng" as User
-actor "Quản trị viên" as Admin
+actor "Khach" as Guest
+actor "Nguoi dung (USER)" as User
+actor "Quan tri vien (ADMIN)" as Admin
 
-rectangle "Ứng dụng Cinema Booking · FastAPI" as App {
-  package "HTTP API · /api/v1" #EAF2FB {
-    component "Auth API\n/api/v1/auth" as AuthAPI
-    component "Movies API\n/api/v1/movies" as MovieAPI
-    component "Showtimes API\n/api/v1/showtimes" as ShowtimeAPI
-    component "Bookings API\nGET /me · DELETE /{id}" as BookingAPI
-    component "Seat Holds API\n/api/v1/holds" as HoldAPI
-    component "Payments API\n/api/v1/payments" as PaymentAPI
+rectangle "Cinema Booking API\nPython 3.12 - FastAPI" as API {
+  package "HTTP API /api/v1" #EAF2FB {
+    component "Auth API\nregister / login / me" as AuthAPI
+    component "Movies API\nlist / detail / CRUD" as MovieAPI
+    component "Showtimes API\nlist / create / seats" as ShowtimeAPI
+    component "Seat Holds API\ncreate / get / release" as HoldAPI
+    component "Payments API\npay hold / my payments" as PaymentAPI
+    component "Bookings API\nmy bookings / cancel" as BookingAPI
   }
 
-  package "Bảo mật & dữ liệu vào/ra" #FCE8E6 {
-    component "AuthMiddleware\nJWT Bearer" as Middleware
-    component "RoleChecker\nADMIN" as RoleCheck
-    component "Pydantic Schemas" as Schemas
+  package "Middleware, dependencies va validation" #FCE8E6 {
+    component "AuthMiddleware\nJWT Bearer validation\nreload user + role from DB" as AuthMiddleware
+    component "Current user dependencies" as CurrentUser
+    component "RoleChecker\nADMIN endpoints" as RoleChecker
+    component "Pydantic request / response schemas" as Schemas
+    component "CinemaException handler\nHTTP error responses" as ErrorHandler
   }
 
-  package "Nghiệp vụ · Services" #E7F3E6 {
-    component "AuthService" as AuthSvc
-    component "MovieService" as MovieSvc
-    component "ShowtimeService" as ShowtimeSvc
-    component "BookingService\nchỉ truy vấn / hủy booking" as BookingSvc
-    component "SeatHoldService\ngiữ ghế · TTL mặc định 300s" as HoldSvc
-    component "PaymentService\nthanh toán mô phỏng\ntạo booking sau khi trả tiền" as PaymentSvc
+  package "Business logic - Services" #E7F3E6 {
+    component "AuthService\npassword + access token" as AuthService
+    component "MovieService" as MovieService
+    component "ShowtimeService\nseat availability" as ShowtimeService
+    component "SeatHoldService\nseat hold + expiry" as HoldService
+    component "PaymentService\ndemo payment + booking creation" as PaymentService
+    component "BookingService\nlist + cancel" as BookingService
   }
 
-  package "Truy cập dữ liệu" #FFF3D6 {
-    component "Repositories" as Repos
-    component "Unit of Work\ncommit / rollback" as UoW
-    component "SQLAlchemy AsyncSession" as Session
+  package "Data access" #FFF3D6 {
+    component "Repositories\nusers, movies, showtimes,\nholds, payments, bookings" as Repositories
+    component "SqlAlchemyUnitOfWork\ncommit / rollback" as UoW
+    component "SQLAlchemy AsyncSession\nasync engine + pool" as Session
   }
 }
 
 database "PostgreSQL 16\ncinema_booking" as DB
-cloud "Cổng thanh toán thật\nchưa tích hợp" as ExternalPayment #F4F4F4
+cloud "External payment gateway\nnot integrated" as Gateway #F4F4F4
 
-Guest --> MovieAPI : HTTP / JSON
-Guest --> ShowtimeAPI : HTTP / JSON
-User --> AuthAPI : đăng ký / đăng nhập
-User --> HoldAPI : JWT · chọn và giữ ghế
-User --> PaymentAPI : JWT · thanh toán hold
-User --> BookingAPI : JWT · xem / hủy
-Admin --> MovieAPI : JWT · quản lý phim
-Admin --> ShowtimeAPI : JWT · tạo suất chiếu
+Guest --> MovieAPI : HTTP / JSON\npublic read
+Guest --> ShowtimeAPI : HTTP / JSON\npublic read
+User --> AuthAPI : register / login
+User --> HoldAPI : JWT\nhold or release seats
+User --> PaymentAPI : JWT\npay a hold
+User --> BookingAPI : JWT\nview or cancel own bookings
+Admin --> MovieAPI : JWT\nmanage movies
+Admin --> ShowtimeAPI : JWT\ncreate showtimes
 
-AuthAPI --> Middleware
-MovieAPI --> Middleware
-ShowtimeAPI --> Middleware
-BookingAPI --> Middleware
-HoldAPI --> Middleware
-PaymentAPI --> Middleware
-Middleware --> RoleCheck
-Middleware --> Schemas
+AuthAPI --> AuthMiddleware
+MovieAPI --> AuthMiddleware
+ShowtimeAPI --> AuthMiddleware
+HoldAPI --> AuthMiddleware
+PaymentAPI --> AuthMiddleware
+BookingAPI --> AuthMiddleware
+AuthMiddleware --> CurrentUser
+AuthMiddleware --> Repositories : look up current user
+CurrentUser --> RoleChecker : identity / authorization
+AuthAPI ..> Schemas
+MovieAPI ..> Schemas
+ShowtimeAPI ..> Schemas
+HoldAPI ..> Schemas
+PaymentAPI ..> Schemas
+BookingAPI ..> Schemas
+API ..> ErrorHandler : domain errors
 
-AuthAPI --> AuthSvc
-MovieAPI --> MovieSvc
-ShowtimeAPI --> ShowtimeSvc
-BookingAPI --> BookingSvc
-HoldAPI --> HoldSvc
-PaymentAPI --> PaymentSvc
+AuthAPI --> AuthService
+MovieAPI --> MovieService
+ShowtimeAPI --> ShowtimeService
+HoldAPI --> HoldService
+PaymentAPI --> PaymentService
+BookingAPI --> BookingService
 
-AuthSvc --> Repos
-MovieSvc --> Repos
-ShowtimeSvc --> Repos
-BookingSvc --> Repos
-HoldSvc --> Repos
-PaymentSvc --> Repos : tạo Payment, Bookings\nvà cập nhật Hold trong transaction
-Repos --> Session
+AuthService --> Repositories
+MovieService --> Repositories
+ShowtimeService --> Repositories
+HoldService --> Repositories
+PaymentService --> Repositories
+BookingService --> Repositories
+Repositories --> Session
 UoW --> Session
 Session --> DB : SQL / asyncpg
-PaymentSvc ..> ExternalPayment : chưa kết nối
+PaymentService ..> Gateway : no integration
 
-note bottom of App
-  Luồng đặt vé: chọn ghế → tạo hold → thanh toán → PaymentService tạo booking.
-  Không còn API tạo booking trực tiếp; Bookings API chỉ cho xem và hủy.
-  Payment hiện chỉ mô phỏng, chưa gọi cổng thanh toán thật.
+note bottom of API
+  Docker Compose runs two services: the FastAPI API and PostgreSQL.
+  Seat hold TTL is configurable (default 300 seconds).
+  Payment is simulated locally. A successful payment creates bookings
+  and marks the hold paid in one database transaction.
+  There is no direct booking-creation endpoint; the booking API lists
+  and cancels the authenticated user's bookings.
+  No frontend, background worker, cache, or external payment service
+  is currently part of the deployed application.
 end note
+
 @enduml
