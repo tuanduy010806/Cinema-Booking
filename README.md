@@ -117,7 +117,6 @@ API, PostgreSQL và Locust chạy cùng máy Kaggle. Kịch bản dùng 50 ngư�
 
 ## 10. Các vấn đề có thể cải tiến trong pha 2
 
-Khi phát triển pha 2, có thể ưu tiên xử lý các việc sau:
 
 | # | Vấn đề | Hiện trạng | Hướng cải tiến |
 | --- | --- | --- | --- |
