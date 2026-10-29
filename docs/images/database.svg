@@ -1,24 +1,56 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="820" viewBox="0 0 1440 820" role="img" aria-labelledby="title desc">
-  <title id="title">Cinema Booking — mô hình dữ liệu</title>
-  <desc id="desc">ERD của các bảng users, movies, showtimes, bookings, seat_holds, seat_hold_seats và payments.</desc>
-  <defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#59636e"/></marker><style>
-    text{font-family:Arial,sans-serif;fill:#303942}.title{font-size:24px;font-weight:bold}.head{font-size:18px;font-weight:bold;text-anchor:middle}.field{font-size:15px}.box{fill:#f3f4f5;stroke:#8c959d;stroke-width:1.4}.edge{fill:none;stroke:#65717b;stroke-width:1.6;marker-end:url(#arrow)}.note{fill:#fffde7;stroke:#b5ad73;stroke-width:1.2}.noteText{font-size:14px}
-  </style></defs>
-  <rect width="1440" height="820" fill="#fafbfd"/><text x="720" y="42" class="title" text-anchor="middle">Cinema Booking — mô hình dữ liệu</text>
-  <g class="edge"><path d="M365 252 H510 V210 H565"/><path d="M340 145 H840 V178 H900"/><path d="M340 173 H520 V390 H565"/><path d="M340 190 H530 V570 H565"/><path d="M340 220 H505 V385 H565"/><path d="M790 430 V270"/><path d="M790 430 V565"/><path d="M900 226 H850 V430 H790"/><path d="M790 515 V600"/><path d="M1060 515 V600"/></g>
-  <g class="box">
-    <rect x="55" y="110" width="285" height="205"/><rect x="565" y="100" width="300" height="170"/><rect x="900" y="100" width="330" height="180"/><rect x="565" y="350" width="300" height="180"/><rect x="900" y="350" width="330" height="180"/><rect x="565" y="600" width="300" height="150"/><rect x="55" y="485" width="285" height="240"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1180" viewBox="0 0 1440 1180" role="img" aria-labelledby="title desc">
+  <title id="title">Cinema Booking — PostgreSQL schema hiện tại</title>
+  <desc id="desc">Các bảng và ràng buộc của users, movies, showtimes, bookings, seat_holds, seat_hold_seats và payments theo SQLAlchemy models.</desc>
+  <defs>
+    <style>
+      text{font-family:Arial,sans-serif;fill:#263442}.title{font-size:26px;font-weight:bold}.subtitle{font-size:14px;fill:#526579}.head{font-size:18px;font-weight:bold;fill:#fff}.field{font-size:12px}.note{font-size:13px;fill:#514b26}.card{fill:#f2f4f7;stroke:#39739d;stroke-width:1.5}.bar{fill:#326b93}.edge{fill:none;stroke:#617486;stroke-width:1.5}.edge-label{font-size:12px;fill:#526579}.note-box{fill:#fffde7;stroke:#b5ad73;stroke-width:1.2}
+    </style>
+    <marker id="arrow" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0L9 4L0 8z" fill="#617486"/></marker>
+  </defs>
+  <rect width="1440" height="1180" fill="#fafbfd"/>
+  <text x="720" y="42" class="title" text-anchor="middle">Cinema Booking — PostgreSQL schema hiện tại</text>
+  <text x="720" y="68" class="subtitle" text-anchor="middle">Các cột và ràng buộc database; quy tắc API được ghi riêng bên dưới</text>
+
+  <g class="edge" marker-end="url(#arrow)">
+    <path d="M400 194H490"/><path d="M890 194H980"/>
+    <path d="M400 250H450V490H490"/><path d="M400 310H930V580H980"/>
+    <path d="M1180 290V440H690V470"/><path d="M1180 290V410H245V470"/>
+    <path d="M450 600H470V870H490"/><path d="M690 700V780"/>
   </g>
-  <g fill="#326b93"><path d="M55 110h285v34H55zM565 100h300v34H565zM900 100h330v34H900zM565 350h300v34H565zM900 350h330v34H900zM565 600h300v34H565zM55 485h285v34H55z"/></g>
-  <g class="head" fill="white"><text x="197" y="133" fill="white">users</text><text x="715" y="123" fill="white">movies</text><text x="1065" y="123" fill="white">showtimes</text><text x="715" y="373" fill="white">seat_holds</text><text x="1065" y="373" fill="white">bookings</text><text x="715" y="623" fill="white">seat_hold_seats</text><text x="197" y="508" fill="white">payments</text></g>
-  <g class="field"><text x="70" y="166">● user_id : INTEGER «PK»</text><text x="70" y="192">email : VARCHAR «UNIQUE»</text><text x="70" y="218">username : VARCHAR</text><text x="70" y="244">password_hash : VARCHAR</text><text x="70" y="270">role : VARCHAR</text>
-    <text x="580" y="157">● id : INTEGER «PK»</text><text x="580" y="183">title : VARCHAR(255) «INDEX»</text><text x="580" y="209">description : TEXT «NULL»</text><text x="580" y="235">duration_minutes : INTEGER</text>
-    <text x="915" y="157">● id : INTEGER «PK»</text><text x="915" y="183">movie_id : INTEGER «FK, INDEX»</text><text x="915" y="209">start_time : DATETIME «INDEX»</text><text x="915" y="235">total_seats : INTEGER</text>
-    <text x="580" y="407">● id : INTEGER «PK»</text><text x="580" y="433">user_id : INTEGER «FK, INDEX»</text><text x="580" y="459">showtime_id : INTEGER «FK, INDEX»</text><text x="580" y="485">status : VARCHAR(20)</text><text x="580" y="511">created_at / expires_at : DATETIME</text>
-    <text x="915" y="407">● id : INTEGER «PK»</text><text x="915" y="433">user_id : INTEGER «FK»</text><text x="915" y="459">showtime_id : INTEGER «FK»</text><text x="915" y="485">seat_number : VARCHAR</text><text x="915" y="511">status / created_at</text>
-    <text x="580" y="657">● id : INTEGER «PK»</text><text x="580" y="683">hold_id : INTEGER «FK, INDEX»</text><text x="580" y="709">seat_number : VARCHAR</text><text x="580" y="735">booking_id : INTEGER «FK, NULL, UNIQUE»</text>
-    <text x="70" y="543">● id : INTEGER «PK»</text><text x="70" y="569">hold_id : INTEGER «UNIQUE»</text><text x="70" y="595">user_id : INTEGER «FK, INDEX»</text><text x="70" y="621">amount : INTEGER · currency : VARCHAR(3)</text><text x="70" y="647">status : VARCHAR(20)</text><text x="70" y="673">created_at : DATETIME</text><text x="70" y="699">paid_at : DATETIME «NULL»</text></g>
-  <text x="895" y="304" font-size="13">có suất chiếu</text><text x="795" y="328" font-size="13">được đặt</text><text x="835" y="554" font-size="13">gồm ghế</text><text x="1080" y="554" font-size="13">liên kết booking</text><text x="360" y="435" font-size="13">thanh toán</text>
-  <path class="note" d="M360 540h190l14 14v75H360z"/><text x="374" y="565" class="noteText"><tspan x="374" dy="0">hold_id có UNIQUE nhưng hiện</tspan><tspan x="374" dy="19">chưa khai báo ForeignKey tới</tspan><tspan x="374" dy="19">seat_holds.id trong model.</tspan></text>
-  <path class="note" d="M1250 610h160l14 14v70h-174z"/><text x="1262" y="636" class="noteText"><tspan x="1262" dy="0">Chưa có UNIQUE cho</tspan><tspan x="1262" dy="19">(showtime_id, seat_number)</tspan><tspan x="1262" dy="19">trong model booking.</tspan></text>
+  <g class="edge-label">
+    <text x="425" y="184">1:n</text><text x="925" y="184">1:n</text>
+    <text x="452" y="365">1:n</text><text x="660" y="302">1:n</text>
+    <text x="850" y="430">1:n</text><text x="260" y="430">1:n</text>
+    <text x="457" y="765">0:n</text><text x="705" y="750">0:1</text>
+  </g>
+
+  <g>
+    <rect class="card" x="40" y="110" width="360" height="230" rx="8"/><path class="bar" d="M48 110h344a8 8 0 0 1 8 8v34H40v-34a8 8 0 0 1 8-8z"/><text class="head" x="220" y="137" text-anchor="middle">users</text>
+    <text class="field" x="60" y="177">● user_id : INTEGER «PK»</text><text class="field" x="60" y="204">email : VARCHAR «UNIQUE, NOT NULL»</text><text class="field" x="60" y="231">username : VARCHAR «NOT NULL»</text><text class="field" x="60" y="258">password_hash : VARCHAR «NOT NULL»</text><text class="field" x="60" y="285">role : VARCHAR «NOT NULL»</text>
+
+    <rect class="card" x="490" y="110" width="400" height="200" rx="8"/><path class="bar" d="M498 110h384a8 8 0 0 1 8 8v34H490v-34a8 8 0 0 1 8-8z"/><text class="head" x="690" y="137" text-anchor="middle">movies</text>
+    <text class="field" x="510" y="177">● id : INTEGER «PK»</text><text class="field" x="510" y="204">title : VARCHAR(255) «INDEX, NOT NULL»</text><text class="field" x="510" y="231">description : TEXT «NULL»</text><text class="field" x="510" y="258">duration_minutes : INTEGER «NOT NULL»</text>
+
+    <rect class="card" x="980" y="110" width="420" height="200" rx="8"/><path class="bar" d="M988 110h404a8 8 0 0 1 8 8v34H980v-34a8 8 0 0 1 8-8z"/><text class="head" x="1190" y="137" text-anchor="middle">showtimes</text>
+    <text class="field" x="1000" y="177">● id : INTEGER «PK»</text><text class="field" x="1000" y="204">movie_id : INTEGER «FK, INDEX, NOT NULL»</text><text class="field" x="1000" y="231">start_time : TIMESTAMP WITHOUT TZ «INDEX, NOT NULL»</text><text class="field" x="1000" y="258">total_seats : INTEGER «NOT NULL»</text>
+
+    <rect class="card" x="40" y="470" width="410" height="240" rx="8"/><path class="bar" d="M48 470h394a8 8 0 0 1 8 8v34H40v-34a8 8 0 0 1 8-8z"/><text class="head" x="245" y="497" text-anchor="middle">seat_holds</text>
+    <text class="field" x="60" y="537">● id : INTEGER «PK»</text><text class="field" x="60" y="564">user_id : INTEGER «FK, INDEX, NOT NULL»</text><text class="field" x="60" y="591">showtime_id : INTEGER «FK, INDEX, NOT NULL»</text><text class="field" x="60" y="618">status : VARCHAR(20) «NOT NULL, ORM default active»</text><text class="field" x="60" y="645">created_at : TIMESTAMP WITH TIME ZONE «NOT NULL»</text><text class="field" x="60" y="672">expires_at : TIMESTAMP WITH TIME ZONE «INDEX, NOT NULL»</text>
+
+    <rect class="card" x="490" y="470" width="400" height="230" rx="8"/><path class="bar" d="M498 470h384a8 8 0 0 1 8 8v34H490v-34a8 8 0 0 1 8-8z"/><text class="head" x="690" y="497" text-anchor="middle">bookings</text>
+    <text class="field" x="510" y="537">● id : INTEGER «PK»</text><text class="field" x="510" y="564">user_id : INTEGER «FK, NOT NULL»</text><text class="field" x="510" y="591">showtime_id : INTEGER «FK, NOT NULL»</text><text class="field" x="510" y="618">seat_number : VARCHAR «NOT NULL»</text><text class="field" x="510" y="645">status : VARCHAR «NOT NULL, ORM default active»</text><text class="field" x="510" y="672">created_at : TIMESTAMP WITH TIME ZONE «NOT NULL»</text>
+
+    <rect class="card" x="980" y="470" width="420" height="280" rx="8"/><path class="bar" d="M988 470h404a8 8 0 0 1 8 8v34H980v-34a8 8 0 0 1 8-8z"/><text class="head" x="1190" y="497" text-anchor="middle">payments</text>
+    <text class="field" x="1000" y="537">● id : INTEGER «PK»</text><text class="field" x="1000" y="564">hold_id : INTEGER «UNIQUE, NOT NULL, no FK»</text><text class="field" x="1000" y="591">user_id : INTEGER «FK, INDEX, NOT NULL»</text><text class="field" x="1000" y="618">amount : INTEGER «NOT NULL»</text><text class="field" x="1000" y="645">currency : VARCHAR(3) «NOT NULL, ORM default VND»</text><text class="field" x="1000" y="672">status : VARCHAR(20) «NOT NULL, ORM default succeeded»</text><text class="field" x="1000" y="699">created_at : TIMESTAMP WITH TIME ZONE «NOT NULL»</text><text class="field" x="1000" y="726">paid_at : TIMESTAMP WITH TIME ZONE «NULL»</text>
+
+    <rect class="card" x="490" y="780" width="400" height="180" rx="8"/><path class="bar" d="M498 780h384a8 8 0 0 1 8 8v34H490v-34a8 8 0 0 1 8-8z"/><text class="head" x="690" y="807" text-anchor="middle">seat_hold_seats</text>
+    <text class="field" x="510" y="847">● id : INTEGER «PK»</text><text class="field" x="510" y="874">hold_id : INTEGER «FK, INDEX, NOT NULL»</text><text class="field" x="510" y="901">seat_number : VARCHAR «NOT NULL»</text><text class="field" x="510" y="928">booking_id : INTEGER «FK, NULL, UNIQUE»</text>
+  </g>
+
+  <rect class="note-box" x="40" y="1010" width="1360" height="140" rx="8"/>
+  <text class="note" x="60" y="1040">Quan hệ trong database: mỗi hold có thể có 0..n seat rows; API chỉ tạo hold với 1–5 ghế hợp lệ.</text>
+  <text class="note" x="60" y="1065">payments.hold_id là UNIQUE nhưng không có FK; seat_hold_seats.booking_id là FK nullable và UNIQUE.</text>
+  <text class="note" x="60" y="1090">Database không đặt UNIQUE cho (showtime_id, seat_number); service tuần tự hóa thao tác bằng khóa showtime.</text>
+  <text class="note" x="60" y="1115">showtimes.start_time là TIMESTAMP WITHOUT TIME ZONE chứa naive UTC; các timestamp còn lại có timezone.</text>
+  <text class="note" x="60" y="1140">Các giá trị ORM default do SQLAlchemy gán, không phải DEFAULT constraint trong PostgreSQL.</text>
 </svg>

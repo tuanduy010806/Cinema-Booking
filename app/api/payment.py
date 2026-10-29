@@ -1,25 +1,11 @@
 from fastapi import APIRouter, Depends, Response, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import UserIdentity, get_current_user
-from app.db.database import get_db
-from app.repositories.payment_repository import PaymentRepository
-from app.repositories.booking_repository import BookingRepository
-from app.repositories.seat_hold_repository import SeatHoldRepository
-from app.repositories.unit_of_work import SqlAlchemyUnitOfWork
+from app.api.providers import get_payment_service
 from app.schemas.payment import PaymentCreate, PaymentResponse, PaymentResultResponse
 from app.services.payment_service import PaymentService
 
 router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
-
-
-def get_payment_service(db: AsyncSession = Depends(get_db)) -> PaymentService:
-    return PaymentService(
-        PaymentRepository(db),
-        SeatHoldRepository(db),
-        BookingRepository(db),
-        SqlAlchemyUnitOfWork(db),
-    )
 
 
 @router.post(

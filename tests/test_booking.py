@@ -1,250 +1,124 @@
-"""Integration tests for the booking API."""
-
-from __future__ import annotations
-
+"""PostgreSQL API tests for booking through holds and payments."""
 import pytest
-from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.core.security import create_access_token
 from app.models.booking import Booking
-from app.models.showtime import Showtime
-from app.models.user import User
-from sqlalchemy.orm import Session
 
 BASE = "/api/v1/bookings"
 
 
-def _auth_headers(user: User) -> dict[str, str]:
-    """Build a real Bearer token for a seeded test user, without calling login."""
-    token = create_access_token({"sub": str(user.user_id)})
-    return {"Authorization": f"Bearer {token}"}
-
-def test_create_booking_success(client: TestClient, user1: User, showtime1: Showtime):
-    """POST /bookings/ creates a booking and returns 201 with correct fields."""
-    resp = client.post(BASE + "/", json={
-        "showtime_id": showtime1.id,
-        "seat_number": "1",
-    })
-
-    assert resp.status_code == 201, resp.text
-    data = resp.json()
-    assert data["user_id"] == user1.user_id
-    assert data["showtime_id"] == showtime1.id
-    assert data["seat_number"] == "1"
-    assert data["status"] == "active"
-    assert "id" in data
-    assert "created_at" in data
-
-def test_duplicate_seat_error(client: TestClient, showtime1: Showtime):
-    """Booking the same seat twice in the same showtime returns 400."""
-    payload = {"showtime_id": showtime1.id, "seat_number": "2"}
-
-    first = client.post(BASE + "/", json=payload)
-    assert first.status_code == 201, first.text
-
-    second = client.post(BASE + "/", json=payload)
-    assert second.status_code == 400, second.text
+def _auth_headers(user):
+    return {"Authorization": "Bearer " + create_access_token({"sub": str(user.user_id)})}
 
 
-def test_booking_requires_authentication(anonymous_client: TestClient, showtime1: Showtime):
-    """Creating a booking without a bearer token returns 401."""
-    response = anonymous_client.post(
-        BASE + "/",
-        json={"showtime_id": showtime1.id, "seat_number": "1"},
-    )
-
-    assert response.status_code == 401, response.text
+def _hold(client, showtime_id, seat, headers=None, **extra):
+    return client.post("/api/v1/holds", json={"showtime_id": showtime_id, "seat_numbers": [seat], **extra}, headers=headers)
 
 
-def test_booking_list_and_cancel_require_authentication(anonymous_client: TestClient):
-    """Both booking management routes reject anonymous callers."""
-    list_response = anonymous_client.get(BASE + "/me")
-    cancel_response = anonymous_client.delete(f"{BASE}/999999999")
+def _book(client, showtime_id, seat, headers=None):
+    held = _hold(client, showtime_id, seat, headers)
+    assert held.status_code == 201, held.text
+    paid = client.post("/api/v1/payments", json={"hold_id": held.json()["id"]}, headers=headers)
+    assert paid.status_code == 201, paid.text
+    assert len(paid.json()["bookings"]) == 1
+    return paid.json()["bookings"][0]
 
-    assert list_response.status_code == 401, list_response.text
-    assert cancel_response.status_code == 401, cancel_response.text
+
+def test_booking_created_only_after_payment(client, user1, showtime1, db_session):
+    held = _hold(client, showtime1.id, "1")
+    assert held.status_code == 201, held.text
+    assert client.get(BASE + "/me").json() == []
+    payload = {"hold_id": held.json()["id"]}
+    paid = client.post("/api/v1/payments", json=payload)
+    assert paid.status_code == 201, paid.text
+    booking = paid.json()["bookings"][0]
+    assert booking["user_id"] == user1.user_id
+    assert booking["showtime_id"] == showtime1.id
+    assert booking["seat_number"] == "1" and booking["status"] == "active"
+    assert db_session.get(Booking, booking["id"]) is not None
+    retry = client.post("/api/v1/payments", json=payload)
+    assert retry.status_code == 200 and retry.json() == paid.json()
+    assert len(db_session.scalars(select(Booking)).all()) == 1
 
 
-def test_request_cannot_override_authenticated_booking_owner(
-    client: TestClient, user1: User, user2: User, showtime1: Showtime
-):
-    """An extra request user_id cannot replace the authenticated identity."""
-    response = client.post(
-        BASE + "/",
-        json={
-            "showtime_id": showtime1.id,
-            "seat_number": "1",
-            "user_id": user2.user_id,
-        },
-    )
+@pytest.mark.parametrize("path", [BASE, BASE + "/"])
+def test_direct_booking_creation_is_not_available(client, showtime1, path):
+    response = client.post(path, json={"showtime_id": showtime1.id, "seat_number": "1"})
+    assert response.status_code in {404, 405}, response.text
+    assert client.get(BASE + "/me").json() == []
 
+
+def test_duplicate_seat_error(client, showtime1):
+    _book(client, showtime1.id, "2")
+    response = _hold(client, showtime1.id, "2")
+    assert response.status_code == 400, response.text
+
+
+def test_booking_requires_authentication(anonymous_client, showtime1):
+    assert _hold(anonymous_client, showtime1.id, "1").status_code == 401
+    assert anonymous_client.post("/api/v1/payments", json={"hold_id": 1}).status_code == 401
+    assert anonymous_client.get(BASE + "/me").status_code == 401
+    assert anonymous_client.delete(BASE + "/999999999").status_code == 401
+
+
+def test_request_cannot_override_authenticated_booking_owner(client, user1, user2, showtime1):
+    held = _hold(client, showtime1.id, "1", user_id=user2.user_id)
+    assert held.status_code == 201, held.text
+    assert held.json()["user_id"] == user1.user_id
+    response = client.post("/api/v1/payments", json={"hold_id": held.json()["id"], "user_id": user2.user_id})
     assert response.status_code == 201, response.text
-    assert response.json()["user_id"] == user1.user_id
+    assert response.json()["bookings"][0]["user_id"] == user1.user_id
 
 
-def test_booking_rejects_seat_outside_showtime_capacity(
-    client: TestClient, showtime1: Showtime
-):
-    """A numeric seat label above capacity returns 404."""
-    response = client.post(
-        BASE + "/",
-        json={"showtime_id": showtime1.id, "seat_number": str(showtime1.total_seats + 1)},
-    )
-
-    assert response.status_code == 404, response.text
+def test_booking_rejects_seat_outside_showtime_capacity(client, showtime1):
+    assert _hold(client, showtime1.id, str(showtime1.total_seats + 1)).status_code == 404
 
 
-def test_booking_rejects_missing_showtime(client: TestClient):
-    """A booking cannot reference a showtime that does not exist."""
-    response = client.post(
-        BASE + "/",
-        json={"showtime_id": 999999999, "seat_number": "1"},
-    )
-
-    assert response.status_code == 404, response.text
+def test_booking_rejects_missing_showtime(client):
+    assert _hold(client, 999999999, "1").status_code == 404
 
 
-@pytest.mark.parametrize("seat_number", ["B1", "A1", "0", "01", "-1", ""])
-def test_booking_rejects_malformed_seat_label(
-    client: TestClient, showtime1: Showtime, seat_number: str
-):
-    """Only positive decimal strings are accepted as seat labels."""
-    response = client.post(
-        BASE + "/",
-        json={"showtime_id": showtime1.id, "seat_number": seat_number},
-    )
+@pytest.mark.parametrize("seat", ["B1", "A1", "0", "01", "-1", ""])
+def test_booking_rejects_malformed_seat_label(client, showtime1, seat):
+    assert _hold(client, showtime1.id, seat).status_code == 422
 
-    assert response.status_code == 422, response.text
 
-def test_same_seat_different_showtime_allowed(
-    client: TestClient, showtime1: Showtime, showtime2: Showtime
-):
-    """The same seat label is allowed on different showtimes."""
-    resp1 = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "3"})
-    resp2 = client.post(BASE + "/", json={"showtime_id": showtime2.id, "seat_number": "3"})
+def test_same_seat_different_showtime_allowed(client, showtime1, showtime2):
+    first = _book(client, showtime1.id, "3")
+    second = _book(client, showtime2.id, "3")
+    assert first["id"] != second["id"]
 
-    assert resp1.status_code == 201, resp1.text
-    assert resp2.status_code == 201, resp2.text
-    assert resp1.json()["id"] != resp2.json()["id"]
 
-def test_get_my_bookings(
-    client: TestClient, user1: User, showtime1: Showtime, showtime2: Showtime
-):
-    """GET /bookings/me returns only the current user's bookings."""
-    client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "4"})
-    client.post(BASE + "/", json={"showtime_id": showtime2.id, "seat_number": "5"})
+def test_user_booking_isolation(client, user1, user2, showtime1, showtime2):
+    first = _book(client, showtime1.id, "4")
+    second = _book(client, showtime2.id, "5", _auth_headers(user2))
+    mine = client.get(BASE + "/me")
+    theirs = client.get(BASE + "/me", headers=_auth_headers(user2))
+    assert mine.status_code == theirs.status_code == 200
+    assert [b["id"] for b in mine.json()] == [first["id"]]
+    assert [b["id"] for b in theirs.json()] == [second["id"]]
+    assert all(b["user_id"] == user1.user_id for b in mine.json())
 
-    resp = client.get(BASE + "/me")
-    assert resp.status_code == 200, resp.text
-    bookings = resp.json()
 
-    assert len(bookings) >= 2
-    assert all(b["user_id"] == user1.user_id for b in bookings)
-
-def test_cancel_booking_success(
-    client: TestClient, db_session: Session, showtime1: Showtime
-):
-    """DELETE /bookings/{id} cancels the booking; status becomes 'cancelled'."""
-    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "6"})
-    assert create_resp.status_code == 201, create_resp.text
-    booking_id = create_resp.json()["id"]
-
-    cancel_resp = client.delete(f"{BASE}/{booking_id}")
-    assert cancel_resp.status_code == 200, cancel_resp.text
-    assert cancel_resp.json()["status"] == "cancelled"
+def test_cancel_preserves_record_and_allows_rebooking(client, db_session, user2, showtime1):
+    booking = _book(client, showtime1.id, "6")
+    response = client.delete(f'{BASE}/{booking["id"]}')
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "cancelled"
     db_session.expire_all()
-    record = db_session.get(Booking, booking_id)
-    assert record is not None
-    assert record.status == "cancelled"
+    assert db_session.get(Booking, booking["id"]).status == "cancelled"
+    assert client.delete(f'{BASE}/{booking["id"]}').status_code == 400
+    new = _book(client, showtime1.id, "6", _auth_headers(user2))
+    assert new["id"] != booking["id"] and new["user_id"] == user2.user_id
 
-def test_ownership_error(
-    client: TestClient, user1: User, user2: User, showtime1: Showtime
-):
-    """User 2 cannot cancel a booking created by User 1 → 403."""
-    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "7"})
-    assert create_resp.status_code == 201, create_resp.text
-    booking_id = create_resp.json()["id"]
-    cancel_resp = client.delete(
-        f"{BASE}/{booking_id}",
-        headers=_auth_headers(user2),
-    )
 
-    assert cancel_resp.status_code == 403, cancel_resp.text
-    check_resp = client.get(BASE + "/me")
-    my_bookings = check_resp.json()
-    target = next((b for b in my_bookings if b["id"] == booking_id), None)
-    assert target is not None
-    assert target["status"] == "active"
+def test_ownership_error(client, user2, showtime1):
+    booking = _book(client, showtime1.id, "7")
+    response = client.delete(f'{BASE}/{booking["id"]}', headers=_auth_headers(user2))
+    assert response.status_code == 403, response.text
+    assert client.get(BASE + "/me").json()[0]["status"] == "active"
 
-def test_not_found_booking(client: TestClient):
-    """DELETE /bookings/{id} with a non-existent id returns 404."""
-    resp = client.delete(f"{BASE}/999999999")
-    assert resp.status_code == 404, resp.text
 
-def test_cancel_already_cancelled(client: TestClient, showtime1: Showtime):
-    """Cancelling an already-cancelled booking returns a business error (400)."""
-    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "8"})
-    assert create_resp.status_code == 201, create_resp.text
-    booking_id = create_resp.json()["id"]
-
-    first_cancel = client.delete(f"{BASE}/{booking_id}")
-    assert first_cancel.status_code == 200, first_cancel.text
-
-    second_cancel = client.delete(f"{BASE}/{booking_id}")
-    assert second_cancel.status_code == 400, second_cancel.text
-
-def test_user_booking_isolation(
-    client: TestClient, user1: User, user2: User,
-    showtime1: Showtime, showtime2: Showtime,
-):
-    """User 1 does not see User 2's bookings in GET /bookings/me."""
-    client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "9"})
-    user2_headers = _auth_headers(user2)
-    client.post(
-        BASE + "/",
-        json={"showtime_id": showtime2.id, "seat_number": "10"},
-        headers=user2_headers,
-    )
-    user2_bookings = client.get(BASE + "/me", headers=user2_headers).json()
-    assert all(b["user_id"] == user2.user_id for b in user2_bookings)
-    user1_bookings = client.get(BASE + "/me").json()
-    assert all(b["user_id"] == user1.user_id for b in user1_bookings)
-    user1_ids = {b["id"] for b in user1_bookings}
-    user2_ids = {b["id"] for b in user2_bookings}
-    assert user1_ids.isdisjoint(user2_ids)
-
-def test_cancel_does_not_delete_record(
-    client: TestClient, db_session: Session, showtime1: Showtime
-):
-    """After cancellation the record still exists in the database."""
-    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": "11"})
-    assert create_resp.status_code == 201, create_resp.text
-    booking_id = create_resp.json()["id"]
-
-    cancel_resp = client.delete(f"{BASE}/{booking_id}")
-    assert cancel_resp.status_code == 200, cancel_resp.text
-    db_session.expire_all()
-    record = db_session.get(Booking, booking_id)
-    assert record is not None, "Record was hard-deleted — expected soft-delete only"
-    assert record.status == "cancelled"
-
-def test_cancelled_seat_can_be_rebooked(
-    client: TestClient, user1: User, user2: User, showtime1: Showtime
-):
-    """A cancelled seat can be re-booked by a different user."""
-    seat = "12"
-    create_resp = client.post(BASE + "/", json={"showtime_id": showtime1.id, "seat_number": seat})
-    assert create_resp.status_code == 201, create_resp.text
-    booking_id = create_resp.json()["id"]
-
-    cancel_resp = client.delete(f"{BASE}/{booking_id}")
-    assert cancel_resp.status_code == 200, cancel_resp.text
-    rebook_resp = client.post(
-        BASE + "/",
-        json={"showtime_id": showtime1.id, "seat_number": seat},
-        headers=_auth_headers(user2),
-    )
-
-    assert rebook_resp.status_code == 201, rebook_resp.text
-    assert rebook_resp.json()["user_id"] == user2.user_id
-    assert rebook_resp.json()["status"] == "active"
+def test_not_found_booking(client):
+    assert client.delete(BASE + "/999999999").status_code == 404

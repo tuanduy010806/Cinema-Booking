@@ -107,6 +107,50 @@ def test_create_showtime_requires_admin(
     assert admin_response.status_code == 201, admin_response.text
 
 
+def test_create_showtime_normalizes_offset_to_utc_naive(
+    client: TestClient,
+    db_session: Session,
+    user1: User,
+    movie: Movie,
+):
+    user1.role = "ADMIN"
+    db_session.flush()
+
+    response = client.post(
+        "/api/v1/showtimes",
+        json={
+            "movie_id": movie.id,
+            "start_time": "2026-12-01T18:00:00+07:00",
+            "total_seats": 50,
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["start_time"] == "2026-12-01T11:00:00"
+
+
+def test_create_showtime_treats_naive_time_as_utc(
+    client: TestClient,
+    db_session: Session,
+    user1: User,
+    movie: Movie,
+):
+    user1.role = "ADMIN"
+    db_session.flush()
+
+    response = client.post(
+        "/api/v1/showtimes",
+        json={
+            "movie_id": movie.id,
+            "start_time": "2026-12-01T18:00:00",
+            "total_seats": 50,
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["start_time"] == "2026-12-01T18:00:00"
+
+
 @pytest.mark.parametrize(
     "overrides",
     [

@@ -4,7 +4,7 @@ REST API đặt vé xem phim, xây dựng bằng **Python 3.12, FastAPI và Post
 
 ## 1. Bài toán và phạm vi
 
-Khách có thể tìm phim, chọn suất chiếu và kiểm tra ghế trước khi đặt. Người dùng đã đăng nhập có thể đặt ghế trực tiếp hoặc giữ ghế trong thời gian giới hạn trước khi thanh toán.
+Khách có thể tìm phim, chọn suất chiếu và kiểm tra ghế còn trống. Người dùng đã đăng nhập có thể giữ ghế trong thời gian giới hạn rồi thanh toán; booking được tạo sau khi thanh toán thành công.
 
 - **Khách chưa đăng nhập:** xem phim, suất chiếu và tình trạng ghế; đăng ký hoặc đăng nhập.
 - **`USER`:** đặt, xem và hủy booking của mình; giữ hoặc giải phóng ghế; thanh toán mô phỏng.
@@ -16,11 +16,11 @@ Hold mặc định có hiệu lực 300 giây (`SEAT_HOLD_TTL_SECONDS`). Giá th
 
 ### Kiến trúc hệ thống
 
-Ứng dụng FastAPI chạy cùng PostgreSQL bằng Docker Compose, được tổ chức theo các lớp API, service và repository. `AuthMiddleware` kiểm tra JWT Bearer và nạp lại người dùng; `RoleChecker` giới hạn thao tác quản trị. Booking chỉ được tạo sau khi `PaymentService` xử lý payment cho hold; API booking chỉ dùng để xem và hủy. Dữ liệu được truy cập bất đồng bộ qua SQLAlchemy tới PostgreSQL. Thanh toán hiện được mô phỏng, chưa kết nối cổng bên ngoài.
+Ứng dụng FastAPI chạy cùng PostgreSQL bằng Docker Compose, được tổ chức theo API, service, domain và repository. Provider trong `app/api/providers.py` khởi tạo service cùng repository và Unit of Work. `AuthMiddleware` kiểm tra JWT Bearer và nạp lại người dùng; `RoleChecker` giới hạn thao tác quản trị. Booking chỉ được tạo sau khi `PaymentService` xử lý payment cho hold; API booking chỉ dùng để xem và hủy. Repository dùng SQLAlchemy bất đồng bộ để truy cập PostgreSQL. Thanh toán hiện được mô phỏng, chưa kết nối cổng bên ngoài.
 
-![Sơ đồ kiến trúc hệ thống Cinema Booking](docs/images/873261623_1505618934958511_9060769392012221377_n.png)
+![Sơ đồ kiến trúc hệ thống Cinema Booking](docs/images/architecture.svg)
 
-Mã nguồn sơ đồ: [architecture.puml](docs/diagrams/architecture.puml).
+Mã nguồn gồm sơ đồ thành phần và sequence luồng giữ ghế/thanh toán: [architecture.puml](docs/diagrams/architecture.puml).
 
 ### Thiết kế cơ sở dữ liệu
 
@@ -56,7 +56,7 @@ app/
   api/             # Nhận các yêu cầu HTTP
   core/            # Cấu hình, đăng nhập và xử lý lỗi
   db/              # Kết nối PostgreSQL
-  domain/          # Vai trò và giao diện nghiệp vụ
+  domain/          # Entity, command, port và quy tắc nghiệp vụ
   models/          # Cấu trúc dữ liệu trong database
   repositories/    # Đọc và ghi dữ liệu
   schemas/         # Kiểm tra dữ liệu vào và ra
@@ -68,6 +68,16 @@ data/             # Dữ liệu mẫu
 ```
 
 Công nghệ chính: **FastAPI, SQLAlchemy async, PostgreSQL, Pydantic, JWT, Docker Compose và Locust**.
+
+### Độc lập tầng nghiệp vụ
+
+Service nhận command Python thuần trong `app/domain/commands.py`, làm việc với entity bất biến trong `app/domain/entities.py` và các port trong `app/domain/ports.py`. Repository chuyển ORM thành entity trước khi trả kết quả; cập nhật dữ liệu bằng ID thay vì sửa entity. UnitOfWork có một hợp đồng duy nhất trong `app/domain/unit_of_work.py`.
+
+Router chuyển request Pydantic thành command; response schema giữ nguyên và chỉ xuất các trường công khai. Các provider trong `app/api/providers.py` tạo repository, UnitOfWork và service, đồng thời truyền TTL giữ ghế, giá thanh toán demo và adapter bảo mật. Giữ ghế, thanh toán và giải phóng hold khóa cùng hàng suất chiếu; payment và release đọc lại hold sau khi lấy khóa. UserEntity không chứa password hash; đăng nhập đọc UserCredentials riêng.
+
+`showtimes.start_time` được lưu dưới dạng UTC không có timezone để tương thích với cột PostgreSQL hiện tại. API hiểu timestamp không có offset là UTC, quy đổi timestamp có offset sang UTC khi nhận, và trả UTC không offset. Quy ước này không tự chuyển đổi dữ liệu showtime đã có; cần xác minh timezone của dữ liệu cũ trước khi áp dụng cho database hiện hữu.
+
+Chạy kiểm thử không cần database bằng `python -m pytest tests/unit -q`. Các test kiểm tra ranh giới import, entity/ORM mapping, ánh xạ HTTP, cấu hình được truyền vào và transaction của service; kiểm thử tích hợp PostgreSQL vẫn cần `TEST_DATABASE_URL` riêng.
 
 ## 5. Cài đặt và chạy
 
@@ -91,9 +101,9 @@ Có thể mở rộng hệ thống theo các bước gần với chức năng hi
 4. Xem booking/payment hoặc hủy booking.
 5. Đăng nhập bằng tài khoản ADMIN mẫu để tạo phim và suất chiếu.
 
-## 8. Kết quả kiểm thử tải trên Kaggle CPU
+## 8. Số liệu kiểm thử tải đã ghi nhận
 
-API, PostgreSQL và Locust chạy cùng máy Kaggle. Kịch bản dùng 50 người dùng ảo, tăng 5 người mỗi giây trong 60 giây.
+Các số liệu dưới đây là kết quả đo cũ, trước khi luồng giữ ghế → thanh toán → booking được chuẩn hóa. Kịch bản `load_test/load_test.py` hiện dùng API đăng ký, xem suất/ghế, giữ và giải phóng ghế, thanh toán hold, rồi xem booking/payment. Cần chạy lại kịch bản để có số liệu đánh giá luồng hiện tại. Lần đo cũ chạy API, PostgreSQL và Locust cùng máy Kaggle, dùng 50 người dùng ảo, tăng 5 người mỗi giây trong 60 giây.
 
 | Chỉ số | Kết quả |
 | --- | ---: |
@@ -112,7 +122,7 @@ API, PostgreSQL và Locust chạy cùng máy Kaggle. Kịch bản dùng 50 ngư�
 
 - Thanh toán chỉ mô phỏng; chưa có cổng thanh toán, webhook hoặc hoàn tiền.
 - Chưa có giao diện đặt vé hoàn chỉnh, sơ đồ ghế, email thông báo hoặc worker nền.
-- Nhiều yêu cầu đồng thời có thể cùng chọn một ghế vì kiểm tra hiện chủ yếu ở tầng ứng dụng.
+- Luồng giữ ghế và thanh toán khóa hàng suất chiếu để tuần tự hóa thao tác cùng suất; database chưa có partial unique index làm lớp bảo vệ cuối cho booking đang hoạt động.
 - Hold hết hạn được nhận biết khi API đọc/ghi dữ liệu; chưa có tác vụ nền để xử lý.
 
 ## 10. Các vấn đề có thể cải tiến trong pha 2
@@ -120,7 +130,7 @@ API, PostgreSQL và Locust chạy cùng máy Kaggle. Kịch bản dùng 50 ngư�
 
 | # | Vấn đề | Hiện trạng | Hướng cải tiến |
 | --- | --- | --- | --- |
-| 1 | **Hai người có thể giữ cùng một ghế** | Ứng dụng kiểm tra ghế trước khi tạo lượt giữ. Nếu nhiều người chọn cùng lúc, ghế có thể bị giữ trùng. | Thêm quy tắc trong database để mỗi ghế chỉ được một người giữ tại một thời điểm. |
+| 1 | **Chưa có ràng buộc duy nhất ở database cho booking đang hoạt động** | Luồng giữ ghế và thanh toán khóa hàng suất chiếu để xử lý tranh chấp ở tầng ứng dụng; bảng `bookings` chưa có partial unique index cho `(showtime_id, seat_number)` với trạng thái `active`. | Nếu cần thêm lớp bảo vệ dữ liệu cho các đường ghi trong tương lai, kiểm tra dữ liệu trùng rồi tạo migration và partial unique index. |
 | 2 | **Thanh toán chỉ dùng để demo** | Hệ thống tự ghi nhận thanh toán thành công. | Kết nối cổng thanh toán và cập nhật booking theo kết quả thanh toán. |
 | 3 | **Ghế hết hạn chưa được tự giải phóng** | Hệ thống chỉ nhận ra lượt giữ hết hạn khi có yêu cầu đọc hoặc cập nhật dữ liệu. | Thêm tác vụ chạy định kỳ để cập nhật lượt giữ hết hạn và giải phóng ghế. |
 | 4 | **Gửi lại yêu cầu có thể tạo lượt giữ mới** | Nếu mất kết nối, ứng dụng phía người dùng có thể gửi lại yêu cầu và tạo thêm lượt giữ. Việc gửi lại thanh toán cho cùng hold đã được hỗ trợ. | Gắn mã riêng cho mỗi yêu cầu giữ ghế để gửi lại mà không tạo lượt giữ mới. |

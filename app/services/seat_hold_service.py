@@ -1,7 +1,10 @@
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from app.core.config import settings
+from dataclasses import replace
+from app.domain.commands import CreateHoldCommand
+from app.domain.entities import SeatHoldEntity
+from app.domain.ports import SeatHoldRepository, ShowtimeRepository, BookingRepository, PaymentRepository
 from app.core.exceptions import (
     HoldOwnershipError,
     HoldStateError,
@@ -14,21 +17,23 @@ from app.domain.unit_of_work import UnitOfWork
 class SeatHoldService:
     def __init__(
         self,
-        hold_repository,
-        showtime_repository,
-        booking_repository,
-        payment_repository,
+        hold_repository: SeatHoldRepository,
+        showtime_repository: ShowtimeRepository,
+        booking_repository: BookingRepository,
+        payment_repository: PaymentRepository,
         unit_of_work: UnitOfWork,
+        *, hold_ttl_seconds: int,
     ) -> None:
         self.hold_repository = hold_repository
         self.showtime_repository = showtime_repository
         self.booking_repository = booking_repository
         self.payment_repository = payment_repository
         self.unit_of_work = unit_of_work
+        self.hold_ttl_seconds = hold_ttl_seconds
 
-    async def create_hold(self, user_id: int, payload):
+    async def create_hold(self, user_id: int, payload: CreateHoldCommand) -> SeatHoldEntity:
         try:
-            showtime = await self.showtime_repository.get_by_id(payload.showtime_id)
+            showtime = await self.showtime_repository.get_by_id_for_update(payload.showtime_id)
             if showtime is None:
                 raise NotFoundException("Showtime not found")
 
@@ -58,15 +63,15 @@ class SeatHoldService:
                 showtime_id=payload.showtime_id,
                 seat_numbers=payload.seat_numbers,
                 created_at=now,
-                expires_at=now + timedelta(seconds=settings.SEAT_HOLD_TTL_SECONDS),
+                expires_at=now + timedelta(seconds=self.hold_ttl_seconds),
             )
             await self.unit_of_work.commit()
-            return self._response(hold, payload.seat_numbers)
+            return hold
         except Exception:
             await self.unit_of_work.rollback()
             raise
 
-    async def get_hold(self, user_id: int, hold_id: int):
+    async def get_hold(self, user_id: int, hold_id: int) -> SeatHoldEntity:
         hold = await self.hold_repository.get_by_id(hold_id)
         if hold is None:
             raise NotFoundException(f"Hold {hold_id} not found")
@@ -80,11 +85,19 @@ class SeatHoldService:
             if hold.status == "active" and hold.expires_at <= now
             else hold.status
         )
-        return self._response(hold, [seat.seat_number for seat in seats], status=state)
+        return replace(hold, status=state, seats=tuple(seats))
 
-    async def release_hold(self, user_id: int, hold_id: int):
+    async def release_hold(self, user_id: int, hold_id: int) -> SeatHoldEntity:
         try:
             hold = await self.hold_repository.get_by_id(hold_id)
+            if hold is None:
+                raise NotFoundException(f"Hold {hold_id} not found")
+            if hold.user_id != user_id:
+                raise HoldOwnershipError()
+            showtime = await self.showtime_repository.get_by_id_for_update(hold.showtime_id)
+            if showtime is None:
+                raise NotFoundException("Showtime not found")
+            hold = await self.hold_repository.get_by_id_fresh(hold_id)
             if hold is None:
                 raise NotFoundException(f"Hold {hold_id} not found")
             if hold.user_id != user_id:
@@ -93,12 +106,12 @@ class SeatHoldService:
             if hold.status != "active":
                 raise HoldStateError(hold_id, hold.status)
             if hold.expires_at <= now:
-                await self.hold_repository.mark_status(hold, "expired")
+                hold = await self.hold_repository.mark_status(hold.id, "expired")
             else:
-                await self.hold_repository.mark_status(hold, "released")
+                hold = await self.hold_repository.mark_status(hold.id, "released")
             seats = await self.hold_repository.get_seats(hold_id)
             await self.unit_of_work.commit()
-            return self._response(hold, [seat.seat_number for seat in seats])
+            return replace(hold, seats=tuple(seats))
         except Exception:
             await self.unit_of_work.rollback()
             raise
@@ -114,15 +127,3 @@ class SeatHoldService:
             ):
                 return candidate
         raise RuntimeError("Could not allocate a unique hold reference")
-
-    @staticmethod
-    def _response(hold, seat_numbers: list[str], status: str | None = None):
-        return {
-            "id": hold.id,
-            "user_id": hold.user_id,
-            "showtime_id": hold.showtime_id,
-            "seat_numbers": seat_numbers,
-            "status": status or hold.status,
-            "created_at": hold.created_at,
-            "expires_at": hold.expires_at,
-        }

@@ -1,8 +1,8 @@
 from fastapi import HTTPException, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials
 
+from app.domain.entities import UserEntity
 from app.domain.roles import Role
-from app.models.user import User
 from app.core.openapi_security import bearer_scheme
 
 
@@ -16,9 +16,9 @@ class RoleChecker:
         self,
         request: Request,
         _credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
-    ) -> User:
+    ) -> UserEntity:
         user = getattr(request.state, "current_user", None)
-        if not isinstance(user, User):
+        if not isinstance(user, UserEntity):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",

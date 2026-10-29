@@ -107,7 +107,6 @@ def ensure_database_exists(test_url: str, db_name: str) -> None:
         engine.dispose()
         return
     except Exception:
-        # Database probably doesn't exist yet; fall through to create it.
         engine.dispose()
 
     admin_url = _admin_url(test_url)
