@@ -103,3 +103,19 @@ Integration tests cần PostgreSQL riêng. Tạo `.env.test` từ `.env.test.exa
 ```
 
 Không dùng database ứng dụng hoặc production cho integration tests.
+
+### Kiểm chứng khóa trên PostgreSQL
+
+Cấu hình `TEST_DATABASE_URL` trong `.env.test` trỏ tới database test riêng, rồi chạy:
+
+```powershell
+.venv/Scripts/python.exe -m pytest tests/test_booking.py tests/test_concurrency.py -q
+```
+
+`tests/test_booking.py` kiểm tra luồng hold → payment → booking và xác nhận endpoint tạo booking trực tiếp không còn hoạt động.
+
+`tests/test_concurrency.py` dùng PostgreSQL thật, tạo schema `lock_test_<uuid>` riêng cho từng test và xóa đúng schema đó khi kết thúc. Tài khoản test cần quyền tạo schema. Dữ liệu mẫu được commit trước khi hai session độc lập bắt đầu; test xác nhận backend PID khác nhau và dùng `pg_blocking_pids()` để chứng minh request thứ hai đang chờ khóa. Đây không phải fixture proxy một session dùng cho test API thông thường.
+
+Các kịch bản: giữ trùng ghế; hai suất không khóa nhau; thanh toán đồng thời cùng hold; payment/release cạnh tranh theo cả hai thứ tự; tạo hold cạnh tranh payment; lỗi giữa payment rollback toàn bộ dữ liệu và có thể thanh toán lại. Test có timeout để tránh chờ khóa vô hạn.
+
+Các test này cần được chạy thành công trên PostgreSQL trước khi kết luận cơ chế khóa đã được kiểm chứng. Unit test dùng mock không thay thế kết quả này.

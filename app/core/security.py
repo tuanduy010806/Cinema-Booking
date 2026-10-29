@@ -36,3 +36,18 @@ def decode_access_token(token: str) -> dict:
     except jwt.InvalidTokenError:
         raise InvalidTokenError("could not validate") from None
     return payload
+
+
+class PasswordSecurityAdapter:
+    """Keep the existing password implementation behind the domain port."""
+
+    def hash(self, password: str) -> str:
+        return hash_password(password)
+
+    def verify(self, password: str, password_hash: str) -> bool:
+        return verify_password(password, password_hash)
+
+
+class JwtTokenIssuer:
+    def issue(self, user_id: int) -> str:
+        return create_access_token({"sub": str(user_id)})

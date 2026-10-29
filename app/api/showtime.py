@@ -1,3 +1,4 @@
+from app.domain.commands import CreateShowtimeCommand
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,7 +46,7 @@ async def create_showtime(
     service: ShowtimeService = Depends(get_showtime_service),
 ):
     """Create a showtime for an existing movie."""
-    return await service.create_showtime(payload)
+    return await service.create_showtime(CreateShowtimeCommand(**payload.model_dump()))
 
 
 @router.get("/{showtime_id}/seats", response_model=list[SeatResponse])

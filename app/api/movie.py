@@ -1,3 +1,4 @@
+from app.domain.commands import CreateMovieCommand, UpdateMovieCommand
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,7 +36,7 @@ async def get_movie(movie_id: int, service: MovieService = Depends(get_movie_ser
 )
 async def create_movie(payload: MovieCreate, service: MovieService = Depends(get_movie_service)):
     """Create a new movie."""
-    return await service.create_movie(payload)
+    return await service.create_movie(CreateMovieCommand(**payload.model_dump()))
 
 
 @router.put(
@@ -49,7 +50,7 @@ async def update_movie(
     service: MovieService = Depends(get_movie_service),
 ):
     """Update a movie."""
-    return await service.update_movie(movie_id, payload)
+    return await service.update_movie(movie_id, UpdateMovieCommand(**payload.model_dump()))
 
 
 @router.delete(

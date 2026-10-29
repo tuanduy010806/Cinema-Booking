@@ -1,172 +1,61 @@
-from types import SimpleNamespace
+"""Booking queries and cancellation use plain domain entities."""
+from dataclasses import replace
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock
 
 import pytest
 
-from app.core.exceptions import (
-    BookingStateError,
-    DuplicateSeatError,
-    NotFoundException,
-    OwnershipError,
-)
-from app.schemas.booking import BookingCreate
+from app.core.exceptions import BookingStateError, NotFoundException, OwnershipError
+from app.domain.entities import BookingEntity
 from app.services.booking_service import BookingService
 
 
-class FakeBookingRepository:
-    def __init__(self):
-        self.bookings = {}
-        self.next_id = 1
-        self.taken_seats = set()
-
-    async def check_seat_exists(self, showtime_id: int, seat_number: str):
-        return (showtime_id, seat_number) in self.taken_seats
-
-    async def create(self, data: dict, user_id: int):
-        booking = SimpleNamespace(
-            id=self.next_id,
-            user_id=user_id,
-            showtime_id=data["showtime_id"],
-            seat_number=data["seat_number"],
-            status="active",
-        )
-        self.next_id += 1
-        self.bookings[booking.id] = booking
-        self.taken_seats.add((booking.showtime_id, booking.seat_number))
-        return booking
-
-    async def get_by_user_id(self, user_id: int):
-        return [b for b in self.bookings.values() if b.user_id == user_id]
-
-    async def get_by_id(self, booking_id: int):
-        return self.bookings.get(booking_id)
-
-    async def update_status(self, booking_id: int, status: str):
-        self.bookings[booking_id].status = status
-        if status == "cancelled":
-            booking = self.bookings[booking_id]
-            self.taken_seats.discard((booking.showtime_id, booking.seat_number))
-        return self.bookings[booking_id]
-
-
-class FakeShowtimeRepository:
-    async def get_by_id(self, showtime_id: int):
-        if showtime_id == 1:
-            return SimpleNamespace(id=1, total_seats=5)
-        return None
-
-
 @pytest.fixture
-def service():
-    repository = FakeBookingRepository()
-    return BookingService(repository, FakeShowtimeRepository()), repository
+def context():
+    booking = BookingEntity(1, 7, 1, "4", "active", datetime.now(timezone.utc))
+    repo = AsyncMock()
+    repo.get_by_id.return_value = booking
+    repo.get_by_user_id.return_value = [booking]
+    repo.update_status.return_value = replace(booking, status="cancelled")
+    uow = AsyncMock()
+    return BookingService(repo, uow), repo, uow
 
 
 @pytest.mark.asyncio
-async def test_create_booking_uses_authenticated_user_and_numeric_seat(service):
-    booking_service, repository = service
+async def test_get_my_bookings(context):
+    service, repo, _ = context
+    assert (await service.get_my_bookings(7))[0].user_id == 7
+    repo.get_by_user_id.assert_awaited_once_with(7)
 
-    booking = await booking_service.create_booking(
-        user_id=7,
-        payload=BookingCreate(showtime_id=1, seat_number="3"),
+
+@pytest.mark.asyncio
+async def test_cancel_preserves_original_snapshot_and_commits(context):
+    service, repo, uow = context
+    assert (await service.cancel_booking(7, 1)).status == "cancelled"
+    assert repo.get_by_id.return_value.status == "active"
+    repo.update_status.assert_awaited_once_with(1, "cancelled")
+    uow.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("state,error", [(None, NotFoundException), ("other_owner", OwnershipError), ("cancelled", BookingStateError)])
+async def test_cancel_rejects_invalid_booking(context, state, error):
+    service, repo, uow = context
+    original = repo.get_by_id.return_value
+    repo.get_by_id.return_value = None if state is None else replace(
+        original, user_id=8 if state == "other_owner" else 7,
+        status="cancelled" if state == "cancelled" else "active",
     )
-
-    assert booking.user_id == 7
-    assert booking.seat_number == "3"
-    assert booking.status == "active"
-    assert repository.bookings[booking.id] is booking
-
-
-@pytest.mark.asyncio
-async def test_create_booking_rejects_missing_showtime(service):
-    booking_service, _ = service
-
-    with pytest.raises(NotFoundException, match="Showtime 999 not found"):
-        await booking_service.create_booking(
-            user_id=7, payload=BookingCreate(showtime_id=999, seat_number="1")
-        )
+    with pytest.raises(error):
+        await service.cancel_booking(7, 1)
+    repo.update_status.assert_not_awaited()
+    uow.commit.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_create_booking_rejects_seat_over_capacity(service):
-    booking_service, _ = service
-
-    with pytest.raises(NotFoundException, match="Seat 6 not found"):
-        await booking_service.create_booking(
-            user_id=7, payload=BookingCreate(showtime_id=1, seat_number="6")
-        )
-
-
-@pytest.mark.asyncio
-async def test_create_booking_rejects_active_duplicate(service):
-    booking_service, _ = service
-    payload = BookingCreate(showtime_id=1, seat_number="2")
-    await booking_service.create_booking(user_id=7, payload=payload)
-
-    with pytest.raises(DuplicateSeatError):
-        await booking_service.create_booking(user_id=8, payload=payload)
-
-
-@pytest.mark.asyncio
-async def test_get_my_bookings_only_returns_requested_user(service):
-    booking_service, _ = service
-    await booking_service.create_booking(
-        user_id=7, payload=BookingCreate(showtime_id=1, seat_number="1")
-    )
-    await booking_service.create_booking(
-        user_id=8, payload=BookingCreate(showtime_id=1, seat_number="2")
-    )
-
-    bookings = await booking_service.get_my_bookings(user_id=7)
-
-    assert len(bookings) == 1
-    assert bookings[0].user_id == 7
-
-
-@pytest.mark.asyncio
-async def test_cancel_booking_changes_active_to_cancelled_and_reopens_seat(service):
-    booking_service, _ = service
-    booking = await booking_service.create_booking(
-        user_id=7, payload=BookingCreate(showtime_id=1, seat_number="4")
-    )
-
-    cancelled = await booking_service.cancel_booking(user_id=7, booking_id=booking.id)
-    rebooked = await booking_service.create_booking(
-        user_id=8, payload=BookingCreate(showtime_id=1, seat_number="4")
-    )
-
-    assert cancelled.status == "cancelled"
-    assert rebooked.status == "active"
-    assert rebooked.user_id == 8
-
-
-@pytest.mark.asyncio
-async def test_cancel_booking_rejects_missing_booking(service):
-    booking_service, _ = service
-
-    with pytest.raises(NotFoundException, match="Booking 999 not found"):
-        await booking_service.cancel_booking(user_id=7, booking_id=999)
-
-
-@pytest.mark.asyncio
-async def test_cancel_booking_rejects_non_owner(service):
-    booking_service, _ = service
-    booking = await booking_service.create_booking(
-        user_id=7, payload=BookingCreate(showtime_id=1, seat_number="5")
-    )
-
-    with pytest.raises(OwnershipError):
-        await booking_service.cancel_booking(user_id=8, booking_id=booking.id)
-
-    assert booking.status == "active"
-
-
-@pytest.mark.asyncio
-async def test_cancel_booking_rejects_already_cancelled_booking(service):
-    booking_service, _ = service
-    booking = await booking_service.create_booking(
-        user_id=7, payload=BookingCreate(showtime_id=1, seat_number="1")
-    )
-    await booking_service.cancel_booking(user_id=7, booking_id=booking.id)
-
-    with pytest.raises(BookingStateError):
-        await booking_service.cancel_booking(user_id=7, booking_id=booking.id)
+async def test_cancel_rolls_back_write_failure(context):
+    service, repo, uow = context
+    repo.update_status.side_effect = RuntimeError("write failed")
+    with pytest.raises(RuntimeError, match="write failed"):
+        await service.cancel_booking(7, 1)
+    uow.rollback.assert_awaited_once()

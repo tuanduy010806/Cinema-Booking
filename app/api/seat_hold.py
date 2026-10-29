@@ -1,8 +1,10 @@
+from app.domain.commands import CreateHoldCommand
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import UserIdentity, get_current_user
 from app.db.database import get_db
+from app.core.config import settings
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.payment_repository import PaymentRepository
 from app.repositories.seat_hold_repository import SeatHoldRepository
@@ -21,6 +23,7 @@ def get_seat_hold_service(db: AsyncSession = Depends(get_db)) -> SeatHoldService
         BookingRepository(db),
         PaymentRepository(db),
         SqlAlchemyUnitOfWork(db),
+        hold_ttl_seconds=settings.SEAT_HOLD_TTL_SECONDS,
     )
 
 
@@ -30,7 +33,10 @@ async def create_seat_hold(
     current_user: UserIdentity = Depends(get_current_user),
     service: SeatHoldService = Depends(get_seat_hold_service),
 ) -> SeatHoldResponse:
-    return await service.create_hold(user_id=current_user.id, payload=payload)
+    command = CreateHoldCommand(
+        showtime_id=payload.showtime_id, seat_numbers=tuple(payload.seat_numbers)
+    )
+    return await service.create_hold(user_id=current_user.id, payload=command)
 
 
 @router.get("/{hold_id}", response_model=SeatHoldResponse)
