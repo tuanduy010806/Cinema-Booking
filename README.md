@@ -124,9 +124,8 @@ Khi phát triển pha 2, có thể ưu tiên xử lý các việc sau:
 | 1 | **Hai người có thể giữ cùng một ghế** | Ứng dụng kiểm tra ghế trước khi tạo lượt giữ. Nếu nhiều người chọn cùng lúc, ghế có thể bị giữ trùng. | Thêm quy tắc trong database để mỗi ghế chỉ được một người giữ tại một thời điểm. |
 | 2 | **Thanh toán chỉ dùng để demo** | Hệ thống tự ghi nhận thanh toán thành công. | Kết nối cổng thanh toán và cập nhật booking theo kết quả thanh toán. |
 | 3 | **Ghế hết hạn chưa được tự giải phóng** | Hệ thống chỉ nhận ra lượt giữ hết hạn khi có yêu cầu đọc hoặc cập nhật dữ liệu. | Thêm tác vụ chạy định kỳ để cập nhật lượt giữ hết hạn và giải phóng ghế. |
-| 4 | **Database chưa ngăn một số dữ liệu trùng hoặc thiếu liên kết** | Có thể tạo booking trùng ghế trong cùng suất chiếu; khoản thanh toán chưa liên kết với lượt giữ. | Thêm quy tắc để ngăn booking trùng và liên kết payment với hold. |
-| 5 | **Gửi lại yêu cầu có thể tạo lượt giữ mới** | Nếu mất kết nối, ứng dụng phía người dùng có thể gửi lại yêu cầu và tạo thêm lượt giữ. Việc gửi lại thanh toán cho cùng hold đã được hỗ trợ. | Gắn mã riêng cho mỗi yêu cầu giữ ghế để gửi lại mà không tạo lượt giữ mới. |
-| 6 | **Database phải đọc lại dữ liệu nhiều lần** | Phim, suất chiếu và người dùng được đọc trực tiếp từ database mỗi lần cần. | Lưu tạm dữ liệu ít thay đổi để giảm số lần đọc và tăng tốc độ phản hồi. |
-| 7 | **Danh sách chưa chia trang** | API trả về toàn bộ phim, suất chiếu, booking hoặc payment cùng lúc. | Cho phép tải từng trang để danh sách lớn dễ xem và tải nhanh hơn. |
-| 8 | **Chưa làm mới hoặc thu hồi token** | Token có thời hạn nhưng chưa có chức năng làm mới hoặc đăng xuất để vô hiệu hóa token. | Thêm chức năng làm mới token và đăng xuất khỏi tài khoản. |
-| 9 | **Số kết nối database đang đặt cố định** | Mỗi tiến trình API có thể mở tối đa 30 kết nối. | Điều chỉnh số kết nối theo số tiến trình API và khả năng của database. |
+| 4 | **Gửi lại yêu cầu có thể tạo lượt giữ mới** | Nếu mất kết nối, ứng dụng phía người dùng có thể gửi lại yêu cầu và tạo thêm lượt giữ. Việc gửi lại thanh toán cho cùng hold đã được hỗ trợ. | Gắn mã riêng cho mỗi yêu cầu giữ ghế để gửi lại mà không tạo lượt giữ mới. |
+| 5 | **Database phải đọc lại dữ liệu nhiều lần** | Phim, suất chiếu và người dùng được đọc trực tiếp từ database mỗi lần cần. | Lưu tạm dữ liệu ít thay đổi để giảm số lần đọc và tăng tốc độ phản hồi. |
+| 6 | **Danh sách chưa chia trang** | API trả về toàn bộ phim, suất chiếu, booking hoặc payment cùng lúc. | Cho phép tải từng trang để danh sách lớn dễ xem và tải nhanh hơn. |
+| 7 | **Chưa làm mới hoặc thu hồi token** | Token có thời hạn nhưng chưa có chức năng làm mới hoặc đăng xuất để vô hiệu hóa token. | Thêm chức năng làm mới token và đăng xuất khỏi tài khoản. |
+| 8 | **Số kết nối database đang đặt cố định** | Mỗi tiến trình API có thể mở tối đa 30 kết nối. | Điều chỉnh số kết nối theo số tiến trình API và khả năng của database. |
