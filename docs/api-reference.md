@@ -1,6 +1,8 @@
 # Tham chiếu API
 
-[Quay lại README](../README.md). Tài liệu này mô tả các endpoint hiện có trong mã nguồn. Có thể xem schema đầy đủ và thử request tại [Swagger UI](http://localhost:8000/docs) khi ứng dụng đang chạy.
+[Quay lại README](../README.md). 
+
+Tài liệu này mô tả các endpoint hiện có trong mã nguồn. Có thể xem schema đầy đủ và thử request tại [Swagger UI](http://localhost:8000/docs) khi ứng dụng đang chạy.
 
 Base URL local: `http://localhost:8000`. Request body dùng JSON. Các ID là số nguyên; thời gian dùng ISO 8601. API cần đăng nhập sử dụng header `Authorization: Bearer <access_token>`. Đăng ký tạo tài khoản với vai trò `USER`; endpoint quản trị yêu cầu `ADMIN`.
 
@@ -36,6 +38,6 @@ Base URL local: `http://localhost:8000`. Request body dùng JSON. Các ID là s�
 
 - Booking chỉ được tạo sau khi thanh toán hold thành công. Khi giữ ghế, thanh toán hoặc giải phóng hold, service khóa hàng suất chiếu để tuần tự hóa các thao tác trên cùng suất. Database hiện chưa có unique constraint cuối cùng cho ghế của booking đang hoạt động.
 - `start_time` của suất chiếu được lưu và trả về theo UTC. Nếu request không có offset, API hiểu đó là UTC; nếu có offset, API đổi sang UTC. Ví dụ `2026-12-01T18:00:00+07:00` được trả về là `2026-12-01T11:00:00`.
-- Hold mặc định có thời hạn 300 giây (`SEAT_HOLD_TTL_SECONDS`). Ghế hết hạn được tính là khả dụng khi API kiểm tra; chưa có worker nền.
+- Hold mặc định có thời hạn 300 giây (`SEAT_HOLD_TTL_SECONDS`). Ghế hết hạn được tính là khả dụng khi API kiểm tra.
 - Thanh toán là mô phỏng. Số tiền mỗi ghế lấy từ `DEMO_PAYMENT_AMOUNT_VND`; payment thành công tạo booking cho các ghế trong hold.
-- `GET /api/v1/holds/{hold_id}` có thể trả trạng thái `expired` khi hold đã quá hạn, dù bản ghi chưa được cập nhật cho đến khi có thao tác ghi.
+
