@@ -164,7 +164,3 @@ Locust chạy 50 người dùng ảo, tăng 5 người mỗi giây trong 60 giâ
 | RAM trung bình / cao nhất | 1.231 / 1.467 MB |
 | RAM tăng so với ban đầu | 426,4 MB |
 | Kết nối PostgreSQL hoạt động cao nhất | 31 |
-
-![Dashboard kết quả kiểm thử tải trên Kaggle CPU](docs/images/kaggle-load-test-dashboard.png)
-
-*Biểu đồ độ trễ, thông lượng, request lỗi, CPU, RAM và kết nối PostgreSQL trong lần chạy đã ghi nhận.*

@@ -1,103 +1,79 @@
 # Hệ thống đặt vé xem phim
 
-REST API đặt vé xem phim, xây dựng bằng **FastAPI** và **PostgreSQL**. Dự án hỗ trợ tra cứu phim, suất chiếu và tình trạng ghế; đăng ký/đăng nhập; đặt ghế trực tiếp hoặc giữ ghế tạm thời; thanh toán mô phỏng.
+REST API đặt vé xem phim, xây dựng bằng **Python 3.12, FastAPI và PostgreSQL 16**. Hệ thống hỗ trợ tra cứu phim, suất chiếu và ghế; đăng ký, đăng nhập bằng JWT; đặt ghế, giữ ghế tạm thời và thanh toán mô phỏng.
 
 ## 1. Bài toán và phạm vi
 
-Hệ thống cung cấp API để khách tra cứu phim và suất chiếu, kiểm tra ghế còn trống, sau đó tạo booking hoặc giữ ghế trước khi thanh toán demo.
+Khách có thể tìm phim, chọn suất chiếu và kiểm tra ghế trước khi đặt. Người dùng đã đăng nhập có thể đặt ghế trực tiếp hoặc giữ ghế trong thời gian giới hạn trước khi thanh toán.
 
-- **Khách chưa đăng nhập:** xem danh sách/chi tiết phim, suất chiếu và tình trạng ghế; đăng ký, đăng nhập.
-- **Người dùng (`USER`):** tạo booking, xem và hủy booking của mình; tạo, xem và giải phóng giữ ghế; thanh toán giữ ghế bằng luồng mô phỏng.
-- **Quản trị viên (`ADMIN`):** có quyền người dùng và được tạo/sửa/xóa phim, tạo suất chiếu.
+- **Khách chưa đăng nhập:** xem phim, suất chiếu và tình trạng ghế; đăng ký hoặc đăng nhập.
+- **`USER`:** tạo và xem booking của mình; giữ, xem và giải phóng ghế; thanh toán mô phỏng.
+- **`ADMIN`:** thực hiện các quyền của người dùng và quản lý phim, tạo suất chiếu.
 
-**Tính năng hiện tại:** xác thực JWT, phân quyền, quản lý phim và suất chiếu, tra cứu ghế, booking trực tiếp, giữ ghế có thời hạn, thanh toán mô phỏng và xem lịch sử booking/payment.
+Booking được hủy bằng cách cập nhật trạng thái. Hold mặc định có hiệu lực 300 giây; thời hạn có thể đổi bằng `SEAT_HOLD_TTL_SECONDS`. Giá thanh toán demo do backend cấu hình qua `DEMO_PAYMENT_AMOUNT_VND`.
 
-**Giới hạn hiện tại:** payment không kết nối cổng thanh toán thật; chưa có giao diện đặt vé hoàn chỉnh, sơ đồ ghế theo hàng/cột, email thông báo hay worker nền. Thời hạn giữ ghế được áp dụng khi API đọc/ghi dữ liệu, không cần worker để ghế hết hạn ngừng bị tính là đang giữ. Kiểm tra ghế hiện chủ yếu ở tầng ứng dụng; chưa có ràng buộc database thống nhất để ngăn mọi trường hợp đặt/giữ cùng ghế đồng thời.
+## 2. API và bảo mật
 
-## 2. Nghiệp vụ chính
+API dùng REST và JSON. Tài liệu tương tác được cung cấp qua Swagger UI tại <http://localhost:8000/docs> khi API đang chạy.
 
-### 2.1. Tài khoản và quản lý rạp
+| Nhóm endpoint | Quyền | Chức năng |
+| --- | --- | --- |
+| `/api/v1/auth` | Public và người dùng đã đăng nhập | Đăng ký, đăng nhập, xem tài khoản hiện tại |
+| `/api/v1/movies` | Public đọc; `ADMIN` ghi | Liệt kê, xem, tạo, cập nhật và xóa phim |
+| `/api/v1/showtimes` | Public đọc; `ADMIN` tạo | Tra cứu suất chiếu, lọc theo `movie_id`, tạo suất chiếu |
+| `/api/v1/showtimes/{showtime_id}/seats` | Public | Xem trạng thái ghế của suất chiếu |
+| `/api/v1/bookings` | Người dùng đã đăng nhập | Tạo, xem booking của mình và hủy booking |
+| `/api/v1/holds` | Người dùng đã đăng nhập | Tạo, xem và giải phóng hold của mình |
+| `/api/v1/payments` | Người dùng đã đăng nhập | Thanh toán hold mô phỏng và xem lịch sử payment |
 
-Người dùng đăng ký bằng email và mật khẩu → hệ thống tạo tài khoản `USER` và trả access token JWT → client gửi `Authorization: Bearer <access_token>` khi gọi API cần đăng nhập. Vai trò `ADMIN` được đọc từ dữ liệu user trong database; đăng ký thông thường không tự cấp quyền quản trị.
+Mật khẩu được băm trước khi lưu. API dùng Bearer JWT để xác thực; thao tác quản trị yêu cầu role `ADMIN`. Booking, hold và payment được giới hạn theo chủ sở hữu.
 
-ADMIN tạo phim, sau đó tạo suất chiếu cho phim đã có và khai báo sức chứa. API công khai cho phép xem phim, suất chiếu và trạng thái từng ghế. Danh sách suất chiếu có thể lọc theo `movie_id`.
+## 3. Kiến trúc và tổ chức mã nguồn
 
-### 2.2. Tra cứu, giữ ghế và đặt vé
-
-1. Khách lấy danh sách phim và suất chiếu qua các API công khai.
-2. `GET /api/v1/showtimes/{showtime_id}/seats` trả danh sách ghế và trạng thái khả dụng dựa trên booking/hold hiện tại.
-3. Người dùng có thể đặt ghế trực tiếp qua `POST /api/v1/bookings/`, hoặc tạo hold qua `POST /api/v1/holds`.
-4. Hold gắn với người dùng, suất chiếu và danh sách ghế; thời hạn mặc định là 300 giây, cấu hình bằng `SEAT_HOLD_TTL_SECONDS`.
-5. Thanh toán demo qua `POST /api/v1/payments` tạo payment và booking tương ứng. Mức tiền do backend cấu hình qua `DEMO_PAYMENT_AMOUNT_VND`, không nhận giá tùy ý từ client. Gửi lại yêu cầu thanh toán cho hold đã thanh toán trả lại kết quả cũ.
-6. Người dùng xem booking tại `GET /api/v1/bookings/me` và payment tại `GET /api/v1/payments/me`. Hủy booking là đổi trạng thái, không xóa bản ghi.
-
-
-### 2.3. Xác thực và phân quyền
-
-Mật khẩu được băm trước khi lưu. Middleware kiểm tra Bearer JWT và nạp người dùng trước khi xử lý route; endpoint yêu cầu đăng nhập kiểm tra danh tính, còn thao tác quản trị kiểm tra thêm role `ADMIN`. Quyền sở hữu booking, hold và payment được giới hạn theo người dùng hiện tại.
-
-## 3. API và bảo mật
-
-API dùng REST và JSON. Swagger UI tại <http://localhost:8000/docs> cung cấp tài liệu tương tác khi ứng dụng đang chạy. Các endpoint chính:
-
-| Method | Endpoint | Quyền | Mục đích |
-| --- | --- | --- | --- |
-| `POST` | `/api/v1/auth/register` | Public | Đăng ký tài khoản `USER` và nhận token |
-| `POST` | `/api/v1/auth/login` | Public | Đăng nhập và nhận token |
-| `GET` | `/api/v1/auth/me` | Đã đăng nhập | Xem tài khoản hiện tại |
-| `GET` | `/api/v1/movies`, `/api/v1/movies/{movie_id}` | Public | Liệt kê và xem chi tiết phim |
-| `POST`, `PUT`, `DELETE` | `/api/v1/movies` và `/api/v1/movies/{movie_id}` | `ADMIN` | Tạo, cập nhật và xóa phim |
-| `GET`, `POST` | `/api/v1/showtimes` | Public đọc; `ADMIN` tạo | Tra cứu suất chiếu (lọc `movie_id`) và tạo suất chiếu |
-| `GET` | `/api/v1/showtimes/{showtime_id}/seats` | Public | Xem trạng thái ghế |
-| `POST` | `/api/v1/bookings/` | Đã đăng nhập | Tạo booking |
-| `GET` | `/api/v1/bookings/me` | Đã đăng nhập | Xem booking của mình |
-| `DELETE` | `/api/v1/bookings/{booking_id}` | Chủ booking | Hủy booking |
-| `POST` | `/api/v1/holds` | Đã đăng nhập | Tạo hold |
-| `GET`, `DELETE` | `/api/v1/holds/{hold_id}` | Chủ hold | Xem hoặc giải phóng hold |
-| `POST` | `/api/v1/payments` | Đã đăng nhập | Thanh toán hold mô phỏng |
-| `GET` | `/api/v1/payments/me` | Đã đăng nhập | Xem lịch sử payment của mình |
-
-Các endpoint cần tài khoản nhận Bearer JWT. Mật khẩu được băm trước khi lưu; quyền `ADMIN` kiểm tra ở API. Booking, hold và payment chỉ được truy cập theo chủ sở hữu.
-
-## 4. Các vấn đề kỹ thuật cần lưu ý
-
-- **Đặt/giữ cùng ghế đồng thời:** precheck ở service không tự bảo đảm loại trừ giữa nhiều request hoặc nhiều worker. Cần ràng buộc/chiến lược khóa ở database cùng kiểm thử concurrency trước khi triển khai bán vé thực tế.
-- **Schema database:** `scripts/init_db.py` dùng `metadata.create_all()` để tạo bảng còn thiếu; không cập nhật schema đã tồn tại. Repo chưa cấu hình migration.
-- **Thanh toán:** payment hiện là mô phỏng nội bộ, không xác nhận giao dịch với nhà cung cấp và không xử lý webhook/hoàn tiền.
-- **Thời gian:** hold được lọc theo `expires_at`; chưa có worker nền. Suất chiếu dùng kiểu thời gian cần được cấu hình nhất quán giữa client và môi trường triển khai.
-- **Kiểm thử tải:** Locust có các luồng tra cứu, xác thực, booking, hold, payment và thao tác quản trị. Bài chạy hiện tại chưa kiểm tra nhiều người cùng tranh một ghế; kết quả Kaggle cũng chỉ phản ánh cấu hình và thời lượng của lần chạy đã ghi nhận.
-
-## 5. Kiến trúc, tổ chức mã nguồn và công nghệ
-
-Ứng dụng là một REST API FastAPI, chia theo các lớp API, service, repository và model, dùng PostgreSQL làm nơi lưu trữ. Luồng xử lý chính: **HTTP request → middleware xác thực → router/schema → service nghiệp vụ → repository/SQLAlchemy → PostgreSQL → response**.
+Ứng dụng chia thành các lớp API, service, repository và model. Luồng xử lý chính: **HTTP request → middleware → router/schema → service → repository/SQLAlchemy → PostgreSQL**.
 
 ```text
 app/
-  main.py                 # Khởi tạo FastAPI, middleware, exception handler và router
-  api/                    # Endpoint HTTP và wiring dependency
-  core/                   # Cấu hình, JWT/hash, middleware, phân quyền, exception
-  db/database.py          # Engine, AsyncSession và dependency database
-  domain/                 # Role và interface UnitOfWork
-  models/                 # Các bảng ORM
-  repositories/           # Truy vấn dữ liệu và UnitOfWork SQLAlchemy
-  schemas/                # Schema request/response bằng Pydantic
-  services/               # Quy tắc nghiệp vụ
-scripts/
-  init_db.py              # Tạo các bảng còn thiếu
-tests/                    # Unit và integration tests
-load_test/
-  load_test.py            # Kịch bản tải Locust cho các luồng API
-data/                     # Dữ liệu mẫu được seeder sử dụng
+  api/             # Endpoint và dependency
+  core/            # Cấu hình, JWT, middleware, phân quyền và xử lý lỗi
+  db/              # Engine và phiên làm việc SQLAlchemy
+  domain/          # Role và interface nghiệp vụ
+  models/          # ORM models
+  repositories/    # Truy vấn và Unit of Work
+  schemas/         # Kiểm tra request/response bằng Pydantic
+  services/        # Quy tắc nghiệp vụ
+scripts/           # Khởi tạo database
+tests/            # Unit và integration tests
+load_test/         # Kịch bản kiểm thử tải Locust
+data/              # Dữ liệu mẫu cho seeder
 ```
 
-- **Python 3.12, FastAPI, Uvicorn:** runtime, framework API và ASGI server.
-- **SQLAlchemy async, asyncpg, PostgreSQL 16:** ORM và truy cập database bất đồng bộ.
-- **Pydantic, pydantic-settings:** kiểm tra dữ liệu request/response và đọc cấu hình.
-- **PyJWT, pwdlib:** access token và băm mật khẩu.
-- **Docker, Docker Compose:** chạy API và PostgreSQL cho môi trường local.
+Các công nghệ chính: **FastAPI, Uvicorn, SQLAlchemy async, asyncpg, PostgreSQL, Pydantic, PyJWT, pwdlib, Docker Compose và Locust**.
 
-Các router chính: `/api/v1/auth`, `/api/v1/movies`, `/api/v1/showtimes`, `/api/v1/bookings`, `/api/v1/holds`, `/api/v1/payments`.
+## 4. Cài đặt và chạy
 
-## 6. Hướng dẫn chạy và Docker
+Hướng dẫn đầy đủ về Docker, chạy API bằng Python, nạp dữ liệu mẫu, tài khoản mẫu và kiểm thử nằm trong [setup.md](setup.md).
 
-Xem [setup.md](setup.md) để cài đặt, chạy API cùng PostgreSQL bằng Docker hoặc Python, nạp dữ liệu mẫu, truy cập tài liệu API và chạy kiểm thử.
+## 5. Hướng dẫn tiếp tục phát triển
+
+- Thêm hoặc sửa endpoint trong `app/api/`, schema request/response trong `app/schemas/`.
+- Đặt quy tắc nghiệp vụ trong `app/services/`; thao tác dữ liệu thuộc `app/repositories/` và model trong `app/models/`.
+- Cập nhật cấu hình môi trường trong `.env.example` khi thêm biến mới.
+- Khi thay đổi luồng booking, hold hoặc payment, giữ các thao tác ghi liên quan trong cùng transaction và cập nhật kiểm thử tương ứng.
+- `scripts/init_db.py` chỉ tạo các bảng còn thiếu. Repo hiện chưa cấu hình công cụ migration schema.
+
+## 6. Demo Phase 1
+
+1. Khởi động ứng dụng theo [setup.md](setup.md), sau đó mở Swagger UI.
+2. Xem danh sách phim, chọn suất chiếu và kiểm tra ghế còn trống.
+3. Đăng ký hoặc đăng nhập để nhận JWT; dùng token để tạo booking hoặc giữ ghế.
+4. Thanh toán hold bằng luồng mô phỏng, xem booking/payment của tài khoản hoặc hủy booking.
+5. Đăng nhập bằng tài khoản ADMIN mẫu để tạo phim và suất chiếu.
+
+## 7. Giới hạn hiện tại
+
+- Thanh toán chỉ mô phỏng, chưa kết nối ngân hàng/cổng thanh toán và chưa xử lý webhook hay hoàn tiền.
+- Chưa có giao diện đặt vé hoàn chỉnh, sơ đồ ghế theo hàng/cột, email thông báo hoặc worker nền.
+- Việc kiểm tra ghế trống chủ yếu ở tầng ứng dụng; nhiều request đồng thời có thể tranh cùng ghế. Chưa có ràng buộc database bảo đảm loại trừ mọi trường hợp.
+- Hold hết hạn được tính lại khi API đọc/ghi dữ liệu; chưa có worker xử lý nền.
+- Kiểm thử tải đã ghi nhận phản ánh cấu hình và thời lượng của lần chạy cụ thể; chưa kiểm tra tình huống nhiều người cùng tranh một ghế.
