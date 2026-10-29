@@ -72,15 +72,6 @@ docs/              # Tài liệu API, cài đặt và sơ đồ
 
 Công nghệ chính: **FastAPI, SQLAlchemy async, PostgreSQL, Pydantic, JWT, Docker Compose và Locust**.
 
-### Độc lập tầng nghiệp vụ
-
-Service nhận command thuần Python từ `app/domain/commands.py`, làm việc với entity trong `app/domain/entities.py` và các repository port trong `app/domain/ports.py`. Repository chuyển dữ liệu ORM thành entity trước khi trả về service. Unit of Work có hợp đồng tại `app/domain/unit_of_work.py`; bản cài đặt SQLAlchemy quản lý commit và rollback.
-
-Router chuyển dữ liệu đã kiểm tra bằng Pydantic thành command và trả response theo schema công khai. Các provider trong `app/api/providers.py` ghép repository, Unit of Work, adapter bảo mật và service. `UserEntity` không chứa password hash; luồng đăng nhập dùng `UserCredentials` để lấy thông tin cần xác minh mật khẩu.
-
-`showtimes.start_time` được lưu ở dạng UTC không có timezone để tương thích với cột PostgreSQL hiện tại. API hiểu timestamp không có offset là UTC, đổi timestamp có offset sang UTC khi nhận và trả thời gian UTC không có offset. Quy ước này không tự chuyển đổi dữ liệu suất chiếu đã tồn tại; cần xác minh timezone của dữ liệu cũ trước khi dùng database hiện hữu.
-
-Chạy kiểm thử không cần database bằng `python -m pytest tests/unit -q`. Các test kiểm tra ranh giới import, entity/ORM mapping, ánh xạ HTTP, cấu hình được truyền vào và transaction của service; kiểm thử tích hợp PostgreSQL vẫn cần `TEST_DATABASE_URL` riêng.
 
 ## 5. Cài đặt và chạy
 
