@@ -16,11 +16,8 @@ Hold mặc định có hiệu lực 300 giây (`SEAT_HOLD_TTL_SECONDS`). Giá m�
 
 ### Kiến trúc hệ thống
 
-Ứng dụng dùng FastAPI cho HTTP API và PostgreSQL để lưu dữ liệu. Các router nhận request, xác thực dữ liệu bằng Pydantic schema rồi gọi service. Provider trong `app/api/providers.py` tạo service cùng repository và Unit of Work cho request. Repository dùng SQLAlchemy bất đồng bộ để ánh xạ giữa bản ghi database và entity của ứng dụng.
-
-`AuthMiddleware` kiểm tra mọi Bearer token được gửi kèm request, nạp lại người dùng từ database và đặt `UserEntity` vào `request.state.current_user`. Request không có token vẫn có thể truy cập các route công khai; route cần đăng nhập dùng dependency đọc identity, còn `RoleChecker` giới hạn thao tác ADMIN. Các thao tác tạo hold, thanh toán và giải phóng hold khóa bản ghi suất chiếu trong lúc xử lý. Payment, booking, liên kết ghế với booking và trạng thái hold được commit trong cùng transaction.
-
-Thanh toán hiện chỉ được mô phỏng trong ứng dụng, chưa kết nối cổng thanh toán bên ngoài.
+Ứng dụng dùng FastAPI và PostgreSQL để cung cấp API đặt vé. Người dùng xem phim, chọn suất chiếu và ghế còn trống, đăng nhập rồi giữ ghế tạm thời. 
+Khi thanh toán mô phỏng thành công, hệ thống tạo booking và lưu thông tin thanh toán. Người dùng có thể xem hoặc hủy booking; ADMIN quản lý phim và suất chiếu.
 
 ![Sơ đồ kiến trúc hệ thống Cinema Booking](docs/images/architecture.svg)
 
@@ -28,7 +25,8 @@ Mã nguồn sơ đồ thành phần và sequence luồng giữ ghế/thanh toán
 
 ### Thiết kế cơ sở dữ liệu
 
-Cơ sở dữ liệu gồm các bảng `users`, `movies`, `showtimes`, `bookings`, `seat_holds`, `seat_hold_seats` và `payments`. `payments.hold_id` có ràng buộc duy nhất nhưng chưa phải khóa ngoại. Bảng `bookings` chưa có ràng buộc duy nhất cho một ghế trong một suất chiếu; các service hiện tại tuần tự hóa thao tác liên quan bằng khóa bản ghi suất chiếu.
+Cơ sở dữ liệu gồm các bảng `users`, `movies`, `showtimes`, `bookings`, `seat_holds`, `seat_hold_seats` và `payments`. `payments.hold_id` có ràng buộc duy nhất nhưng chưa phải khóa ngoại. 
+Bảng `bookings` chưa có ràng buộc duy nhất cho một ghế trong một suất chiếu; các service hiện tại tuần tự hóa thao tác liên quan bằng khóa bản ghi suất chiếu.
 
 ![Sơ đồ mô hình dữ liệu Cinema Booking](docs/images/database.svg)
 
