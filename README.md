@@ -119,12 +119,14 @@ API, PostgreSQL và Locust chạy cùng máy Kaggle. Kịch bản dùng 50 ngư�
 
 Khi phát triển pha 2, có thể ưu tiên xử lý các việc sau:
 
-1. **Ngăn hai người giữ cùng một ghế:** Hiện ứng dụng kiểm tra ghế trước khi tạo lượt giữ. Nếu nhiều người chọn cùng lúc, họ vẫn có thể giữ trùng ghế. Có thể bổ sung quy tắc trong database để chỉ một người giữ được ghế đó.
-2. **Kết nối thanh toán thật:** Hiện hệ thống tự ghi nhận thanh toán thành công để phục vụ demo. Có thể kết nối với một cổng thanh toán và cập nhật booking theo kết quả trả về.
-3. **Tự xử lý lượt giữ đã hết hạn:** Hiện hệ thống nhận ra lượt giữ hết hạn khi có yêu cầu đọc hoặc cập nhật dữ liệu. Có thể thêm tác vụ chạy định kỳ để tự cập nhật và giải phóng ghế hết hạn.
-4. **Bổ sung quy tắc bảo vệ dữ liệu:** Database hiện chưa ngăn việc tạo hai booking cho cùng một ghế trong một suất chiếu, và khoản thanh toán chưa được liên kết chặt với lượt giữ. Có thể thêm các quy tắc này để hạn chế dữ liệu sai hoặc bị trùng.
-5. **Xử lý yêu cầu giữ ghế bị gửi lại:** Nếu mạng lỗi, ứng dụng phía người dùng có thể gửi lại yêu cầu và vô tình tạo thêm lượt giữ. Có thể gắn một mã riêng cho mỗi yêu cầu để lần gửi lại nhận được kết quả cũ. Thanh toán cho cùng một lượt giữ hiện đã hỗ trợ gửi lại.
-6. **Giảm việc đọc database lặp lại:** Phim, suất chiếu và người dùng hiện được đọc trực tiếp từ database mỗi lần cần. Có thể lưu tạm những dữ liệu ít thay đổi để phản hồi nhanh hơn và giảm tải cho database.
-7. **Chia danh sách thành từng phần:** Các API danh sách hiện trả về toàn bộ kết quả. Có thể cho phép tải từng trang để danh sách lớn tải nhanh và dễ xem hơn.
-8. **Bổ sung quản lý đăng nhập:** Access token hiện có thời hạn, nhưng chưa có cách làm mới token hoặc đăng xuất để vô hiệu hóa token. Có thể bổ sung hai chức năng này để người dùng không phải đăng nhập lại thường xuyên và có thể kết thúc phiên đăng nhập an toàn.
-9. **Điều chỉnh số kết nối database:** Mỗi tiến trình API hiện có thể mở tối đa 30 kết nối database. Có thể điều chỉnh con số này theo số tiến trình API và khả năng xử lý của database khi hệ thống có nhiều người dùng hơn.
+| # | Vấn đề | Hiện trạng | Hướng cải tiến |
+| --- | --- | --- | --- |
+| 1 | **Hai người có thể giữ cùng một ghế** | Ứng dụng kiểm tra ghế trước khi tạo lượt giữ. Nếu nhiều người chọn cùng lúc, ghế có thể bị giữ trùng. | Thêm quy tắc trong database để mỗi ghế chỉ được một người giữ tại một thời điểm. |
+| 2 | **Thanh toán chỉ dùng để demo** | Hệ thống tự ghi nhận thanh toán thành công. | Kết nối cổng thanh toán và cập nhật booking theo kết quả thanh toán. |
+| 3 | **Ghế hết hạn chưa được tự giải phóng** | Hệ thống chỉ nhận ra lượt giữ hết hạn khi có yêu cầu đọc hoặc cập nhật dữ liệu. | Thêm tác vụ chạy định kỳ để cập nhật lượt giữ hết hạn và giải phóng ghế. |
+| 4 | **Database chưa ngăn một số dữ liệu trùng hoặc thiếu liên kết** | Có thể tạo booking trùng ghế trong cùng suất chiếu; khoản thanh toán chưa liên kết với lượt giữ. | Thêm quy tắc để ngăn booking trùng và liên kết payment với hold. |
+| 5 | **Gửi lại yêu cầu có thể tạo lượt giữ mới** | Nếu mất kết nối, ứng dụng phía người dùng có thể gửi lại yêu cầu và tạo thêm lượt giữ. Việc gửi lại thanh toán cho cùng hold đã được hỗ trợ. | Gắn mã riêng cho mỗi yêu cầu giữ ghế để gửi lại mà không tạo lượt giữ mới. |
+| 6 | **Database phải đọc lại dữ liệu nhiều lần** | Phim, suất chiếu và người dùng được đọc trực tiếp từ database mỗi lần cần. | Lưu tạm dữ liệu ít thay đổi để giảm số lần đọc và tăng tốc độ phản hồi. |
+| 7 | **Danh sách chưa chia trang** | API trả về toàn bộ phim, suất chiếu, booking hoặc payment cùng lúc. | Cho phép tải từng trang để danh sách lớn dễ xem và tải nhanh hơn. |
+| 8 | **Chưa làm mới hoặc thu hồi token** | Token có thời hạn nhưng chưa có chức năng làm mới hoặc đăng xuất để vô hiệu hóa token. | Thêm chức năng làm mới token và đăng xuất khỏi tài khoản. |
+| 9 | **Số kết nối database đang đặt cố định** | Mỗi tiến trình API có thể mở tối đa 30 kết nối. | Điều chỉnh số kết nối theo số tiến trình API và khả năng của database. |
