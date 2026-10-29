@@ -37,7 +37,30 @@ Các lần ghi nhiều bản ghi trong luồng booking/payment được thực h
 
 Mật khẩu được băm trước khi lưu. Middleware kiểm tra Bearer JWT và nạp người dùng trước khi xử lý route; endpoint yêu cầu đăng nhập kiểm tra danh tính, còn thao tác quản trị kiểm tra thêm role `ADMIN`. Quyền sở hữu booking, hold và payment được giới hạn theo người dùng hiện tại.
 
-## 3. Các vấn đề kỹ thuật cần lưu ý
+## 3. API và bảo mật
+
+API dùng REST và JSON. Swagger UI tại <http://localhost:8000/docs> cung cấp tài liệu tương tác khi ứng dụng đang chạy. Các endpoint chính:
+
+| Method | Endpoint | Quyền | Mục đích |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/auth/register` | Public | Đăng ký tài khoản `USER` và nhận token |
+| `POST` | `/api/v1/auth/login` | Public | Đăng nhập và nhận token |
+| `GET` | `/api/v1/auth/me` | Đã đăng nhập | Xem tài khoản hiện tại |
+| `GET` | `/api/v1/movies`, `/api/v1/movies/{movie_id}` | Public | Liệt kê và xem chi tiết phim |
+| `POST`, `PUT`, `DELETE` | `/api/v1/movies` và `/api/v1/movies/{movie_id}` | `ADMIN` | Tạo, cập nhật và xóa phim |
+| `GET`, `POST` | `/api/v1/showtimes` | Public đọc; `ADMIN` tạo | Tra cứu suất chiếu (lọc `movie_id`) và tạo suất chiếu |
+| `GET` | `/api/v1/showtimes/{showtime_id}/seats` | Public | Xem trạng thái ghế |
+| `POST` | `/api/v1/bookings/` | Đã đăng nhập | Tạo booking |
+| `GET` | `/api/v1/bookings/me` | Đã đăng nhập | Xem booking của mình |
+| `DELETE` | `/api/v1/bookings/{booking_id}` | Chủ booking | Hủy booking |
+| `POST` | `/api/v1/holds` | Đã đăng nhập | Tạo hold |
+| `GET`, `DELETE` | `/api/v1/holds/{hold_id}` | Chủ hold | Xem hoặc giải phóng hold |
+| `POST` | `/api/v1/payments` | Đã đăng nhập | Thanh toán hold mô phỏng |
+| `GET` | `/api/v1/payments/me` | Đã đăng nhập | Xem lịch sử payment của mình |
+
+Các endpoint cần tài khoản nhận Bearer JWT. Mật khẩu được băm trước khi lưu; quyền `ADMIN` kiểm tra ở API. Booking, hold và payment chỉ được truy cập theo chủ sở hữu.
+
+## 4. Các vấn đề kỹ thuật cần lưu ý
 
 - **Đặt/giữ cùng ghế đồng thời:** precheck ở service không tự bảo đảm loại trừ giữa nhiều request hoặc nhiều worker. Cần ràng buộc/chiến lược khóa ở database cùng kiểm thử concurrency trước khi triển khai bán vé thực tế.
 - **Schema database:** `scripts/init_db.py` dùng `metadata.create_all()` để tạo bảng còn thiếu; không cập nhật schema đã tồn tại. Repo chưa cấu hình migration.
@@ -45,7 +68,7 @@ Mật khẩu được băm trước khi lưu. Middleware kiểm tra Bearer JWT v
 - **Thời gian:** hold được lọc theo `expires_at`; chưa có worker nền. Suất chiếu dùng kiểu thời gian cần được cấu hình nhất quán giữa client và môi trường triển khai.
 - **Kiểm thử tải:** Locust có các luồng tra cứu, xác thực, booking, hold, payment và thao tác quản trị. Bài chạy hiện tại chưa kiểm tra nhiều người cùng tranh một ghế; kết quả Kaggle cũng chỉ phản ánh cấu hình và thời lượng của lần chạy đã ghi nhận.
 
-## 4. Kiến trúc, tổ chức mã nguồn và công nghệ
+## 5. Kiến trúc, tổ chức mã nguồn và công nghệ
 
 Ứng dụng là một REST API FastAPI, chia theo các lớp API, service, repository và model, dùng PostgreSQL làm nơi lưu trữ. Luồng xử lý chính: **HTTP request → middleware xác thực → router/schema → service nghiệp vụ → repository/SQLAlchemy → PostgreSQL → response**.
 
@@ -76,7 +99,7 @@ data/                     # Dữ liệu mẫu được seeder sử dụng
 
 Các router chính: `/api/v1/auth`, `/api/v1/movies`, `/api/v1/showtimes`, `/api/v1/bookings`, `/api/v1/holds`, `/api/v1/payments`.
 
-## 5. Cài đặt và chạy dự án
+## 6. Cài đặt và chạy dự án
 
 Chọn **một** trong hai cách bên dưới. Cả hai đều dùng PostgreSQL; khác nhau ở chỗ API chạy trong Docker hay chạy trực tiếp bằng Python trên máy.
 
@@ -86,7 +109,7 @@ Chọn **một** trong hai cách bên dưới. Cả hai đều dùng PostgreSQL;
 
 #### Thiết lập lần đầu
 
-Trong PowerShell, chuyển tới thư mục  nơi bạn muốn lưu dự án rồi chạy:
+Trong PowerShell, chuyển tới thư mục nơi bạn muốn lưu dự án rồi chạy:
 
 ```powershell
 git clone https://github.com/tuanduy010806/Cinema-Booking
@@ -245,7 +268,7 @@ Locust chạy 50 người dùng ảo, tăng 5 người mỗi giây trong 60 giâ
 
 ![Dashboard kết quả kiểm thử tải trên Kaggle CPU](docs/images/kaggle-load-test-dashboard.png)
 
-*Hình . Diễn biến độ trễ, thông lượng, request lỗi, CPU, RAM và kết nối PostgreSQL trong lần chạy.*
+*Biểu đồ độ trễ, thông lượng, request lỗi, CPU, RAM và kết nối PostgreSQL trong lần chạy đã ghi nhận.*
 
 
 ### Tài liệu chi tiết
@@ -254,3 +277,4 @@ Locust chạy 50 người dùng ảo, tăng 5 người mỗi giây trong 60 giâ
 - [Kế hoạch kiểm thử tải](LOAD_TEST_PLAN.md)
 - [Hợp đồng booking](BOOKING_CONTRACT.md)
 - [API thanh toán](PAYMENT_API.md)
+
