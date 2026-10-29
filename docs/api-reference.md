@@ -1,6 +1,6 @@
 # Tham chiếu API
 
-[Quay lại README](README.md). Tài liệu này mô tả các endpoint hiện có trong mã nguồn. Có thể xem schema đầy đủ và thử request tại [Swagger UI](http://localhost:8000/docs) khi ứng dụng đang chạy.
+[Quay lại README](../README.md). Tài liệu này mô tả các endpoint hiện có trong mã nguồn. Có thể xem schema đầy đủ và thử request tại [Swagger UI](http://localhost:8000/docs) khi ứng dụng đang chạy.
 
 Base URL local: `http://localhost:8000`. Request body dùng JSON. Các ID là số nguyên; thời gian dùng ISO 8601. API cần đăng nhập sử dụng header `Authorization: Bearer <access_token>`. Đăng ký tạo tài khoản với vai trò `USER`; endpoint quản trị yêu cầu `ADMIN`.
 
