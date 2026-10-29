@@ -18,7 +18,7 @@ rectangle "Ứng dụng Cinema Booking · FastAPI" as App {
     component "Auth API\n/api/v1/auth" as AuthAPI
     component "Movies API\n/api/v1/movies" as MovieAPI
     component "Showtimes API\n/api/v1/showtimes" as ShowtimeAPI
-    component "Bookings API\n/api/v1/bookings" as BookingAPI
+    component "Bookings API\nGET /me · DELETE /{id}" as BookingAPI
     component "Seat Holds API\n/api/v1/holds" as HoldAPI
     component "Payments API\n/api/v1/payments" as PaymentAPI
   }
@@ -33,9 +33,9 @@ rectangle "Ứng dụng Cinema Booking · FastAPI" as App {
     component "AuthService" as AuthSvc
     component "MovieService" as MovieSvc
     component "ShowtimeService" as ShowtimeSvc
-    component "BookingService" as BookingSvc
-    component "SeatHoldService\nTTL cấu hình (mặc định 300s)" as HoldSvc
-    component "PaymentService\nthanh toán mô phỏng" as PaymentSvc
+    component "BookingService\nchỉ truy vấn / hủy booking" as BookingSvc
+    component "SeatHoldService\ngiữ ghế · TTL mặc định 300s" as HoldSvc
+    component "PaymentService\nthanh toán mô phỏng\ntạo booking sau khi trả tiền" as PaymentSvc
   }
 
   package "Truy cập dữ liệu" #FFF3D6 {
@@ -46,14 +46,14 @@ rectangle "Ứng dụng Cinema Booking · FastAPI" as App {
 }
 
 database "PostgreSQL 16\ncinema_booking" as DB
-cloud "Cổng thanh toán\nchưa tích hợp" as ExternalPayment #F4F4F4
+cloud "Cổng thanh toán thật\nchưa tích hợp" as ExternalPayment #F4F4F4
 
 Guest --> MovieAPI : HTTP / JSON
 Guest --> ShowtimeAPI : HTTP / JSON
 User --> AuthAPI : đăng ký / đăng nhập
-User --> BookingAPI : JWT
-User --> HoldAPI : JWT
-User --> PaymentAPI : JWT
+User --> HoldAPI : JWT · chọn và giữ ghế
+User --> PaymentAPI : JWT · thanh toán hold
+User --> BookingAPI : JWT · xem / hủy
 Admin --> MovieAPI : JWT · quản lý phim
 Admin --> ShowtimeAPI : JWT · tạo suất chiếu
 
@@ -78,14 +78,15 @@ MovieSvc --> Repos
 ShowtimeSvc --> Repos
 BookingSvc --> Repos
 HoldSvc --> Repos
-PaymentSvc --> Repos
+PaymentSvc --> Repos : tạo Payment, Bookings\nvà cập nhật Hold trong transaction
 Repos --> Session
 UoW --> Session
 Session --> DB : SQL / asyncpg
-PaymentSvc ..> ExternalPayment : hiện chỉ mô phỏng
+PaymentSvc ..> ExternalPayment : chưa kết nối
 
 note bottom of App
-  Các endpoint xem phim, suất chiếu và ghế có thể truy cập công khai.
-  Booking, giữ ghế và thanh toán yêu cầu JWT; người dùng chỉ thao tác dữ liệu của mình.
+  Luồng đặt vé: chọn ghế → tạo hold → thanh toán → PaymentService tạo booking.
+  Không còn API tạo booking trực tiếp; Bookings API chỉ cho xem và hủy.
+  Payment hiện chỉ mô phỏng, chưa gọi cổng thanh toán thật.
 end note
 @enduml

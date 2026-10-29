@@ -14,18 +14,6 @@ class BookingRepository:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def create(self, booking_data: dict, user_id: int) -> Booking:
-        """Insert a new Booking row.
-
-        The authenticated user ID always overrides any value in booking_data.
-        """
-        safe_data = {k: v for k, v in booking_data.items() if k != "user_id"}
-        booking = Booking(**safe_data, user_id=user_id)
-        self.db.add(booking)
-        await self.db.flush()
-        await self.db.refresh(booking)
-        return booking
-
     async def update_status(self, booking_id: int, status: str) -> Booking | None:
         """Update the status column of an existing booking.
 
@@ -58,23 +46,6 @@ class BookingRepository:
         statement = select(Booking).where(Booking.user_id == user_id)
         result = await self.db.execute(statement)
         return list(result.scalars().all())
-
-    async def check_seat_exists(self, showtime_id: int, seat_number: str) -> bool:
-        """Return True if an active booking exists for (showtime_id, seat_number).
-
-        Simple application-level check for the current booking flow. Concurrent
-        requests are not serialized or protected by a database constraint.
-        """
-        statement = (
-            select(Booking)
-            .where(
-                Booking.showtime_id == showtime_id,
-                Booking.seat_number == seat_number,
-                Booking.status == "active",
-            )
-        )
-        result = await self.db.execute(statement)
-        return result.scalar_one_or_none() is not None
 
     async def get_active_seat_numbers(self, showtime_id: int) -> set[str]:
         """Return seat labels with an active booking for a showtime."""

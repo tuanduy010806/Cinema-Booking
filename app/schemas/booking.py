@@ -4,6 +4,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class BookingCreate(BaseModel):
+    """Legacy request shape retained for clients/tests; no create endpoint uses it."""
+
     showtime_id: int
     seat_number: str = Field(pattern=r"^[1-9][0-9]*$")
 

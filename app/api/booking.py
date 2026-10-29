@@ -2,43 +2,25 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import UserIdentity, get_current_user
 from app.db.database import get_db
 from app.repositories.unit_of_work import SqlAlchemyUnitOfWork
 from app.repositories.booking_repository import BookingRepository
-from app.repositories.showtime_repository import ShowtimeRepository
-from app.repositories.seat_hold_repository import SeatHoldRepository
-from app.schemas.booking import BookingCreate, BookingResponse
+from app.schemas.booking import BookingResponse
 from app.services.booking_service import BookingService
 
 router = APIRouter(prefix="/api/v1/bookings", tags=["bookings"])
 
 
 async def get_booking_service(db: AsyncSession = Depends(get_db)) -> BookingService:
-    """Wire the Booking and Showtime repositories into the service."""
-    booking_repo = BookingRepository(db)
-    showtime_repo = ShowtimeRepository(db)
-    return BookingService(
-        booking_repo, showtime_repo, SeatHoldRepository(db), SqlAlchemyUnitOfWork(db)
-    )
+    """Wire booking queries and updates into the service.
 
-
-@router.post(
-    "/",
-    response_model=BookingResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a booking",
-)
-async def create_booking(
-    payload: BookingCreate,
-    current_user: UserIdentity = Depends(get_current_user),
-    service: BookingService = Depends(get_booking_service),
-) -> BookingResponse:
-    """Create a new booking for the current user."""
-    return await service.create_booking(user_id=current_user.id, payload=payload)
+    New bookings are created only by PaymentService after a hold is paid.
+    """
+    return BookingService(BookingRepository(db), SqlAlchemyUnitOfWork(db))
 
 
 @router.get(

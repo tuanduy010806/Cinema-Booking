@@ -17,7 +17,6 @@ Base URL local: `http://localhost:8000`. Request body dùng JSON. Các ID là s�
 | Danh sách suất chiếu | `GET /api/v1/showtimes` | Công khai | Query tùy chọn: `movie_id` | `200`: danh sách suất chiếu (`id`, `movie_id`, `start_time`, `total_seats`) | — |
 | Tạo suất chiếu | `POST /api/v1/showtimes` | `ADMIN` | Body: `movie_id` (> 0), `start_time`, `total_seats` (1–500) | `201`: suất chiếu vừa tạo | `404`: không tìm thấy phim; `422`: dữ liệu sai |
 | Tình trạng ghế | `GET /api/v1/showtimes/{showtime_id}/seats` | Công khai | Path: `showtime_id` | `200`: danh sách `seat_number`, `is_available` | `404`: không tìm thấy suất chiếu |
-| Đặt ghế trực tiếp | `POST /api/v1/bookings/` | Đăng nhập | Body: `showtime_id`, `seat_number` (chuỗi số dương) | `201`: booking (`id`, `user_id`, `showtime_id`, `seat_number`, `status`, `created_at`) | `400`: ghế đã được đặt/giữ; `404`: không tìm thấy suất hoặc ghế |
 | Booking của tôi | `GET /api/v1/bookings/me` | Đăng nhập | Không | `200`: danh sách booking của tài khoản | — |
 | Hủy booking | `DELETE /api/v1/bookings/{booking_id}` | Chủ booking | Path: `booking_id` | `200`: booking với trạng thái đã hủy | `400`: trạng thái không cho phép hủy; `403`: không phải chủ booking; `404`: không tìm thấy booking |
 | Giữ ghế | `POST /api/v1/holds` | Đăng nhập | Body: `showtime_id`, `seat_numbers` (1–5 ghế, chuỗi số dương, không trùng) | `201`: hold gồm `id`, `user_id`, `showtime_id`, `seat_numbers`, `status`, `created_at`, `expires_at` | `400`: ghế đã được đặt/giữ; `404`: không tìm thấy suất hoặc ghế; `422`: dữ liệu sai |
@@ -35,7 +34,7 @@ Base URL local: `http://localhost:8000`. Request body dùng JSON. Các ID là s�
 
 ## Lưu ý nghiệp vụ
 
-- Booking trực tiếp và hold kiểm tra ghế ở tầng ứng dụng. Nhiều request đồng thời vẫn có thể tranh cùng một ghế.
+- Booking chỉ được tạo sau khi thanh toán hold thành công. Hold kiểm tra ghế ở tầng ứng dụng; nhiều request đồng thời vẫn có thể tranh cùng một ghế.
 - Hold mặc định có thời hạn 300 giây (`SEAT_HOLD_TTL_SECONDS`). Ghế hết hạn được tính là khả dụng khi API kiểm tra; chưa có worker nền.
 - Thanh toán là mô phỏng. Số tiền mỗi ghế lấy từ `DEMO_PAYMENT_AMOUNT_VND`; payment thành công tạo booking cho các ghế trong hold.
 - `GET /api/v1/holds/{hold_id}` có thể trả trạng thái `expired` khi hold đã quá hạn, dù bản ghi chưa được cập nhật cho đến khi có thao tác ghi.
