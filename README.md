@@ -117,15 +117,19 @@ Các số liệu dưới đây là kết quả đo cũ, trước khi luồng gi�
 - Hold hết hạn được xác định khi API đọc hoặc cập nhật dữ liệu; chưa có tác vụ nền tự xử lý.
 - Khởi tạo database dùng `create_all`, chỉ tạo bảng còn thiếu và không thay thế migration cho schema đã tồn tại.
 
-## 10. Các vấn đề có thể cải tiến trong pha 2
+## 10. Các hướng mở rộng đề xuất
 
-| # | Vấn đề | Hiện trạng | Hướng cải tiến |
+Các hạng mục dưới đây là những khả năng có thể phát triển thêm khi mở rộng sản phẩm và quy mô vận hành.
+
+| # | Hướng mở rộng | Giá trị mang lại | Gợi ý triển khai |
 | --- | --- | --- | --- |
-| 1 | **Chưa có ràng buộc duy nhất trong database cho booking đang hoạt động** | Service tuần tự hóa các luồng ghi hiện tại bằng khóa suất chiếu; bảng `bookings` chưa có partial unique index cho `(showtime_id, seat_number)` với trạng thái `active`. | Kiểm tra dữ liệu trùng, tạo migration rồi bổ sung partial unique index để bảo vệ cả các đường ghi khác. |
-| 2 | **Thanh toán chỉ dùng để demo** | Ứng dụng tự ghi nhận payment thành công, chưa gọi dịch vụ thanh toán bên ngoài. | Tích hợp cổng thanh toán và xử lý kết quả xác nhận trước khi tạo booking. |
-| 3 | **Hold hết hạn chưa được tự xử lý nền** | API nhận biết hold hết hạn khi đọc hoặc ghi; chưa có worker cập nhật trạng thái định kỳ. | Thêm tác vụ nền để cập nhật hold hết hạn và giải phóng ghế theo chính sách nghiệp vụ. |
-| 4 | **Tạo hold chưa có idempotency key cho request gửi lại** | Gửi lại yêu cầu tạo hold có thể tạo thêm hold; thanh toán cho cùng một hold đã hỗ trợ trả lại kết quả cũ. | Thêm mã idempotency cho thao tác tạo hold và lưu kết quả theo mã yêu cầu. |
-| 5 | **Chưa có cache cho dữ liệu đọc thường xuyên** | Phim, suất chiếu và dữ liệu liên quan được truy vấn từ database khi cần. | Đo tải và xác định dữ liệu phù hợp trước khi bổ sung cache cùng chính sách hết hạn/làm mới. |
-| 6 | **Danh sách chưa chia trang** | Một số API danh sách trả về toàn bộ kết quả. | Bổ sung phân trang và giới hạn số bản ghi cho các danh sách lớn. |
-| 7 | **Chưa có làm mới hoặc thu hồi token** | Access token có thời hạn; chưa có refresh token hoặc đăng xuất để thu hồi token đang dùng. | Thiết kế refresh token và cơ chế thu hồi phù hợp với cách lưu trữ hiện tại. |
-| 8 | **Cấu hình pool kết nối database cố định** | Mỗi tiến trình API được cấu hình `pool_size=10`, `max_overflow=20`. | Điều chỉnh theo số worker, giới hạn kết nối PostgreSQL và tải thực tế. |
+| 1 | **Tích hợp thanh toán trực tuyến** | Cho phép khách thanh toán bằng các phương thức phổ biến và nhận kết quả giao dịch tự động. | Tích hợp cổng thanh toán, xử lý webhook, đối soát giao dịch và quy trình hoàn tiền. |
+| 2 | **Sơ đồ phòng chiếu tương tác** | Giúp khách chọn vị trí ghế trực quan và xem loại ghế, giá vé theo khu vực. | Bổ sung cấu hình phòng, hàng ghế, loại ghế và giao diện sơ đồ theo từng suất chiếu. |
+| 3 | **Khuyến mãi và chương trình thành viên** | Tạo ưu đãi linh hoạt, khuyến khích khách quay lại sử dụng dịch vụ. | Phát triển mã giảm giá, điểm thành viên, hạng thành viên và quy tắc áp dụng ưu đãi. |
+| 4 | **Thông báo theo hành trình đặt vé** | Giúp khách theo dõi hold, thanh toán và lịch chiếu. | Gửi email hoặc thông báo khi đặt vé thành công, trước giờ chiếu và khi giao dịch cần xử lý. |
+| 5 | **Tìm kiếm và khám phá phim nâng cao** | Giúp khách tìm nội dung phù hợp nhanh hơn. | Bổ sung lọc theo thể loại, ngôn ngữ, ngày chiếu, rạp và sắp xếp theo mức độ quan tâm. |
+| 6 | **Phân trang và tối ưu truy vấn** | Giữ thời gian phản hồi ổn định khi số phim, suất chiếu và booking tăng. | Phân trang danh sách, đo truy vấn thường dùng, bổ sung index phù hợp và tối ưu theo kết quả đo. |
+| 7 | **Dashboard vận hành cho quản trị viên** | Hỗ trợ theo dõi tình hình kinh doanh và lập kế hoạch suất chiếu. | Tổng hợp doanh thu, tỷ lệ lấp đầy ghế, số vé bán và phim được quan tâm theo khoảng thời gian. |
+| 8 | **Tác vụ nền cho quy trình tự động** | Tách các công việc không cần xử lý ngay khỏi request của khách. | Dùng worker và hàng đợi cho nhắc lịch, xử lý hold hết hạn, gửi thông báo và tác vụ định kỳ. |
+| 9 | **Cá nhân hóa trải nghiệm khách hàng** | Đề xuất nội dung và suất chiếu phù hợp với sở thích của từng người. | Cho phép lưu phim yêu thích, ghi nhận lựa chọn và gợi ý phim dựa trên lịch sử tương tác. |
+| 10 | **Mở rộng năng lực vận hành** | Hỗ trợ theo dõi, xử lý sự cố và phục vụ lượng truy cập cao hơn. | Bổ sung log tập trung, metrics, cảnh báo, kiểm thử tải định kỳ và điều chỉnh số worker/pool theo tải thực tế. |
