@@ -1,17 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1160" viewBox="0 0 1440 1160" role="img" aria-labelledby="title desc">
-  <title id="title">Cinema Booking — mô hình dữ liệu hiện tại</title>
-  <desc id="desc">ERD gồm users, movies, showtimes, bookings, seat_holds, seat_hold_seats và payments, đồng bộ với các SQLAlchemy model.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1180" viewBox="0 0 1440 1180" role="img" aria-labelledby="title desc">
+  <title id="title">Cinema Booking — PostgreSQL schema hiện tại</title>
+  <desc id="desc">Các bảng và ràng buộc của users, movies, showtimes, bookings, seat_holds, seat_hold_seats và payments theo SQLAlchemy models.</desc>
   <defs>
     <style>
-      text{font-family:Arial,sans-serif;fill:#263442}.title{font-size:26px;font-weight:bold}.subtitle{font-size:14px;fill:#526579}.head{font-size:18px;font-weight:bold;fill:#fff}.field{font-size:14px}.note{font-size:13px;fill:#514b26}.card{fill:#f2f4f7;stroke:#39739d;stroke-width:1.5}.bar{fill:#326b93}.edge{fill:none;stroke:#617486;stroke-width:1.5}.edge-label{font-size:12px;fill:#526579}.note-box{fill:#fffde7;stroke:#b5ad73;stroke-width:1.2}
+      text{font-family:Arial,sans-serif;fill:#263442}.title{font-size:26px;font-weight:bold}.subtitle{font-size:14px;fill:#526579}.head{font-size:18px;font-weight:bold;fill:#fff}.field{font-size:12px}.note{font-size:13px;fill:#514b26}.card{fill:#f2f4f7;stroke:#39739d;stroke-width:1.5}.bar{fill:#326b93}.edge{fill:none;stroke:#617486;stroke-width:1.5}.edge-label{font-size:12px;fill:#526579}.note-box{fill:#fffde7;stroke:#b5ad73;stroke-width:1.2}
     </style>
     <marker id="arrow" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0L9 4L0 8z" fill="#617486"/></marker>
   </defs>
-  <rect width="1440" height="1160" fill="#fafbfd"/>
-  <text x="720" y="42" class="title" text-anchor="middle">Cinema Booking — mô hình dữ liệu hiện tại</text>
-  <text x="720" y="68" class="subtitle" text-anchor="middle">Thuộc tính, kiểu thời gian và ràng buộc theo SQLAlchemy models</text>
+  <rect width="1440" height="1180" fill="#fafbfd"/>
+  <text x="720" y="42" class="title" text-anchor="middle">Cinema Booking — PostgreSQL schema hiện tại</text>
+  <text x="720" y="68" class="subtitle" text-anchor="middle">Các cột và ràng buộc database; quy tắc API được ghi riêng bên dưới</text>
 
-  <!-- Relationships: one parent may have many child rows. -->
   <g class="edge" marker-end="url(#arrow)">
     <path d="M400 194H490"/><path d="M890 194H980"/>
     <path d="M400 250H450V490H490"/><path d="M400 310H930V580H980"/>
@@ -22,34 +21,36 @@
     <text x="425" y="184">1:n</text><text x="925" y="184">1:n</text>
     <text x="452" y="365">1:n</text><text x="660" y="302">1:n</text>
     <text x="850" y="430">1:n</text><text x="260" y="430">1:n</text>
-    <text x="457" y="765">1:n</text><text x="705" y="750">0..1</text>
+    <text x="457" y="765">0:n</text><text x="705" y="750">0:1</text>
   </g>
 
   <g>
     <rect class="card" x="40" y="110" width="360" height="230" rx="8"/><path class="bar" d="M48 110h344a8 8 0 0 1 8 8v34H40v-34a8 8 0 0 1 8-8z"/><text class="head" x="220" y="137" text-anchor="middle">users</text>
-    <text class="field" x="60" y="177">● user_id : INTEGER «PK»</text><text class="field" x="60" y="204">email : VARCHAR «UNIQUE»</text><text class="field" x="60" y="231">username : VARCHAR</text><text class="field" x="60" y="258">password_hash : VARCHAR</text><text class="field" x="60" y="285">role : VARCHAR</text>
+    <text class="field" x="60" y="177">● user_id : INTEGER «PK»</text><text class="field" x="60" y="204">email : VARCHAR «UNIQUE, NOT NULL»</text><text class="field" x="60" y="231">username : VARCHAR «NOT NULL»</text><text class="field" x="60" y="258">password_hash : VARCHAR «NOT NULL»</text><text class="field" x="60" y="285">role : VARCHAR «NOT NULL»</text>
 
     <rect class="card" x="490" y="110" width="400" height="200" rx="8"/><path class="bar" d="M498 110h384a8 8 0 0 1 8 8v34H490v-34a8 8 0 0 1 8-8z"/><text class="head" x="690" y="137" text-anchor="middle">movies</text>
-    <text class="field" x="510" y="177">● id : INTEGER «PK»</text><text class="field" x="510" y="204">title : VARCHAR(255) «INDEX»</text><text class="field" x="510" y="231">description : TEXT «NULL»</text><text class="field" x="510" y="258">duration_minutes : INTEGER</text>
+    <text class="field" x="510" y="177">● id : INTEGER «PK»</text><text class="field" x="510" y="204">title : VARCHAR(255) «INDEX, NOT NULL»</text><text class="field" x="510" y="231">description : TEXT «NULL»</text><text class="field" x="510" y="258">duration_minutes : INTEGER «NOT NULL»</text>
 
     <rect class="card" x="980" y="110" width="420" height="200" rx="8"/><path class="bar" d="M988 110h404a8 8 0 0 1 8 8v34H980v-34a8 8 0 0 1 8-8z"/><text class="head" x="1190" y="137" text-anchor="middle">showtimes</text>
-    <text class="field" x="1000" y="177">● id : INTEGER «PK»</text><text class="field" x="1000" y="204">movie_id : INTEGER «FK, INDEX»</text><text class="field" x="1000" y="231">start_time : DATETIME «INDEX, naive UTC»</text><text class="field" x="1000" y="258">total_seats : INTEGER</text>
+    <text class="field" x="1000" y="177">● id : INTEGER «PK»</text><text class="field" x="1000" y="204">movie_id : INTEGER «FK, INDEX, NOT NULL»</text><text class="field" x="1000" y="231">start_time : TIMESTAMP WITHOUT TZ «INDEX, NOT NULL»</text><text class="field" x="1000" y="258">total_seats : INTEGER «NOT NULL»</text>
 
     <rect class="card" x="40" y="470" width="410" height="240" rx="8"/><path class="bar" d="M48 470h394a8 8 0 0 1 8 8v34H40v-34a8 8 0 0 1 8-8z"/><text class="head" x="245" y="497" text-anchor="middle">seat_holds</text>
-    <text class="field" x="60" y="537">● id : INTEGER «PK»</text><text class="field" x="60" y="564">user_id : INTEGER «FK, INDEX»</text><text class="field" x="60" y="591">showtime_id : INTEGER «FK, INDEX»</text><text class="field" x="60" y="618">status : VARCHAR(20)</text><text class="field" x="60" y="645">created_at : DATETIME WITH TIME ZONE</text><text class="field" x="60" y="672">expires_at : DATETIME WITH TIME ZONE «INDEX»</text>
+    <text class="field" x="60" y="537">● id : INTEGER «PK»</text><text class="field" x="60" y="564">user_id : INTEGER «FK, INDEX, NOT NULL»</text><text class="field" x="60" y="591">showtime_id : INTEGER «FK, INDEX, NOT NULL»</text><text class="field" x="60" y="618">status : VARCHAR(20) «NOT NULL, ORM default active»</text><text class="field" x="60" y="645">created_at : TIMESTAMP WITH TIME ZONE «NOT NULL»</text><text class="field" x="60" y="672">expires_at : TIMESTAMP WITH TIME ZONE «INDEX, NOT NULL»</text>
 
     <rect class="card" x="490" y="470" width="400" height="230" rx="8"/><path class="bar" d="M498 470h384a8 8 0 0 1 8 8v34H490v-34a8 8 0 0 1 8-8z"/><text class="head" x="690" y="497" text-anchor="middle">bookings</text>
-    <text class="field" x="510" y="537">● id : INTEGER «PK»</text><text class="field" x="510" y="564">user_id : INTEGER «FK»</text><text class="field" x="510" y="591">showtime_id : INTEGER «FK»</text><text class="field" x="510" y="618">seat_number : VARCHAR</text><text class="field" x="510" y="645">status : VARCHAR</text><text class="field" x="510" y="672">created_at : DATETIME WITH TIME ZONE</text>
+    <text class="field" x="510" y="537">● id : INTEGER «PK»</text><text class="field" x="510" y="564">user_id : INTEGER «FK, NOT NULL»</text><text class="field" x="510" y="591">showtime_id : INTEGER «FK, NOT NULL»</text><text class="field" x="510" y="618">seat_number : VARCHAR «NOT NULL»</text><text class="field" x="510" y="645">status : VARCHAR «NOT NULL, ORM default active»</text><text class="field" x="510" y="672">created_at : TIMESTAMP WITH TIME ZONE «NOT NULL»</text>
 
     <rect class="card" x="980" y="470" width="420" height="280" rx="8"/><path class="bar" d="M988 470h404a8 8 0 0 1 8 8v34H980v-34a8 8 0 0 1 8-8z"/><text class="head" x="1190" y="497" text-anchor="middle">payments</text>
-    <text class="field" x="1000" y="537">● id : INTEGER «PK»</text><text class="field" x="1000" y="564">hold_id : INTEGER «UNIQUE, no FK»</text><text class="field" x="1000" y="591">user_id : INTEGER «FK, INDEX»</text><text class="field" x="1000" y="618">amount : INTEGER</text><text class="field" x="1000" y="645">currency : VARCHAR(3)</text><text class="field" x="1000" y="672">status : VARCHAR(20)</text><text class="field" x="1000" y="699">created_at : DATETIME WITH TIME ZONE</text><text class="field" x="1000" y="726">paid_at : DATETIME WITH TIME ZONE «NULL»</text>
+    <text class="field" x="1000" y="537">● id : INTEGER «PK»</text><text class="field" x="1000" y="564">hold_id : INTEGER «UNIQUE, NOT NULL, no FK»</text><text class="field" x="1000" y="591">user_id : INTEGER «FK, INDEX, NOT NULL»</text><text class="field" x="1000" y="618">amount : INTEGER «NOT NULL»</text><text class="field" x="1000" y="645">currency : VARCHAR(3) «NOT NULL, ORM default VND»</text><text class="field" x="1000" y="672">status : VARCHAR(20) «NOT NULL, ORM default succeeded»</text><text class="field" x="1000" y="699">created_at : TIMESTAMP WITH TIME ZONE «NOT NULL»</text><text class="field" x="1000" y="726">paid_at : TIMESTAMP WITH TIME ZONE «NULL»</text>
 
     <rect class="card" x="490" y="780" width="400" height="180" rx="8"/><path class="bar" d="M498 780h384a8 8 0 0 1 8 8v34H490v-34a8 8 0 0 1 8-8z"/><text class="head" x="690" y="807" text-anchor="middle">seat_hold_seats</text>
-    <text class="field" x="510" y="847">● id : INTEGER «PK»</text><text class="field" x="510" y="874">hold_id : INTEGER «FK, INDEX»</text><text class="field" x="510" y="901">seat_number : VARCHAR</text><text class="field" x="510" y="928">booking_id : INTEGER «FK, NULL, UNIQUE»</text>
+    <text class="field" x="510" y="847">● id : INTEGER «PK»</text><text class="field" x="510" y="874">hold_id : INTEGER «FK, INDEX, NOT NULL»</text><text class="field" x="510" y="901">seat_number : VARCHAR «NOT NULL»</text><text class="field" x="510" y="928">booking_id : INTEGER «FK, NULL, UNIQUE»</text>
   </g>
 
-  <rect class="note-box" x="40" y="1010" width="1360" height="105" rx="8"/>
-  <text class="note" x="60" y="1040">Quan hệ: movies → showtimes; users → bookings / seat_holds / payments; showtimes → bookings / seat_holds;</text>
-  <text class="note" x="60" y="1065">seat_holds → seat_hold_seats; booking_id liên kết tùy chọn một booking. payments.hold_id UNIQUE nhưng không có FK.</text>
-  <text class="note" x="60" y="1090">start_time là UTC không timezone; các trường thời gian còn lại được khai báo timezone-aware. bookings chưa có unique constraint theo suất và ghế.</text>
+  <rect class="note-box" x="40" y="1010" width="1360" height="140" rx="8"/>
+  <text class="note" x="60" y="1040">Quan hệ trong database: mỗi hold có thể có 0..n seat rows; API chỉ tạo hold với 1–5 ghế hợp lệ.</text>
+  <text class="note" x="60" y="1065">payments.hold_id là UNIQUE nhưng không có FK; seat_hold_seats.booking_id là FK nullable và UNIQUE.</text>
+  <text class="note" x="60" y="1090">Database không đặt UNIQUE cho (showtime_id, seat_number); service tuần tự hóa thao tác bằng khóa showtime.</text>
+  <text class="note" x="60" y="1115">showtimes.start_time là TIMESTAMP WITHOUT TIME ZONE chứa naive UTC; các timestamp còn lại có timezone.</text>
+  <text class="note" x="60" y="1140">Các giá trị ORM default do SQLAlchemy gán, không phải DEFAULT constraint trong PostgreSQL.</text>
 </svg>

@@ -14,9 +14,9 @@ from app.core.exceptions import (
     PasswordMismatchError,
 )
 from app.core.security import decode_access_token, verify_password
-from app.models.user import Role, User
 from app.domain.commands import LoginCommand as LoginRequest, RegisterCommand as RegisterRequest
 from app.domain.entities import UserEntity, UserCredentials
+from app.domain.roles import Role
 from app.core.security import PasswordSecurityAdapter, JwtTokenIssuer
 from app.services.auth_service import AuthService
 
@@ -155,7 +155,7 @@ def test_decode_access_token_rejects_invalid_jwt_with_domain_exception():
     assert str(error.value) == "could not validate"
 
 
-def _request_with_user(user: User | None) -> Request:
+def _request_with_user(user: UserEntity | None) -> Request:
     request = Request({"type": "http", "headers": []})
     request.state.current_user = user
     return request
@@ -163,11 +163,16 @@ def _request_with_user(user: User | None) -> Request:
 
 def test_admin_permission_checker_allows_admin_and_rejects_user():
     checker = RoleChecker(Role.ADMIN)
-    admin = User(user_id=1, email="admin@example.com", password_hash="hash", role="ADMIN")
-    regular_user = User(
+    admin = UserEntity(
+        user_id=1,
+        email="admin@example.com",
+        username="admin",
+        role="ADMIN",
+    )
+    regular_user = UserEntity(
         user_id=2,
         email="user@example.com",
-        password_hash="hash",
+        username="user",
         role="USER",
     )
 

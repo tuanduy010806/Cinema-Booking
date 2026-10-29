@@ -1,5 +1,5 @@
 @startuml
-title Cinema Booking - Mo hinh du lieu hien tai
+title Cinema Booking - PostgreSQL schema hien tai
 hide circle
 skinparam backgroundColor #FAFBFD
 skinparam shadowing false
@@ -15,66 +15,66 @@ skinparam entity {
 entity "users" as users {
   * user_id : INTEGER <<PK>>
   --
-  email : VARCHAR <<UNIQUE>>
-  username : VARCHAR
-  password_hash : VARCHAR
-  role : VARCHAR
+  email : VARCHAR <<UNIQUE, NOT NULL>>
+  username : VARCHAR <<NOT NULL>>
+  password_hash : VARCHAR <<NOT NULL>>
+  role : VARCHAR <<NOT NULL>>
 }
 
 entity "movies" as movies {
   * id : INTEGER <<PK>>
   --
-  title : VARCHAR(255) <<INDEX>>
+  title : VARCHAR(255) <<INDEX, NOT NULL>>
   description : TEXT <<NULL>>
-  duration_minutes : INTEGER
+  duration_minutes : INTEGER <<NOT NULL>>
 }
 
 entity "showtimes" as showtimes {
   * id : INTEGER <<PK>>
   --
-  movie_id : INTEGER <<FK, INDEX>>
-  start_time : DATETIME <<INDEX, naive UTC>>
-  total_seats : INTEGER
+  movie_id : INTEGER <<FK, INDEX, NOT NULL>>
+  start_time : TIMESTAMP WITHOUT TIME ZONE <<INDEX, NOT NULL>>
+  total_seats : INTEGER <<NOT NULL>>
 }
 
 entity "bookings" as bookings {
   * id : INTEGER <<PK>>
   --
-  user_id : INTEGER <<FK>>
-  showtime_id : INTEGER <<FK>>
-  seat_number : VARCHAR
-  status : VARCHAR
-  created_at : DATETIME WITH TIME ZONE
+  user_id : INTEGER <<FK, NOT NULL>>
+  showtime_id : INTEGER <<FK, NOT NULL>>
+  seat_number : VARCHAR <<NOT NULL>>
+  status : VARCHAR <<NOT NULL, ORM default active>>
+  created_at : TIMESTAMP WITH TIME ZONE <<NOT NULL, ORM default UTC now>>
 }
 
 entity "seat_holds" as seat_holds {
   * id : INTEGER <<PK>>
   --
-  user_id : INTEGER <<FK, INDEX>>
-  showtime_id : INTEGER <<FK, INDEX>>
-  status : VARCHAR(20)
-  created_at : DATETIME WITH TIME ZONE
-  expires_at : DATETIME WITH TIME ZONE <<INDEX>>
+  user_id : INTEGER <<FK, INDEX, NOT NULL>>
+  showtime_id : INTEGER <<FK, INDEX, NOT NULL>>
+  status : VARCHAR(20) <<NOT NULL, ORM default active>>
+  created_at : TIMESTAMP WITH TIME ZONE <<NOT NULL>>
+  expires_at : TIMESTAMP WITH TIME ZONE <<INDEX, NOT NULL>>
 }
 
 entity "seat_hold_seats" as hold_seats {
   * id : INTEGER <<PK>>
   --
-  hold_id : INTEGER <<FK, INDEX>>
-  seat_number : VARCHAR
+  hold_id : INTEGER <<FK, INDEX, NOT NULL, ON DELETE CASCADE>>
+  seat_number : VARCHAR <<NOT NULL>>
   booking_id : INTEGER <<FK, NULL, UNIQUE>>
 }
 
 entity "payments" as payments {
   * id : INTEGER <<PK>>
   --
-  hold_id : INTEGER <<UNIQUE, no FK>>
-  user_id : INTEGER <<FK, INDEX>>
-  amount : INTEGER
-  currency : VARCHAR(3)
-  status : VARCHAR(20)
-  created_at : DATETIME WITH TIME ZONE
-  paid_at : DATETIME WITH TIME ZONE <<NULL>>
+  hold_id : INTEGER <<UNIQUE, NOT NULL, no FK>>
+  user_id : INTEGER <<FK, INDEX, NOT NULL>>
+  amount : INTEGER <<NOT NULL>>
+  currency : VARCHAR(3) <<NOT NULL, ORM default VND>>
+  status : VARCHAR(20) <<NOT NULL, ORM default succeeded>>
+  created_at : TIMESTAMP WITH TIME ZONE <<NOT NULL>>
+  paid_at : TIMESTAMP WITH TIME ZONE <<NULL>>
 }
 
 movies ||--o{ showtimes : has
@@ -82,23 +82,32 @@ users ||--o{ bookings : owns
 showtimes ||--o{ bookings : booked for
 users ||--o{ seat_holds : creates
 showtimes ||--o{ seat_holds : held for
-seat_holds ||--|{ hold_seats : contains
+seat_holds ||--o{ hold_seats : contains
 bookings o|--o| hold_seats : linked booking
 users ||--o{ payments : pays
 
-note right of payments
-  hold_id has a UNIQUE constraint in the model,
-  but is not a foreign key to seat_holds.id.
+note right of seat_holds
+  The database permits zero seat rows for a hold.
+  The API requires 1-5 distinct positive seat numbers.
+end note
+
+note right of users
+  Values marked ORM default are supplied by
+  SQLAlchemy; they are not server-side defaults.
+end note
+
+note bottom of payments
+  hold_id is unique, but is not a foreign key to seat_holds.id.
 end note
 
 note bottom of bookings
-  There is no UNIQUE constraint on
-  (showtime_id, seat_number). Seat contention is
-  serialized by locking the showtime row in services.
+  No unique database constraint exists on
+  (showtime_id, seat_number), including active bookings.
+  Application services serialize writes by locking showtimes.
 end note
 
 note bottom of showtimes
-  start_time uses PostgreSQL DATETIME without timezone.
-  The application stores and returns naive UTC.
+  start_time is TIMESTAMP WITHOUT TIME ZONE and the
+  application stores/returns its value as naive UTC.
 end note
 @enduml
