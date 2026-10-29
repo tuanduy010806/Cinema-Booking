@@ -109,11 +109,11 @@ Các số liệu dưới đây là kết quả đo cũ, trước khi luồng gi�
 - Hold hết hạn được xác định khi API đọc hoặc cập nhật dữ liệu; chưa có tác vụ nền tự xử lý.
 - Khởi tạo database dùng `create_all`, chỉ tạo bảng còn thiếu và không thay thế migration cho schema đã tồn tại.
 
-## 9. Các kỹ thuật có thể nâng cấp
+## 9. Các gợi ý cải tiến cho Pha 2
 
 Hệ thống hiện đã có các cơ chế nền tảng cho giữ ghế, thanh toán, truy vấn và quản lý transaction. Khi cần xử lý tải lớn hoặc quy trình thực tế phức tạp hơn, có thể nâng cấp theo các hướng sau:
 
-| # | Cơ chế hiện tại | Hướng nâng cấp kỹ thuật | Mục tiêu |
+| # | Cơ chế hiện tại | Gợi ý cải tiến Pha 2 | Mục tiêu |
 | --- | --- | --- | --- |
 | 1 | Các thao tác giữ, thanh toán và giải phóng ghế khóa dòng suất chiếu. | Chuyển sang quản lý tồn kho theo từng ghế hoặc khóa theo ghế; kết hợp ràng buộc duy nhất có điều kiện cho booking đang hoạt động. | Giảm tranh chấp giữa khách chọn ghế khác nhau và duy trì tính nhất quán khi nhiều request đồng thời. |
 | 2 | Thanh toán gửi lại cho cùng một hold có thể trả về kết quả đã tạo. | Mở rộng idempotency key cho toàn bộ thao tác tạo hold và thanh toán, lưu trạng thái yêu cầu với ràng buộc duy nhất. | Chịu được retry do timeout hoặc mất kết nối mà không tạo giao dịch lặp. |
