@@ -16,8 +16,9 @@ Hold mặc định có hiệu lực 300 giây (`SEAT_HOLD_TTL_SECONDS`). Giá m�
 
 ### Kiến trúc hệ thống
 
-Ứng dụng dùng FastAPI và PostgreSQL để cung cấp API đặt vé. Người dùng xem phim, chọn suất chiếu và ghế còn trống, đăng nhập rồi giữ ghế tạm thời. 
-Khi thanh toán mô phỏng thành công, hệ thống tạo booking và lưu thông tin thanh toán. Người dùng có thể xem hoặc hủy booking; ADMIN quản lý phim và suất chiếu.
+Hệ thống được tổ chức theo kiến trúc phân lớp **Layered Architecture** gồm **API Router, Application Service, Domain và Repository**, sử dụng PostgreSQL để lưu trữ dữ liệu. Request đi qua **AuthMiddleware** để xác thực JWT, sau đó Router kiểm tra dữ liệu và quyền truy cập trước khi gọi Service. Service xử lý nghiệp vụ, còn Repository truy xuất dữ liệu và **Unit of Work** quản lý transaction. 
+
+Luồng đặt vé gồm: chọn suất và ghế → giữ ghế tạm thời → thanh toán mô phỏng → tạo booking và lưu payment.
 
 ![Sơ đồ kiến trúc hệ thống Cinema Booking](docs/images/architecture.svg)
 
