@@ -12,7 +12,25 @@ Khách có thể tìm phim, chọn suất chiếu và kiểm tra ghế trước 
 
 Hold mặc định có hiệu lực 300 giây (`SEAT_HOLD_TTL_SECONDS`). Giá thanh toán demo do backend cấu hình bằng `DEMO_PAYMENT_AMOUNT_VND`.
 
-## 2. API và bảo mật
+## 2. Kiến trúc và thiết kế hệ thống
+
+### Kiến trúc hệ thống
+
+Ứng dụng được tổ chức theo các lớp API, service và repository. `AuthMiddleware` xử lý JWT Bearer; `RoleChecker` giới hạn thao tác quản trị. Dữ liệu được truy cập bất đồng bộ qua SQLAlchemy tới PostgreSQL. Thanh toán hiện được mô phỏng, chưa kết nối cổng bên ngoài.
+
+![Sơ đồ kiến trúc hệ thống Cinema Booking](docs/images/architecture.svg)
+
+Mã nguồn sơ đồ: [architecture.puml](docs/diagrams/architecture.puml).
+
+### Thiết kế cơ sở dữ liệu
+
+Cơ sở dữ liệu gồm người dùng, phim, suất chiếu, booking, lượt giữ ghế, các ghế trong lượt giữ và thanh toán. Quan hệ và thuộc tính trong sơ đồ phản ánh các model hiện tại; `payments.hold_id` chưa khai báo khóa ngoại và booking chưa có ràng buộc duy nhất cho một ghế trong một suất chiếu.
+
+![Sơ đồ mô hình dữ liệu Cinema Booking](docs/images/database.svg)
+
+Mã nguồn sơ đồ: [database.puml](docs/diagrams/database.puml).
+
+## 3. API và bảo mật
 
 API dùng REST và JSON. Khi ứng dụng đang chạy, tài liệu tương tác có tại [Swagger UI](http://localhost:8000/docs). 
 Đặc tả api [api-reference.md](docs/api-reference.md).
@@ -29,7 +47,7 @@ API dùng REST và JSON. Khi ứng dụng đang chạy, tài liệu tương tác
 
 Mật khẩu được băm trước khi lưu. API dùng Bearer JWT; booking, hold và payment chỉ được truy cập bởi chủ sở hữu.
 
-## 3. Kiến trúc và tổ chức mã nguồn
+## 4. Kiến trúc và tổ chức mã nguồn
 
 Request đi từ API qua service và repository tới PostgreSQL. Các thư mục chính:
 
@@ -51,11 +69,11 @@ data/             # Dữ liệu mẫu
 
 Công nghệ chính: **FastAPI, SQLAlchemy async, PostgreSQL, Pydantic, JWT, Docker Compose và Locust**.
 
-## 4. Cài đặt và chạy
+## 5. Cài đặt và chạy
 
 Cách chạy bằng Docker hoặc Python, nạp dữ liệu mẫu và chạy kiểm thử được hướng dẫn trong [setup.md](docs/setup.md).
 
-## 5. Hướng phát triển
+## 6. Hướng phát triển
 
 Có thể mở rộng hệ thống theo các bước gần với chức năng hiện có:
 
@@ -65,7 +83,7 @@ Có thể mở rộng hệ thống theo các bước gần với chức năng hi
 - Gửi email xác nhận booking và tự giải phóng ghế hết hạn.
 - Tăng an toàn khi nhiều người cùng chọn một ghế bằng ràng buộc database.
 
-## 6. Demo Phase 1
+## 7. Demo Phase 1
 
 1. Mở Swagger UI và xem phim, suất chiếu, tình trạng ghế.
 2. Đăng ký hoặc đăng nhập để lấy JWT.
@@ -73,7 +91,7 @@ Có thể mở rộng hệ thống theo các bước gần với chức năng hi
 4. Xem booking/payment hoặc hủy booking.
 5. Đăng nhập bằng tài khoản ADMIN mẫu để tạo phim và suất chiếu.
 
-## 7. Kết quả kiểm thử tải trên Kaggle CPU
+## 8. Kết quả kiểm thử tải trên Kaggle CPU
 
 API, PostgreSQL và Locust chạy cùng máy Kaggle. Kịch bản dùng 50 người dùng ảo, tăng 5 người mỗi giây trong 60 giây.
 
@@ -90,7 +108,7 @@ API, PostgreSQL và Locust chạy cùng máy Kaggle. Kịch bản dùng 50 ngư�
 ![Dashboard kết quả kiểm thử tải trên Kaggle CPU](docs/images/kaggle-load-test-dashboard.png)
 
 
-## 8. Giới hạn hiện tại
+## 9. Giới hạn hiện tại
 
 - Thanh toán chỉ mô phỏng; chưa có cổng thanh toán, webhook hoặc hoàn tiền.
 - Chưa có giao diện đặt vé hoàn chỉnh, sơ đồ ghế, email thông báo hoặc worker nền.

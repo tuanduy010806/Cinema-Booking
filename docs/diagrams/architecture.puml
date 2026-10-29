@@ -1,0 +1,91 @@
+@startuml
+title Cinema Booking — kiến trúc hệ thống
+left to right direction
+skinparam backgroundColor #FAFBFD
+skinparam shadowing false
+skinparam roundcorner 14
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam ArrowColor #526579
+skinparam packageBorderColor #8A9BAD
+
+actor "Khách" as Guest
+actor "Người dùng" as User
+actor "Quản trị viên" as Admin
+
+rectangle "Ứng dụng Cinema Booking · FastAPI" as App {
+  package "HTTP API · /api/v1" #EAF2FB {
+    component "Auth API\n/api/v1/auth" as AuthAPI
+    component "Movies API\n/api/v1/movies" as MovieAPI
+    component "Showtimes API\n/api/v1/showtimes" as ShowtimeAPI
+    component "Bookings API\n/api/v1/bookings" as BookingAPI
+    component "Seat Holds API\n/api/v1/holds" as HoldAPI
+    component "Payments API\n/api/v1/payments" as PaymentAPI
+  }
+
+  package "Bảo mật & dữ liệu vào/ra" #FCE8E6 {
+    component "AuthMiddleware\nJWT Bearer" as Middleware
+    component "RoleChecker\nADMIN" as RoleCheck
+    component "Pydantic Schemas" as Schemas
+  }
+
+  package "Nghiệp vụ · Services" #E7F3E6 {
+    component "AuthService" as AuthSvc
+    component "MovieService" as MovieSvc
+    component "ShowtimeService" as ShowtimeSvc
+    component "BookingService" as BookingSvc
+    component "SeatHoldService\nTTL cấu hình (mặc định 300s)" as HoldSvc
+    component "PaymentService\nthanh toán mô phỏng" as PaymentSvc
+  }
+
+  package "Truy cập dữ liệu" #FFF3D6 {
+    component "Repositories" as Repos
+    component "Unit of Work\ncommit / rollback" as UoW
+    component "SQLAlchemy AsyncSession" as Session
+  }
+}
+
+database "PostgreSQL 16\ncinema_booking" as DB
+cloud "Cổng thanh toán\nchưa tích hợp" as ExternalPayment #F4F4F4
+
+Guest --> MovieAPI : HTTP / JSON
+Guest --> ShowtimeAPI : HTTP / JSON
+User --> AuthAPI : đăng ký / đăng nhập
+User --> BookingAPI : JWT
+User --> HoldAPI : JWT
+User --> PaymentAPI : JWT
+Admin --> MovieAPI : JWT · quản lý phim
+Admin --> ShowtimeAPI : JWT · tạo suất chiếu
+
+AuthAPI --> Middleware
+MovieAPI --> Middleware
+ShowtimeAPI --> Middleware
+BookingAPI --> Middleware
+HoldAPI --> Middleware
+PaymentAPI --> Middleware
+Middleware --> RoleCheck
+Middleware --> Schemas
+
+AuthAPI --> AuthSvc
+MovieAPI --> MovieSvc
+ShowtimeAPI --> ShowtimeSvc
+BookingAPI --> BookingSvc
+HoldAPI --> HoldSvc
+PaymentAPI --> PaymentSvc
+
+AuthSvc --> Repos
+MovieSvc --> Repos
+ShowtimeSvc --> Repos
+BookingSvc --> Repos
+HoldSvc --> Repos
+PaymentSvc --> Repos
+Repos --> Session
+UoW --> Session
+Session --> DB : SQL / asyncpg
+PaymentSvc ..> ExternalPayment : hiện chỉ mô phỏng
+
+note bottom of App
+  Các endpoint xem phim, suất chiếu và ghế có thể truy cập công khai.
+  Booking, giữ ghế và thanh toán yêu cầu JWT; người dùng chỉ thao tác dữ liệu của mình.
+end note
+@enduml

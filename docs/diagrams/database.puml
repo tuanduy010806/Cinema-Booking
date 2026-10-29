@@ -1,0 +1,99 @@
+@startuml
+title Cinema Booking — mô hình dữ liệu
+hide circle
+skinparam backgroundColor #FAFBFD
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam entity {
+  BackgroundColor #F2F4F7
+  BorderColor #39739D
+  HeaderBackgroundColor #326B93
+  HeaderFontColor white
+}
+
+entity "users" as users {
+  * user_id : INTEGER <<PK>>
+  --
+  email : VARCHAR <<UNIQUE>>
+  username : VARCHAR
+  password_hash : VARCHAR
+  role : VARCHAR
+}
+
+entity "movies" as movies {
+  * id : INTEGER <<PK>>
+  --
+  title : VARCHAR(255) <<INDEX>>
+  description : TEXT <<NULL>>
+  duration_minutes : INTEGER
+}
+
+entity "showtimes" as showtimes {
+  * id : INTEGER <<PK>>
+  --
+  movie_id : INTEGER <<FK, INDEX>>
+  start_time : DATETIME <<INDEX>>
+  total_seats : INTEGER
+}
+
+entity "bookings" as bookings {
+  * id : INTEGER <<PK>>
+  --
+  user_id : INTEGER <<FK>>
+  showtime_id : INTEGER <<FK>>
+  seat_number : VARCHAR
+  status : VARCHAR
+  created_at : DATETIME
+}
+
+entity "seat_holds" as seat_holds {
+  * id : INTEGER <<PK>>
+  --
+  user_id : INTEGER <<FK, INDEX>>
+  showtime_id : INTEGER <<FK, INDEX>>
+  status : VARCHAR(20)
+  created_at : DATETIME
+  expires_at : DATETIME <<INDEX>>
+}
+
+entity "seat_hold_seats" as hold_seats {
+  * id : INTEGER <<PK>>
+  --
+  hold_id : INTEGER <<FK, INDEX>>
+  seat_number : VARCHAR
+  booking_id : INTEGER <<FK, NULL, UNIQUE>>
+}
+
+entity "payments" as payments {
+  * id : INTEGER <<PK>>
+  --
+  hold_id : INTEGER <<UNIQUE>>
+  user_id : INTEGER <<FK, INDEX>>
+  amount : INTEGER
+  currency : VARCHAR(3)
+  status : VARCHAR(20)
+  created_at : DATETIME
+  paid_at : DATETIME <<NULL>>
+}
+
+movies ||--o{ showtimes : "có suất chiếu"
+users ||--o{ bookings : "đặt"
+showtimes ||--o{ bookings : "được đặt"
+users ||--o{ seat_holds : "giữ ghế"
+showtimes ||--o{ seat_holds : "có lượt giữ"
+seat_holds ||--|{ hold_seats : "gồm ghế"
+bookings o|--o| hold_seats : "liên kết booking"
+users ||--o{ payments : "thanh toán"
+
+note right of payments
+  hold_id có UNIQUE trong model hiện tại,
+  nhưng chưa khai báo ForeignKey tới seat_holds.id.
+  Sơ đồ thể hiện cấu trúc vật lý đúng như mã nguồn.
+end note
+
+note bottom of bookings
+  Không có ràng buộc UNIQUE cho (showtime_id, seat_number)
+  trong model hiện tại.
+end note
+@enduml
