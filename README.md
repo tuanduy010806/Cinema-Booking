@@ -10,7 +10,7 @@ Hệ thống cung cấp API để khách tra cứu phim và suất chiếu, ki�
 - **Người dùng (`USER`):** tạo booking, xem và hủy booking của mình; tạo, xem và giải phóng giữ ghế; thanh toán giữ ghế bằng luồng mô phỏng.
 - **Quản trị viên (`ADMIN`):** có quyền người dùng và được tạo/sửa/xóa phim, tạo suất chiếu.
 
-**Đã có trong mã nguồn:** xác thực JWT, phân quyền, quản lý phim và suất chiếu, tra cứu ghế, booking trực tiếp, giữ ghế có thời hạn, thanh toán mô phỏng và xem lịch sử booking/payment.
+**Tính năng hiện tại:** xác thực JWT, phân quyền, quản lý phim và suất chiếu, tra cứu ghế, booking trực tiếp, giữ ghế có thời hạn, thanh toán mô phỏng và xem lịch sử booking/payment.
 
 **Giới hạn hiện tại:** payment không kết nối cổng thanh toán thật; chưa có giao diện đặt vé hoàn chỉnh, sơ đồ ghế theo hàng/cột, email thông báo hay worker nền. Thời hạn giữ ghế được áp dụng khi API đọc/ghi dữ liệu, không cần worker để ghế hết hạn ngừng bị tính là đang giữ. Kiểm tra ghế hiện chủ yếu ở tầng ứng dụng; chưa có ràng buộc database thống nhất để ngăn mọi trường hợp đặt/giữ cùng ghế đồng thời.
 
