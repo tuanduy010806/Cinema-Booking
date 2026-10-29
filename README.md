@@ -114,3 +114,19 @@ API, PostgreSQL và Locust chạy cùng máy Kaggle. Kịch bản dùng 50 ngư�
 - Chưa có giao diện đặt vé hoàn chỉnh, sơ đồ ghế, email thông báo hoặc worker nền.
 - Nhiều yêu cầu đồng thời có thể cùng chọn một ghế vì kiểm tra hiện chủ yếu ở tầng ứng dụng.
 - Hold hết hạn được nhận biết khi API đọc/ghi dữ liệu; chưa có tác vụ nền để xử lý.
+
+## 10. Các vấn đề thiết kế cần lưu ý
+
+Bảng dưới đây ghi lại các giới hạn và rủi ro có trong phiên bản hiện tại, cùng vị trí liên quan trong mã nguồn.
+
+| # | Vấn đề | Vị trí hiện tại | Ảnh hưởng |
+| --- | --- | --- | --- |
+| 1 | **Race condition khi đặt hoặc giữ ghế** | `BookingService.create_booking` và `SeatHoldService.create_hold` kiểm tra booking/hold đang có trước khi ghi; hai request đồng thời không khóa ghế trong database. | Hai request có thể cùng vượt qua bước kiểm tra và giữ hoặc đặt cùng một ghế. Database chưa có ràng buộc duy nhất để chặn trường hợp này. |
+| 2 | **Thanh toán chỉ là mô phỏng** | `PaymentService.pay_for_hold` tự tạo payment trạng thái `succeeded`; chưa gọi cổng thanh toán. | Không có giao dịch tiền thật, xác nhận từ nhà cung cấp, webhook, hoàn tiền hoặc đối soát. |
+| 3 | **Không có tác vụ nền dọn hold hết hạn** | `SeatHoldService` kiểm tra `expires_at` khi đọc, giải phóng hoặc thanh toán; chưa có worker/scheduler. | Hold hết hạn có thể vẫn lưu `status = active` trong database cho tới khi có request cập nhật. Ghế vẫn được xem là trống theo thời gian hết hạn, nhưng dữ liệu trạng thái không được dọn chủ động. |
+| 4 | **Thiếu một số ràng buộc toàn vẹn ở database** | `Booking` không có unique constraint cho ghế theo suất chiếu; `Payment.hold_id` có `UNIQUE` nhưng không có `ForeignKey` tới `seat_holds.id`. | Logic ứng dụng là lớp bảo vệ chính khi chống đặt trùng; dữ liệu payment có thể tham chiếu tới hold không tồn tại nếu được ghi ngoài luồng hiện tại. |
+| 5 | **Idempotency chưa đồng nhất giữa các thao tác** | `POST /api/v1/bookings` và `POST /api/v1/holds` không nhận idempotency key. `PaymentService.pay_for_hold` có thể trả lại payment đã tạo khi retry cùng hold. | Nếu client mất phản hồi rồi gửi lại yêu cầu đặt/giữ ghế, API không trả lại kết quả ban đầu theo một khóa yêu cầu; client có thể nhận lỗi trùng ghế thay vì biết lần gọi trước đã thành công. Thanh toán cùng hold đã có xử lý retry riêng. |
+| 6 | **Chưa có cache cho dữ liệu đọc nhiều** | `MovieRepository.get_all`, `ShowtimeRepository.get_all` và `AuthMiddleware` truy vấn database mỗi lần gọi phù hợp. | Lưu lượng đọc lặp lại tiếp tục tải PostgreSQL, nhất là khi nhiều người cùng xem danh sách phim, suất chiếu hoặc gọi API có JWT. |
+| 7 | **Danh sách chưa phân trang** | Các API danh sách phim, suất chiếu, booking và payment trả toàn bộ kết quả; `ShowtimeService.get_seats` tạo danh sách cho toàn bộ ghế của suất chiếu. | Khi dữ liệu tăng, mỗi request cần đọc và trả nhiều hàng hơn, làm tăng thời gian phản hồi và bộ nhớ sử dụng. |
+| 8 | **JWT chưa có refresh/revoke** | `app/core/security.py` chỉ tạo access token có thời hạn; chưa có refresh token, blacklist hoặc endpoint logout thu hồi token. | Token đã cấp tiếp tục dùng được tới khi hết hạn, kể cả khi người dùng muốn đăng xuất hoặc thu hồi phiên sớm. |
+| 9 | **Giới hạn kết nối database cố định theo tiến trình** | `app/db/database.py` cấu hình `pool_size=10`, `max_overflow=20`. | Mỗi tiến trình API có thể mở tối đa 30 kết nối theo cấu hình này. Khi tăng số replica, tổng kết nối có thể tăng theo và vượt khả năng phục vụ của PostgreSQL nếu không điều chỉnh đồng bộ. |
