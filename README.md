@@ -47,7 +47,7 @@ API sử dụng REST và JSON. Khi ứng dụng chạy, tài liệu tương tác
 | `/api/v1/payments` | Người dùng đã đăng nhập | Thanh toán hold và xem lịch sử thanh toán |
 | `/api/v1/bookings` | Chủ booking | Xem và hủy booking của mình |
 
-Mật khẩu được băm trước khi lưu. Các route cần xác thực dùng Bearer JWT. Service kiểm tra quyền sở hữu hold, payment và booking theo người dùng hiện tại. Booking được tạo trong luồng thanh toán hold; API booking không có endpoint tạo booking trực tiếp.
+Mật khẩu được băm trước khi lưu. Các route cần xác thực dùng Bearer JWT. Service kiểm tra quyền sở hữu hold, payment và booking theo người dùng hiện tại. Booking được tạo trong luồng thanh toán hold.
 
 ## 4. Kiến trúc và tổ chức mã nguồn
 
@@ -75,7 +75,7 @@ Công nghệ chính: **FastAPI, SQLAlchemy async, PostgreSQL, Pydantic, JWT, Doc
 
 ## 5. Cài đặt và chạy
 
-Hướng dẫn chạy bằng Docker hoặc Python, nạp dữ liệu mẫu và các lưu ý khi dùng database hiện hữu nằm trong [setup.md](docs/setup.md). Container API tạo các bảng còn thiếu khi khởi động; dự án hiện chưa có migration để thay đổi cấu trúc bảng đã tồn tại.
+Hướng dẫn chạy bằng Docker hoặc Python, nạp dữ liệu mẫu và các lưu ý khi dùng database hiện hữu nằm trong [setup.md](docs/setup.md). 
 
 ## 6. Demo Phase 1
 
@@ -111,9 +111,9 @@ Các số liệu dưới đây là kết quả đo cũ, trước khi luồng gi�
 
 ## 9. Các gợi ý cải tiến cho Pha 2
 
-Hệ thống hiện đã có các cơ chế nền tảng cho giữ ghế, thanh toán, truy vấn và quản lý transaction. Khi cần xử lý tải lớn hoặc quy trình thực tế phức tạp hơn, có thể nâng cấp theo các hướng sau:
+Hệ thống hiện đã có các cơ chế nền tảng cho giữ ghế, thanh toán, truy vấn và quản lý transaction. Khi cần xử lý tải lớn hoặc quy trình thực tế phức tạp hơn, Pha 2 các nhóm có thể tham khảo nâng cấp theo các hướng sau:
 
-| # | Cơ chế hiện tại | Gợi ý cải tiến Pha 2 | Mục tiêu |
+|  | Cơ chế hiện tại | Gợi ý cải tiến Pha 2 | Mục tiêu |
 | --- | --- | --- | --- |
 | 1 | Các thao tác giữ, thanh toán và giải phóng ghế khóa dòng suất chiếu. | Chuyển sang quản lý tồn kho theo từng ghế hoặc khóa theo ghế; kết hợp ràng buộc duy nhất có điều kiện cho booking đang hoạt động. | Giảm tranh chấp giữa khách chọn ghế khác nhau và duy trì tính nhất quán khi nhiều request đồng thời. |
 | 2 | Thanh toán gửi lại cho cùng một hold có thể trả về kết quả đã tạo. | Mở rộng idempotency key cho toàn bộ thao tác tạo hold và thanh toán, lưu trạng thái yêu cầu với ràng buộc duy nhất. | Chịu được retry do timeout hoặc mất kết nối mà không tạo giao dịch lặp. |
