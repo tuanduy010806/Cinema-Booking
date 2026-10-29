@@ -31,7 +31,6 @@ ADMIN tạo phim, sau đó tạo suất chiếu cho phim đã có và khai báo 
 5. Thanh toán demo qua `POST /api/v1/payments` tạo payment và booking tương ứng. Mức tiền do backend cấu hình qua `DEMO_PAYMENT_AMOUNT_VND`, không nhận giá tùy ý từ client. Gửi lại yêu cầu thanh toán cho hold đã thanh toán trả lại kết quả cũ.
 6. Người dùng xem booking tại `GET /api/v1/bookings/me` và payment tại `GET /api/v1/payments/me`. Hủy booking là đổi trạng thái, không xóa bản ghi.
 
-Các lần ghi nhiều bản ghi trong luồng booking/payment được thực hiện qua cùng session và transaction. Tuy vậy, kiểm tra ghế trống rồi ghi booking/hold có thể gặp race condition khi nhiều request đồng thời; mô hình hiện tại chưa có constraint duy nhất bảo đảm một ghế chỉ thuộc một booking/hold active.
 
 ### 2.3. Xác thực và phân quyền
 
