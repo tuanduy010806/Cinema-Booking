@@ -85,21 +85,25 @@ Hướng dẫn chạy bằng Docker hoặc Python, nạp dữ liệu mẫu và c
 4. Thanh toán mô phỏng cho hold; booking được tạo khi payment thành công.
 5. Xem hoặc hủy booking; tài khoản ADMIN có thể quản lý phim và tạo suất chiếu.
 
-## 7. Số liệu kiểm thử tải đã ghi nhận
+## 7. Kết quả kiểm thử tải trên Kaggle
 
-Các số liệu dưới đây là kết quả đo cũ, trước khi luồng giữ ghế → thanh toán → booking được chuẩn hóa. Kịch bản `load_test/load_test.py` hiện dùng API đăng ký, xem suất/ghế, giữ và giải phóng ghế, thanh toán hold, rồi xem booking/payment. Cần chạy lại kịch bản để có số liệu đánh giá luồng hiện tại. Lần đo cũ chạy API, PostgreSQL và Locust cùng máy Kaggle, dùng 50 người dùng ảo, tăng 5 người mỗi giây trong 60 giây.
+ Bài kiểm thử chạy FastAPI, PostgreSQL và Locust trên cùng Kaggle VM (4 CPU cores, 31,35 GB RAM), với 50 người dùng ảo, tốc độ tăng 5 người dùng/giây trong 60 giây. 
+ 
+ Kịch bản Locust kiểm tra luồng đăng ký, truy vấn phim/suất chiếu/ghế, giữ ghế, thanh toán và xem booking/payment.
 
 | Chỉ số | Kết quả |
 | --- | ---: |
-| Tổng request | 5.908 |
+| Tổng request | 7.228 |
 | Request lỗi | 0 (0%) |
-| Thông lượng trung bình | 99,39 request/giây |
-| Độ trễ trung bình | 346,75 ms |
-| p50 / p95 / p99 | 290 / 650 / 1.200 ms |
-| CPU trung bình / cao nhất | 49,2% / 78,2% |
-| RAM trung bình / cao nhất | 1.231 / 1.467 MB |
+| Throughput trung bình | 123,28 request/giây |
+| Độ trễ trung bình | 241,97 ms |
+| p50 / p95 / p99 | 180 / 640 / 1.400 ms |
+| CPU trung bình / đỉnh | 45,7% / 68,1% |
+| RAM trung bình / đỉnh | 1.195,0 / 1.382,6 MB |
+| RAM tăng thêm so với ban đầu | 306,3 MB |
+| Kết nối DB đồng thời cao nhất | 31 |
 
-![Dashboard kết quả kiểm thử tải trên Kaggle CPU](docs/images/kaggle-load-test-dashboard.png)
+![Dashboard kết quả kiểm thử tải trên Kaggle](docs/images/kaggle-load-test-dashboard.png)
 
 ## 8. Giới hạn hiện tại
 
