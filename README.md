@@ -100,7 +100,6 @@ Hướng dẫn chạy bằng Docker hoặc Python, nạp dữ liệu mẫu và c
 | p50 / p95 / p99 | 180 / 640 / 1.400 ms |
 | CPU trung bình / đỉnh | 45,7% / 68,1% |
 | RAM trung bình / đỉnh | 1.195,0 / 1.382,6 MB |
-| RAM tăng thêm so với ban đầu | 306,3 MB |
 | Kết nối DB đồng thời cao nhất | 31 |
 
 ![Dashboard kết quả kiểm thử tải trên Kaggle](docs/images/kaggle-load-test-dashboard.png)
